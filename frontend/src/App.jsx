@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { supabase } from './utils/supabase'
 import TeamCodeEntry from './pages/TeamCodeEntry'
 import Demographics from './pages/Demographics'
+import STSS from './pages/STSS'
 
 function App() {
   const [teamCodeData, setTeamCodeData] = useState(null)
@@ -43,7 +44,12 @@ function App() {
   const handleDemographicsComplete = () => {
     console.log('Demographics completed!')
     setCurrentStep('stss')
-    // TODO: Build STSS assessment next
+  }
+
+  const handleSTSSComplete = () => {
+    console.log('STSS completed!')
+    setCurrentStep('proqol')
+    // TODO: Build ProQOL assessment next
   }
 
   return (
@@ -61,9 +67,17 @@ function App() {
       )}
 
       {currentStep === 'stss' && (
+        <STSS
+          teamCodeData={teamCodeData}
+          assessmentResponseId={assessmentResponseId}
+          onComplete={handleSTSSComplete}
+        />
+      )}
+
+      {currentStep === 'proqol' && (
         <div style={{ padding: '40px', textAlign: 'center' }}>
-          <h1>✅ Demographics Complete!</h1>
-          <p>Next: STSS Assessment (we'll build this next!)</p>
+          <h1>✅ STSS Complete!</h1>
+          <p>Next: ProQOL Assessment (we'll build this next!)</p>
         </div>
       )}
     </div>
