@@ -152,49 +152,69 @@
   background: #f3f4f6;
   border-radius: 8px;
   padding: 1.25rem;
-  margin-bottom: 2rem;
+  margin-bottom: 1.5rem;
 }
 
 .main-instruction {
   margin: 0;
   color: #1f2937;
-  font-weight: 500;
   line-height: 1.6;
+  white-space: pre-line;
 }
 
 .response-scale {
   background: #e0f2f1;
-  border: 1px solid #00A79D;
+  border: 2px solid #00A79D;
   border-radius: 8px;
-  padding: 1rem;
-  margin-bottom: 2rem;
+  padding: 1.25rem;
+  margin-bottom: 1.5rem;
 }
 
 .scale-labels {
   display: flex;
   justify-content: space-around;
   flex-wrap: wrap;
-  gap: 0.5rem;
+  gap: 1rem;
 }
 
 .scale-label {
-  font-size: 0.75rem;
+  font-size: 0.875rem;
   color: #0E1F56;
   font-weight: 500;
   text-align: center;
 }
 
+.scale-label strong {
+  font-size: 1.125rem;
+  margin-right: 0.25rem;
+}
+
+.domain-progress {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  border-radius: 6px;
+  padding: 0.75rem 1rem;
+  margin-bottom: 1.5rem;
+  font-size: 0.875rem;
+  color: #1e40af;
+  font-weight: 500;
+}
+
+.questions-progress {
+  color: #6b7280;
+  font-size: 0.8rem;
+}
+
 .domain-section {
-  margin-bottom: 3rem;
-  border: 2px solid #e5e7eb;
-  border-radius: 12px;
-  padding: 1.5rem;
-  background: #fafafa;
+  margin-bottom: 2rem;
 }
 
 .domain-header {
   margin-bottom: 1.5rem;
-  border-bottom: 2px solid #00A79D;
+  border-bottom: 3px solid #00A79D;
   padding-bottom: 1rem;
 }
 
@@ -211,6 +231,32 @@
   font-weight: 500;
   text-transform: uppercase;
   letter-spacing: 0.5px;
+}
+
+.domain-scale-reminder {
+  background: #f0fdfa;
+  border: 1px solid #5eead4;
+  border-radius: 6px;
+  padding: 0.75rem;
+  margin-bottom: 1.5rem;
+}
+
+.scale-labels-compact {
+  display: flex;
+  justify-content: space-around;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+.scale-compact {
+  font-size: 0.8rem;
+  color: #0E1F56;
+  font-weight: 500;
+}
+
+.scale-compact strong {
+  font-size: 0.9rem;
+  margin-right: 0.25rem;
 }
 
 .questions-container {
@@ -294,10 +340,13 @@
   padding-top: 1.5rem;
   border-top: 2px solid #e5e7eb;
   margin-top: 2rem;
+  gap: 1rem;
 }
 
 .completion-status {
   font-size: 0.875rem;
+  text-align: center;
+  flex: 1;
 }
 
 .status-complete {
@@ -309,7 +358,29 @@
   color: #6b7280;
 }
 
-.form-actions button {
+.nav-button {
+  background: #f3f4f6;
+  color: #374151;
+  border: 1px solid #d1d5db;
+  padding: 0.75rem 1.5rem;
+  border-radius: 8px;
+  font-size: 0.95rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s;
+}
+
+.nav-button:hover:not(:disabled) {
+  background: #e5e7eb;
+  border-color: #9ca3af;
+}
+
+.nav-button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.form-actions button[type="submit"] {
   background: linear-gradient(135deg, #00A79D 0%, #0E1F56 100%);
   color: white;
   border: none;
@@ -321,12 +392,12 @@
   transition: all 0.3s;
 }
 
-.form-actions button:hover:not(:disabled) {
+.form-actions button[type="submit"]:hover:not(:disabled) {
   transform: translateY(-2px);
   box-shadow: 0 8px 20px rgba(0, 167, 157, 0.3);
 }
 
-.form-actions button:disabled {
+.form-actions button[type="submit"]:disabled {
   opacity: 0.5;
   cursor: not-allowed;
 }
@@ -369,17 +440,29 @@
     align-items: flex-start;
   }
 
+  .scale-labels-compact {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
   .form-actions {
     flex-direction: column;
     gap: 1rem;
     align-items: stretch;
   }
 
-  .form-actions button {
+  .nav-button,
+  .form-actions button[type="submit"] {
     width: 100%;
   }
 
   .domain-section {
     padding: 1rem;
+  }
+
+  .domain-progress {
+    flex-direction: column;
+    gap: 0.5rem;
+    text-align: center;
   }
 }

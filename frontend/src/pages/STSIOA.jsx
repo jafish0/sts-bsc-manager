@@ -12,6 +12,7 @@ import '../styles/STSIOA.css'
 
 function STSIOA({ teamCodeData, assessmentResponseId, onComplete }) {
   const [responses, setResponses] = useState({})
+  const [currentDomain, setCurrentDomain] = useState(1)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [showInfo, setShowInfo] = useState(false)
@@ -29,7 +30,6 @@ function STSIOA({ teamCodeData, assessmentResponseId, onComplete }) {
     STSIOA_DOMAINS.forEach(domain => {
       const domainTotal = domain.questions.reduce((sum, question) => {
         const response = responses[question.id]
-        // Only add to score if not N/A (0) and if answered
         return sum + (response && response > 0 ? response : 0)
       }, 0)
       domainScores[`domain_${domain.id}_score`] = domainTotal
@@ -40,7 +40,6 @@ function STSIOA({ teamCodeData, assessmentResponseId, onComplete }) {
 
   const calculateTotalScore = () => {
     return Object.values(responses).reduce((sum, value) => {
-      // Only count values > 0 (exclude N/A)
       return sum + (value > 0 ? value : 0)
     }, 0)
   }
@@ -49,9 +48,32 @@ function STSIOA({ teamCodeData, assessmentResponseId, onComplete }) {
     return STSIOA_DOMAINS.reduce((total, domain) => total + domain.questions.length, 0)
   }
 
+  const getCurrentDomainData = () => {
+    return STSIOA_DOMAINS.find(d => d.id === currentDomain)
+  }
+
+  const currentDomainQuestionsAnswered = () => {
+    const domain = getCurrentDomainData()
+    return domain.questions.every(q => responses[q.id] !== undefined)
+  }
+
   const allQuestionsAnswered = () => {
     const totalQuestions = getTotalQuestionCount()
     return Object.keys(responses).length === totalQuestions
+  }
+
+  const handleNext = () => {
+    if (currentDomain < 6) {
+      setCurrentDomain(currentDomain + 1)
+      window.scrollTo(0, 0)
+    }
+  }
+
+  const handlePrevious = () => {
+    if (currentDomain > 1) {
+      setCurrentDomain(currentDomain - 1)
+      window.scrollTo(0, 0)
+    }
   }
 
   const handleSubmit = async (e) => {
@@ -63,17 +85,14 @@ function STSIOA({ teamCodeData, assessmentResponseId, onComplete }) {
       const domainScores = calculateDomainScores()
       const totalScore = calculateTotalScore()
 
-      // Prepare individual item responses
       const itemResponses = {}
       STSIOA_DOMAINS.forEach(domain => {
         domain.questions.forEach(question => {
-          // Convert '1a' to 'item_1a'
           const itemKey = `item_${question.id}`
           itemResponses[itemKey] = responses[question.id] || 0
         })
       })
 
-      // Prepare data for database
       const stsioaData = {
         assessment_response_id: assessmentResponseId,
         ...itemResponses,
@@ -81,14 +100,12 @@ function STSIOA({ teamCodeData, assessmentResponseId, onComplete }) {
         total_score: totalScore
       }
 
-      // Insert into database
       const { error: insertError } = await supabase
         .from('stsioa_responses')
         .insert(stsioaData)
 
       if (insertError) throw insertError
 
-      // Update assessment_responses to mark STSIOA as complete and overall assessment as complete
       const { error: updateError } = await supabase
         .from('assessment_responses')
         .update({ 
@@ -99,7 +116,6 @@ function STSIOA({ teamCodeData, assessmentResponseId, onComplete }) {
 
       if (updateError) throw updateError
 
-      // Move to completion screen
       onComplete()
 
     } catch (err) {
@@ -108,6 +124,8 @@ function STSIOA({ teamCodeData, assessmentResponseId, onComplete }) {
       setLoading(false)
     }
   }
+
+  const domain = getCurrentDomainData()
 
   return (
     <div className="stsioa-container">
@@ -166,72 +184,113 @@ function STSIOA({ teamCodeData, assessmentResponseId, onComplete }) {
         </div>
 
         <div className="instructions">
-          <p className="main-instruction">{INSTRUCTIONS}</p>
+          <p className="main-instruction">
+            Secondary Traumatic Stress refers to the trauma symptoms caused by indirect exposure to traumatic material, transmitted during the process of helping or wanting to help a traumatized person. Resilience is an individual's ability to adapt to stress and adversity in a healthy manner. Organization, as used in this context, refers to the workplace setting that will be the target of this assessment.
+            {'\n\n'}
+            After reading each item, mark the corresponding box under the appropriate choice as to how the organization performs on that indicator: 1=Not at all; 2=Rarely; 3=Somewhat; 4=Mostly; 5=Completely; 0=N/A
+          </p>
+        </div>
+
+        <div className="domain-progress">
+          <span>Domain {currentDomain} of 6</span>
+          <span className="questions-progress">
+            {Object.keys(responses).length} of {getTotalQuestionCount()} total questions answered
+          </span>
         </div>
 
         <form onSubmit={handleSubmit}>
-          <div className="response-scale">
-            <div className="scale-labels">
-              {RESPONSE_OPTIONS.map(option => (
-                <div key={option.value} className="scale-label">
-                  {option.label}
+          <div className="domain-section">
+            <div className="domain-header">
+              <h3>Domain {domain.id}: {domain.name}</h3>
+              <p className="domain-subtitle">{domain.fullName}</p>
+            </div>
+
+            <div className="domain-scale-reminder">
+              <div className="scale-labels-compact">
+                {RESPONSE_OPTIONS.map(option => (
+                  <span key={option.value} className="scale-compact">
+                    <strong>{option.value}</strong>={option.label}
+                  </span>
+                ))}
+              </div>
+            </div>
+
+            <div className="questions-container">
+              {domain.questions.map((question) => (
+                <div key={question.id} className="stsioa-item">
+                  <div className="item-text">
+                    <span className="item-id">{question.id}.</span>
+                    <span className="item-content">{question.text}</span>
+                  </div>
+                  <div className="response-options">
+                    {RESPONSE_OPTIONS.map(option => (
+                      <label key={option.value} className="radio-option">
+                        <input
+                          type="radio"
+                          name={`item-${question.id}`}
+                          value={option.value}
+                          checked={responses[question.id] === option.value}
+                          onChange={(e) => handleResponseChange(question.id, e.target.value)}
+                          required
+                        />
+                        <span className="radio-label">{option.value === 0 ? 'N/A' : option.value}</span>
+                      </label>
+                    ))}
+                  </div>
                 </div>
               ))}
             </div>
           </div>
-
-          {STSIOA_DOMAINS.map((domain, domainIndex) => (
-            <div key={domain.id} className="domain-section">
-              <div className="domain-header">
-                <h3>Domain {domain.id}: {domain.name}</h3>
-                <p className="domain-subtitle">{domain.fullName}</p>
-              </div>
-
-              <div className="questions-container">
-                {domain.questions.map((question) => (
-                  <div key={question.id} className="stsioa-item">
-                    <div className="item-text">
-                      <span className="item-id">{question.id}.</span>
-                      <span className="item-content">{question.text}</span>
-                    </div>
-                    <div className="response-options">
-                      {RESPONSE_OPTIONS.map(option => (
-                        <label key={option.value} className="radio-option">
-                          <input
-                            type="radio"
-                            name={`item-${question.id}`}
-                            value={option.value}
-                            checked={responses[question.id] === option.value}
-                            onChange={(e) => handleResponseChange(question.id, e.target.value)}
-                            required
-                          />
-                          <span className="radio-label">{option.value === 0 ? 'N/A' : option.value}</span>
-                        </label>
-                      ))}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          ))}
 
           {error && (
             <div className="error-message">{error}</div>
           )}
 
           <div className="form-actions">
+            <button 
+              type="button" 
+              onClick={handlePrevious}
+              disabled={currentDomain === 1}
+              className="nav-button"
+            >
+              ← Previous Domain
+            </button>
+
             <div className="completion-status">
-              {allQuestionsAnswered() ? (
-                <span className="status-complete">✓ All questions answered</span>
+              {currentDomain < 6 ? (
+                currentDomainQuestionsAnswered() ? (
+                  <span className="status-complete">✓ Domain {currentDomain} complete</span>
+                ) : (
+                  <span className="status-incomplete">
+                    Complete all questions to continue
+                  </span>
+                )
               ) : (
-                <span className="status-incomplete">
-                  {Object.keys(responses).length} of {getTotalQuestionCount()} questions answered
-                </span>
+                allQuestionsAnswered() ? (
+                  <span className="status-complete">✓ All domains complete - ready to submit!</span>
+                ) : (
+                  <span className="status-incomplete">Complete all questions to submit</span>
+                )
               )}
             </div>
-            <button type="submit" disabled={loading || !allQuestionsAnswered()}>
-              {loading ? 'Saving...' : 'Complete Assessment →'}
-            </button>
+
+            {currentDomain < 6 ? (
+              <button 
+                type="button"
+                onClick={handleNext}
+                disabled={!currentDomainQuestionsAnswered()}
+                className="nav-button"
+              >
+                Next Domain →
+              </button>
+            ) : (
+              <button 
+                type="submit" 
+                disabled={loading || !allQuestionsAnswered()}
+              >
+                {loading ? 'Saving...' : 'Complete Assessment →'}
+              </button>
+            )}
           </div>
         </form>
       </div>
