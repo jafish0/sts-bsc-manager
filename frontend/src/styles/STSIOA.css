@@ -1,0 +1,385 @@
+.stsioa-container {
+  min-height: 100vh;
+  background: linear-gradient(135deg, #00A79D 0%, #0E1F56 100%);
+  padding: 2rem 1rem;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+}
+
+.stsioa-card {
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.1);
+  padding: 2.5rem;
+  max-width: 1000px;
+  width: 100%;
+  margin-bottom: 2rem;
+}
+
+.progress-bar {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 2rem;
+  padding-bottom: 1rem;
+  border-bottom: 2px solid #e5e7eb;
+}
+
+.progress-step {
+  font-size: 0.875rem;
+  color: #9ca3af;
+  font-weight: 500;
+}
+
+.progress-step.complete {
+  color: #10b981;
+}
+
+.progress-step.active {
+  color: #00A79D;
+  font-weight: 600;
+}
+
+.stsioa-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1.5rem;
+  gap: 1rem;
+}
+
+.stsioa-header h2 {
+  margin: 0;
+  color: #1f2937;
+  font-size: 1.75rem;
+}
+
+.info-toggle {
+  background: #f3f4f6;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  padding: 0.5rem 1rem;
+  font-size: 0.875rem;
+  cursor: pointer;
+  transition: all 0.2s;
+  color: #4b5563;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.info-toggle:hover {
+  background: #e5e7eb;
+  border-color: #9ca3af;
+}
+
+.stsioa-info-panel {
+  background: #f9fafb;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  padding: 1.5rem;
+  margin-bottom: 1.5rem;
+}
+
+.stsioa-info-panel h3 {
+  margin: 0 0 1rem 0;
+  color: #1f2937;
+  font-size: 1.25rem;
+}
+
+.stsioa-info-panel h4 {
+  margin: 1rem 0 0.5rem 0;
+  color: #374151;
+  font-size: 1rem;
+}
+
+.stsioa-info-panel p {
+  margin: 0.5rem 0;
+  color: #4b5563;
+  line-height: 1.6;
+}
+
+.domains-list {
+  margin: 0.5rem 0 1rem 1.5rem;
+  color: #4b5563;
+}
+
+.domains-list li {
+  margin: 0.5rem 0;
+  line-height: 1.6;
+}
+
+.definitions-section {
+  background: #eff6ff;
+  border-radius: 6px;
+  padding: 1rem;
+  margin-top: 1rem;
+}
+
+.definition-item {
+  margin: 0.75rem 0;
+  color: #1e40af;
+  line-height: 1.6;
+}
+
+.confidentiality-note {
+  background: #eff6ff;
+  border-left: 3px solid #3b82f6;
+  padding: 0.75rem;
+  margin-top: 1rem;
+  font-size: 0.875rem;
+}
+
+.copyright-notice {
+  background: #fef3c7;
+  border: 1px solid #fbbf24;
+  border-radius: 6px;
+  padding: 0.75rem 1rem;
+  margin-bottom: 1.5rem;
+  font-size: 0.875rem;
+}
+
+.copyright-notice p {
+  margin: 0.25rem 0;
+  color: #92400e;
+}
+
+.contact {
+  font-size: 0.75rem;
+  font-style: italic;
+}
+
+.instructions {
+  background: #f3f4f6;
+  border-radius: 8px;
+  padding: 1.25rem;
+  margin-bottom: 2rem;
+}
+
+.main-instruction {
+  margin: 0;
+  color: #1f2937;
+  font-weight: 500;
+  line-height: 1.6;
+}
+
+.response-scale {
+  background: #e0f2f1;
+  border: 1px solid #00A79D;
+  border-radius: 8px;
+  padding: 1rem;
+  margin-bottom: 2rem;
+}
+
+.scale-labels {
+  display: flex;
+  justify-content: space-around;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.scale-label {
+  font-size: 0.75rem;
+  color: #0E1F56;
+  font-weight: 500;
+  text-align: center;
+}
+
+.domain-section {
+  margin-bottom: 3rem;
+  border: 2px solid #e5e7eb;
+  border-radius: 12px;
+  padding: 1.5rem;
+  background: #fafafa;
+}
+
+.domain-header {
+  margin-bottom: 1.5rem;
+  border-bottom: 2px solid #00A79D;
+  padding-bottom: 1rem;
+}
+
+.domain-header h3 {
+  margin: 0 0 0.5rem 0;
+  color: #0E1F56;
+  font-size: 1.5rem;
+}
+
+.domain-subtitle {
+  margin: 0;
+  color: #6b7280;
+  font-size: 0.875rem;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.questions-container {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.stsioa-item {
+  background: white;
+  padding: 1.25rem;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  transition: all 0.2s;
+}
+
+.stsioa-item:hover {
+  border-color: #00A79D;
+  box-shadow: 0 2px 8px rgba(0, 167, 157, 0.1);
+}
+
+.item-text {
+  margin-bottom: 1rem;
+  display: flex;
+  gap: 0.5rem;
+  align-items: flex-start;
+}
+
+.item-id {
+  color: #6b7280;
+  font-weight: 600;
+  flex-shrink: 0;
+  min-width: 2rem;
+}
+
+.item-content {
+  color: #1f2937;
+  line-height: 1.6;
+}
+
+.response-options {
+  display: flex;
+  gap: 0.75rem;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+.radio-option {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  cursor: pointer;
+  padding: 0.5rem;
+  border-radius: 6px;
+  transition: background 0.2s;
+}
+
+.radio-option:hover {
+  background: #f9fafb;
+}
+
+.radio-option input[type="radio"] {
+  width: 1.25rem;
+  height: 1.25rem;
+  cursor: pointer;
+  accent-color: #00A79D;
+}
+
+.radio-label {
+  font-size: 0.875rem;
+  color: #374151;
+  font-weight: 500;
+  min-width: 2rem;
+  text-align: center;
+}
+
+.form-actions {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-top: 1.5rem;
+  border-top: 2px solid #e5e7eb;
+  margin-top: 2rem;
+}
+
+.completion-status {
+  font-size: 0.875rem;
+}
+
+.status-complete {
+  color: #10b981;
+  font-weight: 500;
+}
+
+.status-incomplete {
+  color: #6b7280;
+}
+
+.form-actions button {
+  background: linear-gradient(135deg, #00A79D 0%, #0E1F56 100%);
+  color: white;
+  border: none;
+  padding: 0.875rem 2rem;
+  border-radius: 8px;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s;
+}
+
+.form-actions button:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 20px rgba(0, 167, 157, 0.3);
+}
+
+.form-actions button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.error-message {
+  background: #fef2f2;
+  border: 1px solid #fca5a5;
+  color: #991b1b;
+  padding: 1rem;
+  border-radius: 6px;
+  margin-bottom: 1rem;
+}
+
+/* Mobile responsiveness */
+@media (max-width: 768px) {
+  .stsioa-card {
+    padding: 1.5rem;
+  }
+
+  .stsioa-header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .stsioa-header h2 {
+    font-size: 1.5rem;
+  }
+
+  .progress-bar {
+    flex-wrap: wrap;
+    gap: 0.5rem;
+  }
+
+  .response-options {
+    gap: 0.5rem;
+  }
+
+  .scale-labels {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .form-actions {
+    flex-direction: column;
+    gap: 1rem;
+    align-items: stretch;
+  }
+
+  .form-actions button {
+    width: 100%;
+  }
+
+  .domain-section {
+    padding: 1rem;
+  }
+}

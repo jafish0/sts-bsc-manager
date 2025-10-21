@@ -1,19 +1,20 @@
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { supabase } from './utils/supabase'
 import TeamCodeEntry from './pages/TeamCodeEntry'
 import Demographics from './pages/Demographics'
 import STSS from './pages/STSS'
+import STSIOA from './pages/STSIOA'
+import './App.css'
 
 function App() {
   const [teamCodeData, setTeamCodeData] = useState(null)
   const [assessmentResponseId, setAssessmentResponseId] = useState(null)
-  const [currentStep, setCurrentStep] = useState('code') // 'code', 'demographics', 'stss', 'proqol', 'stsioa', 'complete'
+  const [currentStep, setCurrentStep] = useState('code')
 
   const handleCodeValidated = async (codeData) => {
     console.log('Team code validated:', codeData)
     setTeamCodeData(codeData)
 
-    // Create a new assessment_response record
     try {
       const { data, error } = await supabase
         .from('assessment_responses')
@@ -48,8 +49,12 @@ function App() {
 
   const handleSTSSComplete = () => {
     console.log('STSS completed!')
-    setCurrentStep('proqol')
-    // TODO: Build ProQOL assessment next
+    setCurrentStep('stsioa')
+  }
+
+  const handleSTSIOAComplete = () => {
+    console.log('STSI-OA completed!')
+    setCurrentStep('complete')
   }
 
   return (
@@ -74,10 +79,43 @@ function App() {
         />
       )}
 
-      {currentStep === 'proqol' && (
-        <div style={{ padding: '40px', textAlign: 'center' }}>
-          <h1>✅ STSS Complete!</h1>
-          <p>Next: ProQOL Assessment (we'll build this next!)</p>
+      {currentStep === 'stsioa' && (
+        <STSIOA
+          teamCodeData={teamCodeData}
+          assessmentResponseId={assessmentResponseId}
+          onComplete={handleSTSIOAComplete}
+        />
+      )}
+
+      {currentStep === 'complete' && (
+        <div className="completion-container">
+          <div className="completion-card">
+            <div className="completion-icon">✓</div>
+            <h1>Assessment Complete!</h1>
+            <p className="completion-message">
+              Thank you for taking the time to complete this comprehensive assessment. 
+              Your responses will help your organization better understand and address 
+              Secondary Traumatic Stress in the workplace.
+            </p>
+            <div className="completion-details">
+              <p>
+                <strong>What happens next:</strong>
+              </p>
+              <ul>
+                <li>Your responses have been securely saved</li>
+                <li>Your organization's leadership team will review aggregated results</li>
+                <li>You may be invited to participate in follow-up assessments to track progress over time</li>
+              </ul>
+            </div>
+            <p className="completion-footer">
+              Your commitment to this process demonstrates your organization's dedication 
+              to creating a trauma-informed workplace that supports staff wellbeing.
+            </p>
+            <p className="completion-contact">
+              Questions? Contact your organizational leadership or reach out to 
+              <strong> sprang@uky.edu</strong>
+            </p>
+          </div>
         </div>
       )}
     </div>
