@@ -5,6 +5,8 @@ import Demographics from './pages/Demographics'
 import STSS from './pages/STSS'
 import ProQOL from './pages/ProQOL'
 import STSIOA from './pages/STSIOA'
+import ctacLogo from './assets/UKCTAC_logoasuite_web__primary_tagline_color.png'
+import ukLogo from './assets/UK_Lockup-286.png'
 
 function App() {
   const [teamCodeData, setTeamCodeData] = useState(null)
@@ -109,7 +111,7 @@ function App() {
       {currentStep === 'complete' && (
         <div style={{ 
           minHeight: '100vh',
-          background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+          background: 'linear-gradient(135deg, #00A79D 0%, #0E1F56 100%)',
           display: 'flex',
           justifyContent: 'center',
           alignItems: 'center',
@@ -118,19 +120,40 @@ function App() {
           <div style={{
             background: 'white',
             borderRadius: '12px',
-            padding: '3rem',
-            maxWidth: '600px',
+            padding: '3rem 2.5rem',
+            maxWidth: '700px',
+            width: '100%',
             textAlign: 'center',
             boxShadow: '0 10px 40px rgba(0, 0, 0, 0.1)'
           }}>
-            <h1 style={{ color: '#1f2937', marginBottom: '1rem' }}>✅ Assessment Complete!</h1>
-            <p style={{ color: '#4b5563', fontSize: '1.125rem', lineHeight: '1.6' }}>
+            <div style={{ marginBottom: '2rem' }}>
+              <img 
+                src={ctacLogo} 
+                alt="Center on Trauma and Children" 
+                style={{ maxWidth: '255px', width: '100%', height: 'auto' }}
+              />
+            </div>
+
+            <h1 style={{ color: '#0E1F56', marginBottom: '1rem', fontSize: '2rem' }}>
+              ✅ Assessment Complete!
+            </h1>
+            
+            <p style={{ color: '#4b5563', fontSize: '1.125rem', lineHeight: '1.6', marginBottom: '2rem' }}>
               Thank you for completing the assessments. Your responses have been saved and will help 
               your organization better understand and support staff wellbeing.
             </p>
-            <p style={{ color: '#6b7280', fontSize: '0.875rem', marginTop: '1.5rem' }}>
-              You may now close this window.
-            </p>
+
+            <div style={{ 
+              marginTop: '2.5rem',
+              paddingTop: '2rem',
+              borderTop: '2px solid #e5e7eb'
+            }}>
+              <img 
+                src={ukLogo} 
+                alt="University of Kentucky" 
+                style={{ maxWidth: '250px', width: '100%', height: 'auto' }}
+              />
+            </div>
           </div>
         </div>
       )}

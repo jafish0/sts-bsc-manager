@@ -126,6 +126,11 @@ function ProQOL({ teamCodeData, assessmentResponseId, onComplete }) {
     }
   }
 
+  // Helper function to determine if we should show scale header
+  const shouldShowScaleHeader = (index) => {
+    return index === 0 || index === 6 || index === 12 || index === 18 || index === 24
+  }
+
   return (
     <div className="proqol-container">
       <div className="proqol-card">
@@ -184,37 +189,41 @@ function ProQOL({ teamCodeData, assessmentResponseId, onComplete }) {
         </div>
 
         <form onSubmit={handleSubmit}>
-          <div className="response-scale">
-            <div className="scale-labels">
-              {RESPONSE_OPTIONS.map(option => (
-                <div key={option.value} className="scale-label">
-                  <strong>{option.value}</strong> = {option.label}
-                </div>
-              ))}
-            </div>
-          </div>
-
           <div className="items-container">
             {PROQOL_ITEMS.map((item, index) => (
-              <div key={item.id} className="proqol-item">
-                <div className="item-text">
-                  <span className="item-number">{index + 1}.</span>
-                  <span className="item-content">{item.text}</span>
-                </div>
-                <div className="response-options">
-                  {RESPONSE_OPTIONS.map(option => (
-                    <label key={option.value} className="radio-option">
-                      <input
-                        type="radio"
-                        name={`item-${item.id}`}
-                        value={option.value}
-                        checked={responses[item.id] === option.value}
-                        onChange={(e) => handleResponseChange(item.id, e.target.value)}
-                        required
-                      />
-                      <span className="radio-label">{option.value}</span>
-                    </label>
-                  ))}
+              <div key={item.id}>
+                {shouldShowScaleHeader(index) && (
+                  <div className="response-scale">
+                    <div className="scale-labels">
+                      {RESPONSE_OPTIONS.map(option => (
+                        <div key={option.value} className="scale-label">
+                          <strong>{option.value}</strong> = {option.label}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                
+                <div className="proqol-item">
+                  <div className="item-text">
+                    <span className="item-number">{index + 1}.</span>
+                    <span className="item-content">{item.text}</span>
+                  </div>
+                  <div className="response-options">
+                    {RESPONSE_OPTIONS.map(option => (
+                      <label key={option.value} className="radio-option">
+                        <input
+                          type="radio"
+                          name={`item-${item.id}`}
+                          value={option.value}
+                          checked={responses[item.id] === option.value}
+                          onChange={(e) => handleResponseChange(item.id, e.target.value)}
+                          required
+                        />
+                        <span className="radio-label">{option.value}</span>
+                      </label>
+                    ))}
+                  </div>
                 </div>
               </div>
             ))}

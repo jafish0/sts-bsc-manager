@@ -1,44 +1,39 @@
 import { useState } from 'react'
 import { supabase } from '../utils/supabase'
 import '../styles/TeamCodeEntry.css'
+import ctacLogo from '../assets/UKCTAC_logoasuite_web__primary_tagline_color.png'
+import ukLogo from '../assets/UK_Lockup-286.png'
 
 function TeamCodeEntry({ onCodeValidated }) {
   const [teamCode, setTeamCode] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
 
-  const validateTeamCode = async (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault()
     setLoading(true)
     setError('')
 
     try {
-      // Query the team_codes table to validate the code
-      const { data, error: supabaseError } = await supabase
+      // Query the team_codes table
+      const { data, error: queryError } = await supabase
         .from('team_codes')
-        .select('id, code, timepoint, team_id, active, expires_at')
-        .eq('code', teamCode.trim().toUpperCase())
+        .select('*')
+        .eq('code', teamCode.toUpperCase())
         .eq('active', true)
         .single()
 
-      if (supabaseError || !data) {
-        setError('Invalid team code. Please check and try again.')
+      if (queryError || !data) {
+        setError('Invalid team code. Please check your code and try again.')
         setLoading(false)
         return
       }
 
-      // Check if code is expired
-      if (data.expires_at && new Date(data.expires_at) < new Date()) {
-        setError('This team code has expired. Please contact your administrator.')
-        setLoading(false)
-        return
-      }
-
-      // Code is valid! Pass the data to parent component
+      // Valid code found
       onCodeValidated(data)
-      
+
     } catch (err) {
-      console.error('Error validating code:', err)
+      console.error('Error validating team code:', err)
       setError('An error occurred. Please try again.')
       setLoading(false)
     }
@@ -47,58 +42,51 @@ function TeamCodeEntry({ onCodeValidated }) {
   return (
     <div className="team-code-container">
       <div className="team-code-card">
-        <div className="header">
-          <h1>STS Assessment Portal</h1>
-          <p className="subtitle">Secondary Traumatic Stress Breakthrough Series Collaborative</p>
+        <div className="logo-top">
+          <img src={ctacLogo} alt="Center on Trauma and Children" />
         </div>
 
-        <div className="content">
-          <h2>Welcome!</h2>
-          <p>
-            Thank you for participating in this assessment. Your responses are completely 
-            <strong> anonymous</strong> and will help your organization understand and address 
-            secondary traumatic stress.
-          </p>
+        <h1>STS-BSC Assessment</h1>
+        <p className="subtitle">
+          Secondary Traumatic Stress Breakthrough Series Collaborative
+        </p>
 
-          <form onSubmit={validateTeamCode}>
-            <div className="form-group">
-              <label htmlFor="teamCode">Enter Your Team Code</label>
-              <input
-                type="text"
-                id="teamCode"
-                value={teamCode}
-                onChange={(e) => setTeamCode(e.target.value)}
-                placeholder="e.g., ABC-AGENCY-2025"
-                disabled={loading}
-                required
-              />
-              <small>Your team leader should have provided this code</small>
-            </div>
+        <p className="instructions">
+          Welcome! Please enter your team code to begin the assessment.
+        </p>
 
-            {error && (
-              <div className="error-message">
-                {error}
-              </div>
-            )}
-
-            <button type="submit" disabled={loading || !teamCode.trim()}>
-              {loading ? 'Validating...' : 'Begin Assessment'}
-            </button>
-          </form>
-
-          <div className="info-box">
-            <h3>What to expect:</h3>
-            <ul>
-              <li>The assessment takes approximately 15-20 minutes</li>
-              <li>Your responses are completely anonymous</li>
-              <li>You can complete it in one session</li>
-              <li>All questions are required</li>
-            </ul>
+        <form onSubmit={handleSubmit}>
+          <div className="form-group">
+            <label htmlFor="teamCode">Team Code</label>
+            <input
+              type="text"
+              id="teamCode"
+              value={teamCode}
+              onChange={(e) => setTeamCode(e.target.value.toUpperCase())}
+              placeholder="Enter your team code"
+              required
+              disabled={loading}
+            />
           </div>
+
+          {error && (
+            <div className="error-message">{error}</div>
+          )}
+
+          <button type="submit" disabled={loading || !teamCode}>
+            {loading ? 'Validating...' : 'Begin Assessment →'}
+          </button>
+        </form>
+
+        <div className="info-box">
+          <p>
+            <strong>Note:</strong> This assessment will take approximately 20-25 minutes to complete.
+            Please ensure you have enough time to finish in one sitting.
+          </p>
         </div>
 
-        <div className="footer">
-          <p>University of Kentucky - Center on Trauma & Children</p>
+        <div className="logo-bottom">
+          <img src={ukLogo} alt="University of Kentucky" />
         </div>
       </div>
     </div>

@@ -5,7 +5,6 @@ import {
   STSS_INFO,
   RESPONSE_OPTIONS,
   STSS_ITEMS,
-  TIMEFRAME_NOTE,
   INSTRUCTIONS
 } from '../config/stss'
 import '../styles/STSS.css'
@@ -24,7 +23,6 @@ function STSS({ teamCodeData, assessmentResponseId, onComplete }) {
   }
 
   const calculateScores = () => {
-    // Calculate subscale scores
     const intrusionItems = STSS_ITEMS.filter(item => item.subscale === 'intrusion')
     const avoidanceItems = STSS_ITEMS.filter(item => item.subscale === 'avoidance')
     const arousalItems = STSS_ITEMS.filter(item => item.subscale === 'arousal')
@@ -54,7 +52,6 @@ function STSS({ teamCodeData, assessmentResponseId, onComplete }) {
     try {
       const scores = calculateScores()
 
-      // Prepare data for database - match the database schema with individual item columns
       const stssData = {
         assessment_response_id: assessmentResponseId,
         item_1: responses[1],
@@ -77,14 +74,12 @@ function STSS({ teamCodeData, assessmentResponseId, onComplete }) {
         ...scores
       }
 
-      // Insert into database
       const { error: insertError } = await supabase
         .from('stss_responses')
         .insert(stssData)
 
       if (insertError) throw insertError
 
-      // Update assessment_responses to mark STSS as complete
       const { error: updateError } = await supabase
         .from('assessment_responses')
         .update({ stss_complete: true })
@@ -92,7 +87,6 @@ function STSS({ teamCodeData, assessmentResponseId, onComplete }) {
 
       if (updateError) throw updateError
 
-      // Move to next assessment
       onComplete()
 
     } catch (err) {
@@ -100,6 +94,11 @@ function STSS({ teamCodeData, assessmentResponseId, onComplete }) {
       setError('An error occurred saving your responses. Please try again.')
       setLoading(false)
     }
+  }
+
+  // Helper function to determine if we should show scale header
+  const shouldShowScaleHeader = (index) => {
+    return index === 0 || index === 6 || index === 12
   }
 
   return (
@@ -129,16 +128,16 @@ function STSS({ teamCodeData, assessmentResponseId, onComplete }) {
             <p>{STSS_INFO.description}</p>
             <p>{STSS_INFO.purpose}</p>
             
-            <h4>{STSS_INFO.scoring}</h4>
+            <h4>The three subscales are:</h4>
             <ul className="subscales-list">
               {STSS_INFO.subscales.map((subscale, index) => (
                 <li key={index}>
-                  <strong>{subscale.name}:</strong> {subscale.description} ({subscale.range})
+                  <strong>{subscale.name}:</strong> {subscale.description}
                 </li>
               ))}
             </ul>
             
-            <p><strong>Total Score:</strong> {STSS_INFO.totalRange}</p>
+            <p><strong>Scoring:</strong> {STSS_INFO.scoring}</p>
             <p className="confidentiality-note">{STSS_INFO.confidentiality}</p>
           </div>
         )}
@@ -150,41 +149,44 @@ function STSS({ teamCodeData, assessmentResponseId, onComplete }) {
 
         <div className="instructions">
           <p className="main-instruction">{INSTRUCTIONS}</p>
-          <p className="timeframe-note">{TIMEFRAME_NOTE}</p>
         </div>
 
         <form onSubmit={handleSubmit}>
-          <div className="response-scale">
-            <div className="scale-labels">
-              {RESPONSE_OPTIONS.map(option => (
-                <div key={option.value} className="scale-label">
-                  <strong>{option.value}</strong> = {option.label}
-                </div>
-              ))}
-            </div>
-          </div>
-
           <div className="items-container">
             {STSS_ITEMS.map((item, index) => (
-              <div key={item.id} className="stss-item">
-                <div className="item-text">
-                  <span className="item-number">{index + 1}.</span>
-                  <span className="item-content">{item.text}</span>
-                </div>
-                <div className="response-options">
-                  {RESPONSE_OPTIONS.map(option => (
-                    <label key={option.value} className="radio-option">
-                      <input
-                        type="radio"
-                        name={`item-${item.id}`}
-                        value={option.value}
-                        checked={responses[item.id] === option.value}
-                        onChange={(e) => handleResponseChange(item.id, e.target.value)}
-                        required
-                      />
-                      <span className="radio-label">{option.value}</span>
-                    </label>
-                  ))}
+              <div key={item.id}>
+                {shouldShowScaleHeader(index) && (
+                  <div className="response-scale">
+                    <div className="scale-labels">
+                      {RESPONSE_OPTIONS.map(option => (
+                        <div key={option.value} className="scale-label">
+                          <strong>{option.value}</strong> = {option.label}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                
+                <div className="stss-item">
+                  <div className="item-text">
+                    <span className="item-number">{index + 1}.</span>
+                    <span className="item-content">{item.text}</span>
+                  </div>
+                  <div className="response-options">
+                    {RESPONSE_OPTIONS.map(option => (
+                      <label key={option.value} className="radio-option">
+                        <input
+                          type="radio"
+                          name={`item-${item.id}`}
+                          value={option.value}
+                          checked={responses[item.id] === option.value}
+                          onChange={(e) => handleResponseChange(item.id, e.target.value)}
+                          required
+                        />
+                        <span className="radio-label">{option.value}</span>
+                      </label>
+                    ))}
+                  </div>
                 </div>
               </div>
             ))}

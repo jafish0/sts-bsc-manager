@@ -1,6 +1,6 @@
 .stss-container {
   min-height: 100vh;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: linear-gradient(135deg, #0E1F56 0%, #1e3a8a 100%);
   padding: 2rem 1rem;
   display: flex;
   justify-content: center;
@@ -35,7 +35,7 @@
 }
 
 .progress-step.active {
-  color: #667eea;
+  color: #0E1F56;
   font-weight: 600;
 }
 
@@ -81,12 +81,6 @@
   margin: 0 0 1rem 0;
   color: #1f2937;
   font-size: 1.25rem;
-}
-
-.stss-info-panel h4 {
-  margin: 1rem 0 0.5rem 0;
-  color: #374151;
-  font-size: 1rem;
 }
 
 .stss-info-panel p {
@@ -140,23 +134,15 @@
 }
 
 .main-instruction {
-  margin: 0 0 0.75rem 0;
+  margin: 0;
   color: #1f2937;
   font-weight: 500;
   line-height: 1.6;
 }
 
-.timeframe-note {
-  margin: 0;
-  color: #6b7280;
-  font-size: 0.875rem;
-  line-height: 1.5;
-  font-style: italic;
-}
-
 .response-scale {
-  background: #eff6ff;
-  border: 1px solid #bfdbfe;
+  background: #dbeafe;
+  border: 1px solid #0E1F56;
   border-radius: 8px;
   padding: 1rem;
   margin-bottom: 1.5rem;
@@ -171,7 +157,8 @@
 
 .scale-label {
   font-size: 0.875rem;
-  color: #1e40af;
+  color: #0E1F56;
+  font-weight: 500;
 }
 
 .scale-label strong {
@@ -192,8 +179,8 @@
 }
 
 .stss-item:hover {
-  border-color: #667eea;
-  box-shadow: 0 2px 8px rgba(102, 126, 234, 0.1);
+  border-color: #0E1F56;
+  box-shadow: 0 2px 8px rgba(14, 31, 86, 0.1);
 }
 
 .item-text {
@@ -239,7 +226,7 @@
   width: 1.25rem;
   height: 1.25rem;
   cursor: pointer;
-  accent-color: #667eea;
+  accent-color: #0E1F56;
 }
 
 .radio-label {
@@ -272,7 +259,7 @@
 }
 
 .form-actions button {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: linear-gradient(135deg, #0E1F56 0%, #1e3a8a 100%);
   color: white;
   border: none;
   padding: 0.875rem 2rem;
@@ -285,7 +272,7 @@
 
 .form-actions button:hover:not(:disabled) {
   transform: translateY(-2px);
-  box-shadow: 0 8px 20px rgba(102, 126, 234, 0.3);
+  box-shadow: 0 8px 20px rgba(14, 31, 86, 0.3);
 }
 
 .form-actions button:disabled {
