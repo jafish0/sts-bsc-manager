@@ -43,12 +43,12 @@ export const STSIOA_INFO = {
 }
 
 export const RESPONSE_OPTIONS = [
-  { value: 1, label: '1 - Needs Attention' },
-  { value: 2, label: '2 - Planning Stage' },
-  { value: 3, label: '3 - Being Tested' },
-  { value: 4, label: '4 - Ready for Spread' },
-  { value: 5, label: '5 - Fully Implemented' },
-  { value: 0, label: 'N/A - Not Applicable' }
+  { value: 1, label: 'Not at all' },
+  { value: 2, label: 'Rarely' },
+  { value: 3, label: 'Somewhat' },
+  { value: 4, label: 'Mostly' },
+  { value: 5, label: 'Completely' },
+  { value: 0, label: 'N/A' }
 ]
 
 export const STSIOA_DOMAINS = [
@@ -136,7 +136,13 @@ export const STSIOA_DOMAINS = [
   }
 ]
 
-export const INSTRUCTIONS = 'For each statement below, rate how well it describes your organization. Use the 1-5 scale, or select N/A if the item does not apply to your organization.'
+export const INSTRUCTIONS = `THE SECONDARY TRAUMATIC STRESS-INFORMED ORGANIZATION ASSESSMENT (STSI-OA)
+
+©Copyright Sprang, G., Ross, L., Miller, B., Blackshear, K., Ascienzo, S. (2017). Psychometric Properties of the Secondary Traumatic Stress Informed Organizational Assessment, Traumatology, 23, 2, 165-171
+
+Secondary Traumatic Stress refers to the trauma symptoms caused by indirect exposure to traumatic material, transmitted during the process of helping or wanting to help a traumatized person. Resilience is an individual's ability to adapt to stress and adversity in a healthy manner. Organization, as used in this context, refers to the workplace setting that will be the target of this assessment.
+
+After reading each item, mark the corresponding box under the appropriate choice as to how the organization performs on that indicator: 1=Not at all; 2=Rarely; 3=Somewhat; 4=Mostly; 5=Completely; 0=N/A`
 
 export const DEFINITIONS = {
   title: 'Key Definitions',

@@ -1,20 +1,26 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { supabase } from './utils/supabase'
 import TeamCodeEntry from './pages/TeamCodeEntry'
 import Demographics from './pages/Demographics'
 import STSS from './pages/STSS'
+import ProQOL from './pages/ProQOL'
 import STSIOA from './pages/STSIOA'
-import './App.css'
 
 function App() {
   const [teamCodeData, setTeamCodeData] = useState(null)
   const [assessmentResponseId, setAssessmentResponseId] = useState(null)
-  const [currentStep, setCurrentStep] = useState('code')
+  const [currentStep, setCurrentStep] = useState('code') // 'code', 'demographics', 'stss', 'proqol', 'stsioa', 'complete'
+
+  // Scroll to top whenever step changes
+  useEffect(() => {
+    window.scrollTo(0, 0)
+  }, [currentStep])
 
   const handleCodeValidated = async (codeData) => {
     console.log('Team code validated:', codeData)
     setTeamCodeData(codeData)
 
+    // Create a new assessment_response record
     try {
       const { data, error } = await supabase
         .from('assessment_responses')
@@ -49,6 +55,11 @@ function App() {
 
   const handleSTSSComplete = () => {
     console.log('STSS completed!')
+    setCurrentStep('proqol')
+  }
+
+  const handleProQOLComplete = () => {
+    console.log('ProQOL completed!')
     setCurrentStep('stsioa')
   }
 
@@ -79,6 +90,14 @@ function App() {
         />
       )}
 
+      {currentStep === 'proqol' && (
+        <ProQOL
+          teamCodeData={teamCodeData}
+          assessmentResponseId={assessmentResponseId}
+          onComplete={handleProQOLComplete}
+        />
+      )}
+
       {currentStep === 'stsioa' && (
         <STSIOA
           teamCodeData={teamCodeData}
@@ -88,32 +107,29 @@ function App() {
       )}
 
       {currentStep === 'complete' && (
-        <div className="completion-container">
-          <div className="completion-card">
-            <div className="completion-icon">✓</div>
-            <h1>Assessment Complete!</h1>
-            <p className="completion-message">
-              Thank you for taking the time to complete this comprehensive assessment. 
-              Your responses will help your organization better understand and address 
-              Secondary Traumatic Stress in the workplace.
+        <div style={{ 
+          minHeight: '100vh',
+          background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+          padding: '2rem'
+        }}>
+          <div style={{
+            background: 'white',
+            borderRadius: '12px',
+            padding: '3rem',
+            maxWidth: '600px',
+            textAlign: 'center',
+            boxShadow: '0 10px 40px rgba(0, 0, 0, 0.1)'
+          }}>
+            <h1 style={{ color: '#1f2937', marginBottom: '1rem' }}>✅ Assessment Complete!</h1>
+            <p style={{ color: '#4b5563', fontSize: '1.125rem', lineHeight: '1.6' }}>
+              Thank you for completing the assessments. Your responses have been saved and will help 
+              your organization better understand and support staff wellbeing.
             </p>
-            <div className="completion-details">
-              <p>
-                <strong>What happens next:</strong>
-              </p>
-              <ul>
-                <li>Your responses have been securely saved</li>
-                <li>Your organization's leadership team will review aggregated results</li>
-                <li>You may be invited to participate in follow-up assessments to track progress over time</li>
-              </ul>
-            </div>
-            <p className="completion-footer">
-              Your commitment to this process demonstrates your organization's dedication 
-              to creating a trauma-informed workplace that supports staff wellbeing.
-            </p>
-            <p className="completion-contact">
-              Questions? Contact your organizational leadership or reach out to 
-              <strong> sprang@uky.edu</strong>
+            <p style={{ color: '#6b7280', fontSize: '0.875rem', marginTop: '1.5rem' }}>
+              You may now close this window.
             </p>
           </div>
         </div>
