@@ -1,312 +1,348 @@
-# STS-BSC Manager
+# STS Breakthrough Series Collaborative (BSC) Manager
 
-**Secondary Traumatic Stress Breakthrough Series Collaborative Manager**
+A comprehensive web application for managing Secondary Traumatic Stress (STS) assessments and breakthrough series collaboratives for child welfare agencies.
 
-A comprehensive web-based platform for managing breakthrough series collaboratives, collecting assessment data, and supporting organizations in reducing secondary traumatic stress among their staff.
-
----
-
-## 🎯 Project Overview
-
-The STS-BSC Manager is designed to support the Center on Trauma and Children (CTAC) at the University of Kentucky in delivering breakthrough series collaboratives to child-serving organizations. The platform enables:
-
-- Anonymous assessment data collection from staff members
-- Real-time dashboards for organizational leaders
-- Collaborative management tools for CTAC facilitators
-- Longitudinal tracking across multiple timepoints
-- Research infrastructure for grant-funded studies
+**Repository:** https://github.com/jafish0/sts-bsc-manager  
+**Developer:** Josh Fisherkeller, Center on Trauma & Children (CTAC), University of Kentucky  
+**Test Code:** TEST-2025
 
 ---
 
-## ✅ Phase 1: Assessment Suite - COMPLETE!
+## 🎯 PROJECT STATUS
 
-### Current Status (October 21, 2025)
-
-**All 4 validated assessment instruments are fully implemented:**
-
-1. **Demographics** (5 questions)
-   - Age, gender, race/ethnicity, job role
-   - Trauma exposure slider (0-100 with info button)
-
-2. **Secondary Traumatic Stress Scale (STSS)** (17 questions)
-   - 3 subscales: Intrusion, Avoidance, Arousal
-   - Copyright: Brian E. Bride (1999)
-   - Navy blue gradient branding
-
-3. **Professional Quality of Life Scale (ProQOL 5)** (30 questions)
-   - 3 subscales: Compassion Satisfaction, Burnout, Secondary Trauma
-   - Reverse scoring on items 1, 4, 15, 17, 29
-   - Copyright: Beth Hudnall Stamm (2009)
-   - Teal-to-navy gradient branding
-
-4. **STS-Informed Organizational Assessment (STSI-OA)** (40 questions)
-   - 6 domains displayed one at a time with navigation
-   - Organizational-level assessment
-   - Copyright: Sprang, et al. (2017)
-   - Teal-to-navy gradient branding
-
-**Total: 92 assessment questions across 4 validated instruments**
-
-### Key Features Implemented
-
-✅ **Brand Identity**
-- Center on Trauma & Children logo (top)
-- University of Kentucky logo (bottom)
-- Brand colors: Navy (#0E1F56) and Teal (#00A79D)
-- Consistent visual design across all assessments
-
-✅ **User Experience**
-- Mobile-responsive design
-- Auto-scroll to top between assessments
-- Progress tracking across all assessments
-- Repeated scale headers for easier reference (STSS every 6 questions, ProQOL every 6 questions)
-- Collapsible info panels explaining each assessment
-- Real-time completion tracking
-
-✅ **Data Management**
-- Team code entry system
-- Anonymous data collection
+### ✅ **PHASE 1: COMPLETE & PRODUCTION READY** (October 21, 2025)
+- Assessment suite with 4 validated instruments (92 total questions)
+- Anonymous data collection with team codes
 - Supabase database integration
-- Individual item storage (not JSON) for better querying
-- Domain and subscale scoring
-- Proper handling of reverse-scored items
+- Brand colors and logos implemented
+- All assessments saving correctly
 
-✅ **Assessment-Specific Features**
-- STSI-OA: Domain-by-domain navigation (6 domains)
-- STSI-OA: N/A option excluded from scoring
-- ProQOL: Reverse scoring for 5 items
-- All assessments: Copyright compliance and proper attribution
+### ✅ **PHASE 2: AUTHENTICATION SYSTEM COMPLETE** (October 26, 2025)
+- Login page with email/password authentication
+- Protected routes with role-based access control
+- Auth context managing user state across app
+- Admin dashboard shell with header/logout
+- Public assessment flow preserved at `/assessment`
+- Admin portal at `/login` and `/dashboard`
+
+### 🚧 **PHASE 2: IN PROGRESS - Collaborative Management**
+**Next to build:**
+- Create new collaboratives interface
+- View list of all collaboratives (active & historical)
+- Edit collaborative details
+- Team management (add teams, generate codes)
+- Completion tracking dashboard
+- Data visualization dashboards
+- Review & commenting system
+- Agency admin portal
+- Discussion forums
+- Resource repository
 
 ---
 
-## 🏗️ Technical Architecture
+## 📊 ASSESSMENT INSTRUMENTS
 
-### Frontend
-- **Framework:** React 18 with Vite
-- **Styling:** Custom CSS with mobile-first responsive design
-- **Components:** Modular page-based architecture
+### 1. **Demographics** (5 questions)
+Anonymous demographic data collection
 
-### Backend
+### 2. **Secondary Traumatic Stress Scale (STSS)** (17 questions)
+- Intrusion subscale (5 items)
+- Avoidance subscale (7 items)
+- Arousal subscale (5 items)
+- Navy blue gradient design (#0E1F56 to #1e3a8a)
+- Scale headers repeat every 6 questions
+
+### 3. **Professional Quality of Life (ProQOL)** (30 questions)
+- Compassion Satisfaction (10 items)
+- Burnout (10 items)
+- Secondary Traumatic Stress (10 items)
+- Teal-to-navy gradient (#00A79D to #0E1F56)
+- Scale headers repeat every 6 questions
+
+### 4. **STS-Informed Organizational Assessment (STSI-OA)** (40 questions)
+- 6 domains displayed one at a time with Previous/Next navigation
+- Office building visualization with color-coded domains
+- Navy and teal brand colors
+
+**Total: 92 questions across 4 validated instruments**
+
+---
+
+## 🏗️ TECHNICAL ARCHITECTURE
+
+### **Frontend**
+- **Framework:** React 18+ with Vite
+- **Routing:** React Router v6
+- **Authentication:** Supabase Auth with protected routes
+- **State Management:** React Context API (AuthContext)
+- **Styling:** Inline styles (no external CSS framework)
+
+### **Backend**
 - **Database:** Supabase (PostgreSQL)
-- **Authentication:** Team code-based access (anonymous to staff)
-- **Real-time:** Supabase real-time subscriptions ready for Phase 2
+- **Authentication:** Supabase Auth (email/password)
+- **API:** Supabase JavaScript Client
 
-### Hosting
-- **Platform:** Vercel (ready for deployment)
-- **Domain:** Will use Namecheap subdomain
+### **Hosting**
+- **Development:** GitHub Codespaces
+- **Production:** Vercel (planned)
+- **Domain:** Subdomain of ctachouston.org (planned)
 
-### Database Schema
+### **Brand Colors**
+- **Primary Navy:** #0E1F56
+- **Primary Teal:** #00A79D
 
-**Tables:**
-- `team_codes` - Team access codes
-- `assessment_responses` - Master response tracking
-- `demographics` - Demographic data
+---
+
+## 🗄️ DATABASE SCHEMA
+
+### **Core Tables**
+- `collaboratives` - Breakthrough series programs
+- `teams` - Agency teams in collaboratives
+- `team_codes` - Anonymous access codes
+- `assessment_responses` - Master record linking all responses
+- `demographics` - Anonymous demographic data
 - `stss_responses` - STSS individual items + subscale scores
 - `proqol_responses` - ProQOL individual items + subscale scores
 - `stsioa_responses` - STSI-OA individual items + domain scores
+- `admin_reviews` - Expert comments before agencies see data
+- `user_profiles` - User accounts with roles
+
+### **User Roles**
+- `super_admin` - Josh (full access)
+- `agency_admin` - Agency administrators
+- `team_leader` - Team leaders
+- `senior_leader` - Higher-level organizational view
+
+### **Aggregate Views** (Auto-updating)
+- `team_completion_status`
+- `team_stss_aggregates`
+- `team_proqol_aggregates`
+- `team_stsioa_aggregates`
+- `team_demographics_summary`
+
+**Note:** All Phase 2 database tables, relationships, triggers, and Row Level Security policies are already configured in Supabase.
 
 ---
 
-## 🚀 Getting Started
+## 🚀 GETTING STARTED
 
-### Prerequisites
-- Node.js 18+
-- npm or yarn
-- Supabase account
-- Vercel account (for deployment)
+### **Prerequisites**
+- Node.js 18+ and npm
+- Supabase account with project created
+- GitHub account
 
-### Installation
+### **Initial Setup**
 
-1. Clone the repository:
+1. **Clone the repository:**
 ```bash
-git clone https://github.com/jafish0/sts-bsc-manager.git
-cd sts-bsc-manager
+   git clone https://github.com/jafish0/sts-bsc-manager.git
+   cd sts-bsc-manager/frontend
 ```
 
-2. Install dependencies:
+2. **Install dependencies:**
 ```bash
-cd frontend
-npm install
+   npm install
 ```
 
-3. Set up environment variables:
-Create a `.env` file in the `frontend` directory:
+3. **Configure environment variables:**
+   
+   Create `/frontend/.env.local`:
+```env
+   VITE_SUPABASE_URL=your-project-url-here
+   VITE_SUPABASE_ANON_KEY=your-anon-key-here
 ```
-VITE_SUPABASE_URL=your_supabase_url
-VITE_SUPABASE_ANON_KEY=your_supabase_anon_key
-```
+   
+   Get these values from: Supabase Dashboard → Settings → API
 
-4. Run development server:
+4. **Run development server:**
 ```bash
-npm run dev
+   npm run dev
 ```
 
-5. Open browser to `http://localhost:5173`
+5. **Access the application:**
+   - Public assessments: `http://localhost:5173/assessment`
+   - Admin login: `http://localhost:5173/login`
+   - Admin dashboard: `http://localhost:5173/dashboard`
 
-### Test Data
+### **Creating a Test Admin User**
 
-Use team code: **TEST-2025** for testing
-
----
-
-## 📊 Assessment Details
-
-### STSS (17 questions)
-- **Scale:** 1-5 (Never to Very Often)
-- **Subscales:** 
-  - Intrusion (5 items)
-  - Avoidance (7 items)
-  - Arousal (5 items)
-- **Score Range:** 17-85
-
-### ProQOL (30 questions)
-- **Scale:** 1-5 (Never to Very Often)
-- **Subscales:**
-  - Compassion Satisfaction (10 items)
-  - Burnout (10 items)
-  - Secondary Trauma (10 items)
-- **Score Range:** 10-50 per subscale
-- **Note:** Items 1, 4, 15, 17, 29 are reverse-scored
-
-### STSI-OA (40 questions)
-- **Scale:** 1-5 (Not at all to Completely) + N/A option
-- **Domains:**
-  1. Resilience-Building Activities (7 items)
-  2. Staff Safety (7 items)
-  3. STS-Informed Policies (6 items)
-  4. Leader Practices (9 items)
-  5. Routine Practices (7 items)
-  6. Monitoring & Evaluation (4 items)
-- **Score Range:** 0-200 (N/A excluded from totals)
+1. Go to Supabase Dashboard → Authentication → Users
+2. Add User → Create New User
+3. Enter email and password, check "Auto Confirm User"
+4. Go to Table Editor → `user_profiles` → Insert Row
+5. Add:
+   - `id`: Copy UUID from Authentication user
+   - `email`: Same email as above
+   - `role`: `super_admin`
+   - `full_name`: Your name (optional)
 
 ---
 
-## 📝 Next Steps: Phase 2
-
-### Collaborative Management (4-6 weeks)
-
-**Planned Features:**
-
-1. **Master Admin Dashboard**
-   - View all active and historical collaboratives
-   - System-wide metrics and reporting
-
-2. **Collaborative Creation & Management**
-   - Create new breakthrough series collaboratives
-   - Set timepoints (baseline, end, 6mo, 12mo)
-   - Configure collaborative settings
-
-3. **Agency/Team Management**
-   - Add agencies to collaboratives
-   - Generate unique team codes for each agency
-   - Manage key contacts
-   - Track agency information
-
-4. **Completion Tracking**
-   - Monitor assessment completion rates
-   - Status dashboard by agency
-   - Automated reminder system
-
-5. **Data Visualization Dashboards**
-   - Aggregate results by agency (anonymous)
-   - Change-over-time charts
-   - Domain/subscale breakdowns
-   - Comparative visualizations
-
-6. **Collaborative Leader Features**
-   - Add expert comments/recommendations to agency dashboards
-   - Review system before agencies see their data
-   - Download reports for grant compliance
-
-7. **Discussion Forums**
-   - Replace Basecamp functionality
-   - Threaded discussions by collaborative
-   - File sharing
-
-8. **Resource Repository**
-   - Upload session materials
-   - Organize handouts and resources
-   - Version control
-
----
-
-## 🎨 Design & Branding
-
-### Color Palette
-- **Primary Navy:** #0E1F56
-- **Primary Teal:** #00A79D
-- **Supporting colors** from CTAC brand guide used sparingly
-
-### Gradients by Assessment
-- **STSS:** Navy to lighter blue (#0E1F56 to #1e3a8a)
-- **ProQOL:** Teal to navy (#00A79D to #0E1F56)
-- **STSI-OA:** Teal to navy (#00A79D to #0E1F56)
-
-### Typography
-- Clean, professional sans-serif fonts
-- Left-aligned body text for readability
-- Adequate spacing and line height
-
----
-
-## 📄 License & Copyright
-
-### Assessments
-- **STSS:** Copyright © 1999 Brian E. Bride
-- **ProQOL:** Copyright © 2009 Beth Hudnall Stamm (www.ProQOL.org)
-- **STSI-OA:** Copyright © 2017 Sprang, G., Ross, L., Miller, B., Blackshear, K., Ascienzo, S.
-
-All assessments are used with proper attribution and in compliance with usage requirements.
-
-### Platform
-This platform is developed for the Center on Trauma and Children at the University of Kentucky.
-
----
-
-## 👥 Team
-
-**Project Lead:** Josh Fisherkeller, Center on Trauma and Children, University of Kentucky
-
-**Development:** Built with Claude AI (Anthropic) in collaboration with Josh
-
-**Contact:** For questions about the platform, contact CTAC at University of Kentucky
-
----
-
-## 🔄 Version History
-
-### v1.0.0 - Phase 1 Complete (October 21, 2025)
-- ✅ All 4 assessment instruments implemented
-- ✅ Brand identity and logos integrated
-- ✅ Mobile-responsive design
-- ✅ Database integration complete
-- ✅ Ready for Phase 2 development
-
----
-
-## 🛠️ Development Notes
-
-### File Structure
+## 📁 PROJECT STRUCTURE
 ```
-frontend/
-├── src/
-│   ├── assets/          # Logos and images
-│   ├── config/          # Assessment configurations
-│   ├── pages/           # React components for each page
-│   ├── styles/          # CSS files
-│   ├── utils/           # Supabase client
-│   ├── App.jsx          # Main app component
-│   └── main.jsx         # Entry point
-├── package.json
-└── vite.config.js
+sts-bsc-manager/
+├── frontend/
+│   ├── src/
+│   │   ├── assets/                 # Logos and images
+│   │   ├── components/             # Reusable components
+│   │   │   └── ProtectedRoute.jsx  # Route protection wrapper
+│   │   ├── contexts/               # React contexts
+│   │   │   └── AuthContext.jsx     # Authentication state
+│   │   ├── config/                 # Assessment configurations
+│   │   │   ├── demographics.js
+│   │   │   ├── stss.js
+│   │   │   ├── proqol.js
+│   │   │   └── stsioa.js
+│   │   ├── pages/                  # Page components
+│   │   │   ├── AssessmentFlow.jsx  # Public assessment flow
+│   │   │   ├── TeamCodeEntry.jsx   # Team code entry
+│   │   │   ├── Demographics.jsx
+│   │   │   ├── STSS.jsx
+│   │   │   ├── ProQOL.jsx
+│   │   │   ├── STSIOA.jsx
+│   │   │   ├── Login.jsx           # Admin login
+│   │   │   └── AdminDashboard.jsx  # Admin dashboard
+│   │   ├── styles/                 # Component styles
+│   │   ├── utils/                  # Utility functions
+│   │   │   └── supabase.js         # Supabase client
+│   │   ├── App.jsx                 # Main app with routing
+│   │   └── main.jsx                # Entry point
+│   ├── package.json
+│   └── .env.local                  # Environment variables (not in git)
+└── README.md
 ```
 
-### Key Technologies
-- React Router (ready for Phase 2 multi-page navigation)
-- Supabase Client Library
-- Vite build tool
-- CSS Modules (custom styling)
+---
+
+## 🔐 AUTHENTICATION & ROUTING
+
+### **Public Routes**
+- `/` → Redirects to `/assessment`
+- `/assessment` → Public assessment flow (no login required)
+
+### **Protected Routes**
+- `/login` → Admin login page
+- `/dashboard` → Admin dashboard (requires authentication)
+
+### **Role-Based Access**
+- Routes can require specific roles using `<ProtectedRoute requireSuperAdmin={true}>`
+- Auth context provides: `isSuperAdmin`, `isAgencyAdmin`, `isSeniorLeader`
 
 ---
 
-**Built with ❤️ for reducing secondary traumatic stress in child-serving organizations**
+## 💾 SAVING PROGRESS
+
+**After making changes:**
+```bash
+git add .
+git commit -m "Description of what you built"
+git push origin main
+```
+
+**Your work is automatically saved in GitHub Codespaces**, but pushing to GitHub ensures it's permanently saved.
+
+---
+
+## 🔄 RESUMING DEVELOPMENT
+
+### **Option 1: Using GitHub Codespaces** (Recommended)
+1. Go to https://github.com/jafish0/sts-bsc-manager
+2. Click "Code" → "Codespaces" → Open existing or create new
+3. Once loaded:
+```bash
+   cd frontend
+   npm install  # Only needed first time or after package.json changes
+   npm run dev
+```
+
+### **Option 2: Local Development**
+1. Pull latest changes:
+```bash
+   git pull origin main
+   cd frontend
+   npm install
+   npm run dev
+```
+
+---
+
+## 🤖 INSTRUCTIONS FOR CLAUDE AI
+
+**When resuming this project with Claude, provide this context:**
+
+### **Quick Start Message:**
+> "I'm ready to continue Phase 2 of the STS-BSC Manager. Last session we completed the authentication system. Next we need to build Collaborative Management features. The repository is at https://github.com/jafish0/sts-bsc-manager and I'm working in GitHub Codespaces."
+
+### **Key Points for Claude:**
+1. **Phase 1 is complete** - All assessment instruments are built and working
+2. **Phase 2 authentication is complete** - Login, protected routes, and admin dashboard shell are working
+3. **Database schema is fully built** - All tables, relationships, views, and RLS policies exist in Supabase
+4. **Current tech stack:**
+   - React 19.1.1 with Vite
+   - React Router DOM v6
+   - Supabase Auth and Database
+   - Inline styles (no CSS framework)
+   - Brand colors: Navy (#0E1F56) and Teal (#00A79D)
+
+5. **Development workflow:**
+   - Josh works in GitHub Codespaces
+   - Always provide COMPLETE file contents (never "find and replace" instructions)
+   - Wait for confirmation after each step
+   - Test iteratively
+
+6. **What's next to build:**
+   - Collaborative creation and management interface
+   - Team management (add teams, generate codes)
+   - Completion tracking dashboard
+   - Data visualization dashboards
+   - Review & commenting system
+   - Agency admin portal
+   - Discussion forums
+   - Resource repository
+
+7. **Important database notes:**
+   - The `team_codes` table uses `active` column (not `is_active`)
+   - Assessment data is anonymous - linked to teams, not individuals
+   - `user_profiles.team_id` links agency admins to their team
+   - Aggregate views auto-update when new data comes in
+
+8. **File locations:**
+   - All source code: `/workspaces/sts-bsc-manager/frontend/src/`
+   - Supabase client: `/frontend/src/utils/supabase.js`
+   - Auth context: `/frontend/src/contexts/AuthContext.jsx`
+   - Main routing: `/frontend/src/App.jsx`
+
+### **Common Commands:**
+```bash
+# Start dev server
+cd frontend && npm run dev
+
+# Install new packages
+npm install package-name
+
+# Save progress
+git add . && git commit -m "message" && git push origin main
+
+# View current structure
+ls -R src/
+```
+
+---
+
+## 📞 CONTACT
+
+**Josh Fisherkeller**  
+Center on Trauma & Children (CTAC)  
+University of Kentucky  
+
+---
+
+## 📄 LICENSE
+
+Proprietary - University of Kentucky  
+For research and service delivery purposes only.
+
+---
+
+**Last Updated:** October 26, 2025  
+**Current Phase:** Phase 2 - Authentication Complete, Collaborative Management Next
