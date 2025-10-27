@@ -3,6 +3,8 @@ import { AuthProvider } from './contexts/AuthContext'
 import ProtectedRoute from './components/ProtectedRoute'
 import Login from './pages/Login'
 import AdminDashboard from './pages/AdminDashboard'
+import CollaborativesList from './pages/CollaborativesList'
+import CollaborativeDetail from './pages/CollaborativeDetail'
 import AssessmentFlow from './pages/AssessmentFlow'
 
 function App() {
@@ -22,6 +24,24 @@ function App() {
             element={
               <ProtectedRoute>
                 <AdminDashboard />
+              </ProtectedRoute>
+            } 
+          />
+          
+          <Route 
+            path="/collaboratives" 
+            element={
+              <ProtectedRoute>
+                <CollaborativesList />
+              </ProtectedRoute>
+            } 
+          />
+          
+          <Route 
+            path="/collaboratives/:id" 
+            element={
+              <ProtectedRoute>
+                <CollaborativeDetail />
               </ProtectedRoute>
             } 
           />

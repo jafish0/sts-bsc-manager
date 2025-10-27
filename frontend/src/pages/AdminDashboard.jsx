@@ -88,8 +88,97 @@ function AdminDashboard() {
             👋 Welcome, {profile?.email?.split('@')[0] || 'Admin'}!
           </h2>
           <p style={{ color: '#6b7280', marginBottom: 0 }}>
-            This is your master admin dashboard. Phase 2 features are being built.
+            Manage your breakthrough series collaboratives and track assessment progress.
           </p>
+        </div>
+
+        {/* Quick Actions */}
+        <div style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))',
+          gap: '1.5rem',
+          marginBottom: '2rem'
+        }}>
+          <div 
+            onClick={() => navigate('/collaboratives')}
+            style={{
+              background: 'white',
+              borderRadius: '12px',
+              padding: '2rem',
+              boxShadow: '0 4px 12px rgba(0, 0, 0, 0.1)',
+              cursor: 'pointer',
+              transition: 'all 0.2s',
+              borderLeft: '4px solid #00A79D'
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.transform = 'translateY(-4px)'
+              e.currentTarget.style.boxShadow = '0 8px 20px rgba(0, 0, 0, 0.15)'
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.transform = 'translateY(0)'
+              e.currentTarget.style.boxShadow = '0 4px 12px rgba(0, 0, 0, 0.1)'
+            }}
+          >
+            <div style={{ fontSize: '2.5rem', marginBottom: '0.5rem' }}>🎯</div>
+            <h3 style={{ color: '#0E1F56', margin: '0 0 0.5rem 0' }}>Manage Collaboratives</h3>
+            <p style={{ color: '#6b7280', margin: 0, fontSize: '0.9rem' }}>
+              View, create, and manage breakthrough series collaboratives
+            </p>
+            <div style={{ 
+              marginTop: '1rem', 
+              color: '#00A79D', 
+              fontWeight: '600',
+              fontSize: '0.9rem'
+            }}>
+              Go to Collaboratives →
+            </div>
+          </div>
+
+          <div style={{
+            background: 'white',
+            borderRadius: '12px',
+            padding: '2rem',
+            boxShadow: '0 4px 12px rgba(0, 0, 0, 0.1)',
+            borderLeft: '4px solid #9ca3af',
+            opacity: 0.6
+          }}>
+            <div style={{ fontSize: '2.5rem', marginBottom: '0.5rem' }}>👥</div>
+            <h3 style={{ color: '#0E1F56', margin: '0 0 0.5rem 0' }}>Manage Teams</h3>
+            <p style={{ color: '#6b7280', margin: 0, fontSize: '0.9rem' }}>
+              Add teams, generate codes, view participation
+            </p>
+            <div style={{ 
+              marginTop: '1rem', 
+              color: '#9ca3af', 
+              fontWeight: '600',
+              fontSize: '0.9rem'
+            }}>
+              Coming Soon
+            </div>
+          </div>
+
+          <div style={{
+            background: 'white',
+            borderRadius: '12px',
+            padding: '2rem',
+            boxShadow: '0 4px 12px rgba(0, 0, 0, 0.1)',
+            borderLeft: '4px solid #9ca3af',
+            opacity: 0.6
+          }}>
+            <div style={{ fontSize: '2.5rem', marginBottom: '0.5rem' }}>📊</div>
+            <h3 style={{ color: '#0E1F56', margin: '0 0 0.5rem 0' }}>View Data</h3>
+            <p style={{ color: '#6b7280', margin: 0, fontSize: '0.9rem' }}>
+              Aggregate results, visualizations, and trends
+            </p>
+            <div style={{ 
+              marginTop: '1rem', 
+              color: '#9ca3af', 
+              fontWeight: '600',
+              fontSize: '0.9rem'
+            }}>
+              Coming Soon
+            </div>
+          </div>
         </div>
 
         {/* Quick Stats Grid */}
@@ -143,24 +232,6 @@ function AdminDashboard() {
               0
             </p>
           </div>
-        </div>
-
-        {/* Coming Soon Section */}
-        <div style={{
-          background: 'white',
-          borderRadius: '12px',
-          padding: '2rem',
-          boxShadow: '0 4px 12px rgba(0, 0, 0, 0.1)'
-        }}>
-          <h3 style={{ color: '#0E1F56', marginTop: 0 }}>🚀 Phase 2 Features Coming Soon</h3>
-          <ul style={{ color: '#6b7280', lineHeight: '1.8' }}>
-            <li>Create and manage breakthrough series collaboratives</li>
-            <li>Add teams and generate unique access codes</li>
-            <li>Track assessment completion rates</li>
-            <li>View aggregated data visualizations</li>
-            <li>Add expert reviews and recommendations</li>
-            <li>Discussion forums and resource repository</li>
-          </ul>
         </div>
       </div>
     </div>
