@@ -312,6 +312,51 @@ git push origin main
    - Auth context: `/frontend/src/contexts/AuthContext.jsx`
    - Main routing: `/frontend/src/App.jsx`
 
+### **How to Share Code with Claude (Network Limitations)**
+
+Claude cannot directly access GitHub repositories due to network restrictions. When resuming work, provide Claude with the current code state by running these commands and pasting the output:
+
+#### **Step 1: Show Current File Structure**
+```bash
+cd /workspaces/sts-bsc-manager/frontend
+ls -R src/
+```
+
+#### **Step 2: Share Key Files (if needed)**
+```bash
+# Show last 5 commits to see what was changed
+git log --oneline -5
+
+# Show specific file contents as needed
+cat src/App.jsx
+cat src/pages/AdminDashboard.jsx
+```
+
+#### **Step 3: Provide Context**
+Tell Claude:
+- What you completed in the last session
+- What you want to build next
+- Any errors or issues you're encountering
+
+#### **Example Resume Message for Claude:**
+```
+I'm resuming the STS-BSC Manager project. Here's where we are:
+
+COMPLETED:
+- Phase 1: All assessments working
+- Phase 2: Authentication system complete (login, protected routes, admin dashboard)
+
+CURRENT FILE STRUCTURE:
+[paste output of: ls -R src/]
+
+NEXT TO BUILD:
+- Collaborative Management interface
+
+Ready to continue!
+```
+
+This approach lets Claude see the current state without needing GitHub access.
+
 ### **Common Commands:**
 ```bash
 # Start dev server
