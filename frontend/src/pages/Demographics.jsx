@@ -1,4 +1,5 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { supabase } from '../utils/supabase'
 import {
   GENDER_OPTIONS,
@@ -11,7 +12,9 @@ import {
 } from '../config/demographics'
 import '../styles/Demographics.css'
 
-function Demographics({ teamCodeData, assessmentResponseId, onComplete }) {
+function Demographics() {
+  const navigate = useNavigate()
+  const [assessmentResponseId, setAssessmentResponseId] = useState(null)
   const [formData, setFormData] = useState({
     gender: '',
     gender_other: '',
@@ -27,6 +30,56 @@ function Demographics({ teamCodeData, assessmentResponseId, onComplete }) {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [showExposureInfo, setShowExposureInfo] = useState(false)
+
+  // On mount, create assessment_response record
+  useEffect(() => {
+    const initializeAssessment = async () => {
+      const teamCodeId = sessionStorage.getItem('teamCodeId')
+      
+      if (!teamCodeId) {
+        alert('No team code found. Please start from the beginning.')
+        navigate('/')
+        return
+      }
+
+      try {
+        // First, get the timepoint from team_codes
+        const { data: teamCodeData, error: teamCodeError } = await supabase
+          .from('team_codes')
+          .select('timepoint')
+          .eq('id', teamCodeId)
+          .single()
+
+        if (teamCodeError) throw teamCodeError
+
+        // Create assessment_response record with timepoint
+        const { data, error } = await supabase
+          .from('assessment_responses')
+          .insert({
+            team_code_id: teamCodeId,
+            timepoint: teamCodeData.timepoint,
+            demographics_complete: false,
+            stss_complete: false,
+            proqol_complete: false,
+            stsioa_complete: false,
+            started_at: new Date().toISOString()
+          })
+          .select()
+          .single()
+
+        if (error) throw error
+        
+        setAssessmentResponseId(data.id)
+        sessionStorage.setItem('assessmentResponseId', data.id)
+      } catch (err) {
+        console.error('Error creating assessment response:', err)
+        alert('Error starting assessment. Please try again.')
+        navigate('/')
+      }
+    }
+
+    initializeAssessment()
+  }, [navigate])
 
   // Generate age options
   const ageOptions = []
@@ -68,6 +121,12 @@ function Demographics({ teamCodeData, assessmentResponseId, onComplete }) {
 
   const handleSubmit = async (e) => {
     e.preventDefault()
+    
+    if (!assessmentResponseId) {
+      setError('Assessment not initialized. Please refresh and try again.')
+      return
+    }
+
     setLoading(true)
     setError('')
 
@@ -103,14 +162,25 @@ function Demographics({ teamCodeData, assessmentResponseId, onComplete }) {
 
       if (updateError) throw updateError
 
-      // Move to next assessment
-      onComplete()
+      // Navigate to next assessment
+      navigate('/stss')
 
     } catch (err) {
       console.error('Error saving demographics:', err)
       setError('An error occurred saving your information. Please try again.')
       setLoading(false)
     }
+  }
+
+  if (!assessmentResponseId) {
+    return (
+      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}>
+        <div style={{ textAlign: 'center' }}>
+          <div style={{ fontSize: '2rem', marginBottom: '1rem' }}>⏳</div>
+          <div>Initializing assessment...</div>
+        </div>
+      </div>
+    )
   }
 
   return (

@@ -1,10 +1,12 @@
 import { useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { supabase } from '../utils/supabase'
 import '../styles/TeamCodeEntry.css'
 import ctacLogo from '../assets/UKCTAC_logoasuite_web__primary_tagline_color.png'
 import ukLogo from '../assets/UK_Lockup-286.png'
 
-function TeamCodeEntry({ onCodeValidated }) {
+function TeamCodeEntry() {
+  const navigate = useNavigate()
   const [teamCode, setTeamCode] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
@@ -29,8 +31,10 @@ function TeamCodeEntry({ onCodeValidated }) {
         return
       }
 
-      // Valid code found
-      onCodeValidated(data)
+      // Valid code found - store in sessionStorage and navigate to demographics
+      sessionStorage.setItem('teamCodeId', data.id)
+      sessionStorage.setItem('teamCode', data.code)
+      navigate('/demographics')
 
     } catch (err) {
       console.error('Error validating team code:', err)

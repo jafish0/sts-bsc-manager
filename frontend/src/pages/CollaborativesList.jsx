@@ -1,16 +1,14 @@
 import { useState, useEffect } from 'react'
-import { useNavigate } from 'react-router-dom'
-import { useAuth } from '../contexts/AuthContext'
 import { supabase } from '../utils/supabase'
+import { useNavigate } from 'react-router-dom'
 import CreateCollaborativeModal from '../components/CreateCollaborativeModal'
-import ctacLogo from '../assets/UKCTAC_logoasuite_web__primary_tagline_color.png'
+import ctacLogo from '../assets/CTAC_white.png'
 
-function CollaborativesList() {
+export default function CollaborativesList() {
   const [collaboratives, setCollaboratives] = useState([])
   const [loading, setLoading] = useState(true)
-  const [filter, setFilter] = useState('active') // 'active', 'completed', 'all'
   const [showCreateModal, setShowCreateModal] = useState(false)
-  const { profile, signOut } = useAuth()
+  const [filter, setFilter] = useState('active')
   const navigate = useNavigate()
 
   useEffect(() => {
@@ -24,10 +22,8 @@ function CollaborativesList() {
         .select('*')
         .order('created_at', { ascending: false })
 
-      if (filter === 'active') {
-        query = query.eq('status', 'active')
-      } else if (filter === 'completed') {
-        query = query.eq('status', 'completed')
+      if (filter !== 'all') {
+        query = query.eq('status', filter)
       }
 
       const { data, error } = await query
@@ -36,76 +32,77 @@ function CollaborativesList() {
       setCollaboratives(data || [])
     } catch (error) {
       console.error('Error fetching collaboratives:', error)
+      alert('Error loading collaboratives')
     } finally {
       setLoading(false)
     }
   }
 
   const handleSignOut = async () => {
-    await signOut()
+    await supabase.auth.signOut()
     navigate('/login')
   }
 
   const handleCreateSuccess = () => {
     setShowCreateModal(false)
-    fetchCollaboratives() // Refresh the list
+    fetchCollaboratives()
   }
 
   const getStatusBadge = (collaborative) => {
     const status = collaborative.status || 'active'
     
     const statusConfig = {
-      'active': { text: 'Active', color: '#10b981', bg: '#d1fae5' },
-      'upcoming': { text: 'Upcoming', color: '#0ea5e9', bg: '#e0f2fe' },
-      'completed': { text: 'Completed', color: '#6b7280', bg: '#f3f4f6' }
+      active: { label: 'Active', color: '#10b981', bg: '#d1fae5' },
+      completed: { label: 'Completed', color: '#6b7280', bg: '#f3f4f6' }
     }
-    
-    return statusConfig[status] || statusConfig['active']
+
+    return statusConfig[status] || statusConfig.active
   }
 
-  const formatDate = (dateString) => {
-    if (!dateString) return 'Not set'
-    return new Date(dateString).toLocaleDateString('en-US', { 
-      year: 'numeric', 
-      month: 'short', 
-      day: 'numeric' 
-    })
+  if (loading) {
+    return (
+      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}>
+        <div style={{ textAlign: 'center' }}>
+          <div style={{ fontSize: '2rem', marginBottom: '1rem' }}>📋</div>
+          <div>Loading collaboratives...</div>
+        </div>
+      </div>
+    )
   }
 
   return (
-    <div style={{ minHeight: '100vh', background: '#f3f4f6' }}>
+    <div style={{ minHeight: '100vh', background: 'linear-gradient(135deg, #0E1F56 0%, #1a2f6f 100%)' }}>
       {/* Header */}
-      <header style={{
-        background: 'linear-gradient(135deg, #0E1F56 0%, #00A79D 100%)',
-        color: 'white',
-        padding: '1rem 2rem',
-        boxShadow: '0 2px 8px rgba(0, 0, 0, 0.1)',
-        display: 'flex',
-        justifyContent: 'space-between',
-        alignItems: 'center'
+      <div style={{ 
+        background: 'rgba(255, 255, 255, 0.1)', 
+        backdropFilter: 'blur(10px)',
+        borderBottom: '1px solid rgba(255, 255, 255, 0.2)',
+        padding: '1.5rem 2rem',
+        boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)'
       }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', cursor: 'pointer' }}
-             onClick={() => navigate('/dashboard')}>
-          <img 
-            src={ctacLogo} 
-            alt="CTAC" 
-            style={{ height: '50px', width: 'auto' }}
-          />
-          <div>
-            <h1 style={{ fontSize: '1.25rem', margin: 0 }}>Collaboratives Management</h1>
-            <p style={{ fontSize: '0.875rem', margin: 0, opacity: 0.9 }}>
-              STS Breakthrough Series Collaborative Manager
-            </p>
-          </div>
-        </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '1.5rem' }}>
-          <div style={{ textAlign: 'right' }}>
-            <p style={{ margin: 0, fontSize: '0.9rem', fontWeight: '600' }}>
-              {profile?.email}
-            </p>
-            <p style={{ margin: 0, fontSize: '0.8rem', opacity: 0.8 }}>
-              {profile?.role === 'super_admin' ? 'Super Admin' : profile?.role}
-            </p>
+        <div style={{ 
+          maxWidth: '1400px', 
+          margin: '0 auto', 
+          display: 'flex', 
+          justifyContent: 'space-between', 
+          alignItems: 'center',
+          flexWrap: 'wrap',
+          gap: '1rem'
+        }}>
+          <div 
+            style={{ display: 'flex', alignItems: 'center', gap: '1.5rem', cursor: 'pointer' }}
+            onClick={() => navigate('/admin')}>
+            <img 
+              src={ctacLogo} 
+              alt="CTAC" 
+              style={{ height: '50px', width: 'auto' }}
+            />
+            <div>
+              <h1 style={{ fontSize: '1.25rem', margin: 0 }}>Collaboratives Management</h1>
+              <p style={{ fontSize: '0.875rem', margin: 0, opacity: 0.9 }}>
+                STS Breakthrough Series Collaborative Manager
+              </p>
+            </div>
           </div>
           <button
             onClick={handleSignOut}
@@ -121,27 +118,29 @@ function CollaborativesList() {
               transition: 'all 0.2s'
             }}
             onMouseEnter={(e) => {
-              e.target.style.background = 'white'
-              e.target.style.color = '#0E1F56'
+              e.currentTarget.style.background = 'white'
+              e.currentTarget.style.color = '#0E1F56'
             }}
-            onMouseLeave={(e) => {
-              e.target.style.background = 'rgba(255, 255, 255, 0.2)'
-              e.target.style.color = 'white'
+            onMouseOut={(e) => {
+              e.currentTarget.style.background = 'rgba(255, 255, 255, 0.2)'
+              e.currentTarget.style.color = 'white'
             }}
           >
             Sign Out
           </button>
         </div>
-      </header>
+      </div>
 
       {/* Main Content */}
-      <div style={{ padding: '2rem', maxWidth: '1400px', margin: '0 auto' }}>
-        {/* Top Actions Bar */}
+      <div style={{ maxWidth: '1400px', margin: '0 auto', padding: '3rem 2rem' }}>
+        {/* Filters and Create Button */}
         <div style={{ 
           display: 'flex', 
           justifyContent: 'space-between', 
-          alignItems: 'center',
-          marginBottom: '2rem'
+          alignItems: 'center', 
+          marginBottom: '2rem',
+          flexWrap: 'wrap',
+          gap: '1rem'
         }}>
           <div style={{ display: 'flex', gap: '0.75rem' }}>
             <button
@@ -206,66 +205,67 @@ function CollaborativesList() {
               fontSize: '1rem',
               cursor: 'pointer',
               boxShadow: '0 4px 12px rgba(0, 167, 157, 0.3)',
-              transition: 'transform 0.2s'
+              transition: 'all 0.2s'
             }}
-            onMouseEnter={(e) => e.target.style.transform = 'translateY(-2px)'}
-            onMouseLeave={(e) => e.target.style.transform = 'translateY(0)'}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.transform = 'translateY(-2px)'
+              e.currentTarget.style.boxShadow = '0 6px 20px rgba(0, 167, 157, 0.4)'
+            }}
+            onMouseOut={(e) => {
+              e.currentTarget.style.transform = 'translateY(0)'
+              e.currentTarget.style.boxShadow = '0 4px 12px rgba(0, 167, 157, 0.3)'
+            }}
           >
             + Create New Collaborative
           </button>
         </div>
 
         {/* Collaboratives Grid */}
-        {loading ? (
-          <div style={{ textAlign: 'center', padding: '4rem', color: '#6b7280' }}>
-            <p style={{ fontSize: '1.125rem' }}>Loading collaboratives...</p>
-          </div>
-        ) : collaboratives.length === 0 ? (
-          <div style={{
-            background: 'white',
-            borderRadius: '12px',
-            padding: '4rem',
+        {collaboratives.length === 0 ? (
+          <div style={{ 
+            background: 'white', 
+            borderRadius: '12px', 
+            padding: '4rem 2rem', 
             textAlign: 'center',
             boxShadow: '0 4px 12px rgba(0, 0, 0, 0.1)'
           }}>
-            <h3 style={{ color: '#0E1F56', fontSize: '1.5rem', marginBottom: '1rem' }}>
-              No Collaboratives Found
-            </h3>
+            <div style={{ fontSize: '4rem', marginBottom: '1rem', opacity: 0.3 }}>📋</div>
+            <h2 style={{ color: '#374151', marginBottom: '0.5rem' }}>No collaboratives found</h2>
             <p style={{ color: '#6b7280', marginBottom: '2rem' }}>
-              {filter === 'active' 
-                ? "You don't have any active collaboratives yet." 
-                : filter === 'completed'
-                ? "No completed collaboratives found."
-                : "Get started by creating your first collaborative!"}
+              {filter === 'all' 
+                ? 'Get started by creating your first collaborative'
+                : `No ${filter} collaboratives at this time`}
             </p>
-            <button
-              onClick={() => setShowCreateModal(true)}
-              style={{
-                background: 'linear-gradient(135deg, #00A79D 0%, #0E1F56 100%)',
-                color: 'white',
-                padding: '0.75rem 1.5rem',
-                borderRadius: '8px',
-                border: 'none',
-                fontWeight: '600',
-                fontSize: '1rem',
-                cursor: 'pointer'
-              }}
-            >
-              Create Your First Collaborative
-            </button>
+            {filter === 'all' && (
+              <button
+                onClick={() => setShowCreateModal(true)}
+                style={{
+                  background: 'linear-gradient(135deg, #00A79D 0%, #0E1F56 100%)',
+                  color: 'white',
+                  padding: '0.75rem 1.5rem',
+                  borderRadius: '8px',
+                  border: 'none',
+                  fontWeight: '600',
+                  fontSize: '1rem',
+                  cursor: 'pointer'
+                }}
+              >
+                + Create New Collaborative
+              </button>
+            )}
           </div>
         ) : (
-          <div style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fill, minmax(350px, 1fr))',
-            gap: '1.5rem'
+          <div style={{ 
+            display: 'grid', 
+            gridTemplateColumns: 'repeat(auto-fill, minmax(350px, 1fr))', 
+            gap: '1.5rem' 
           }}>
             {collaboratives.map((collab) => {
               const status = getStatusBadge(collab)
               return (
                 <div
                   key={collab.id}
-                  onClick={() => navigate(`/collaboratives/${collab.id}`)}
+                  onClick={() => navigate(`/admin/collaboratives/${collab.id}`)}
                   style={{
                     background: 'white',
                     borderRadius: '12px',
@@ -279,13 +279,19 @@ function CollaborativesList() {
                     e.currentTarget.style.transform = 'translateY(-4px)'
                     e.currentTarget.style.boxShadow = '0 8px 20px rgba(0, 0, 0, 0.15)'
                   }}
-                  onMouseLeave={(e) => {
+                  onMouseOut={(e) => {
                     e.currentTarget.style.transform = 'translateY(0)'
                     e.currentTarget.style.boxShadow = '0 4px 12px rgba(0, 0, 0, 0.1)'
                   }}
                 >
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', marginBottom: '1rem' }}>
-                    <h3 style={{ color: '#0E1F56', margin: 0, fontSize: '1.25rem', flex: 1 }}>
+                    <h3 style={{ 
+                      fontSize: '1.25rem', 
+                      fontWeight: '700', 
+                      color: '#0E1F56',
+                      margin: 0,
+                      flex: 1
+                    }}>
                       {collab.name}
                     </h3>
                     <span style={{
@@ -295,10 +301,9 @@ function CollaborativesList() {
                       borderRadius: '12px',
                       fontSize: '0.75rem',
                       fontWeight: '600',
-                      marginLeft: '0.5rem',
-                      whiteSpace: 'nowrap'
+                      marginLeft: '0.5rem'
                     }}>
-                      {status.text}
+                      {status.label}
                     </span>
                   </div>
 
@@ -309,38 +314,38 @@ function CollaborativesList() {
                       marginBottom: '1rem',
                       lineHeight: '1.5'
                     }}>
-                      {collab.description.length > 100 
-                        ? collab.description.substring(0, 100) + '...' 
-                        : collab.description}
+                      {collab.description}
                     </p>
                   )}
 
                   <div style={{ 
                     display: 'flex', 
-                    gap: '1rem',
-                    paddingTop: '1rem',
+                    gap: '1.5rem', 
+                    paddingTop: '1rem', 
                     borderTop: '1px solid #e5e7eb',
                     fontSize: '0.875rem',
                     color: '#6b7280'
                   }}>
-                    <div style={{ flex: 1 }}>
-                      <div style={{ fontWeight: '600', marginBottom: '0.25rem' }}>Start Date</div>
-                      <div>{formatDate(collab.start_date)}</div>
+                    <div>
+                      <div style={{ fontWeight: '600', color: '#374151' }}>Start Date</div>
+                      <div>{new Date(collab.start_date).toLocaleDateString()}</div>
                     </div>
-                    <div style={{ flex: 1 }}>
-                      <div style={{ fontWeight: '600', marginBottom: '0.25rem' }}>End Date</div>
-                      <div>{formatDate(collab.end_date)}</div>
-                    </div>
+                    {collab.end_date && (
+                      <div>
+                        <div style={{ fontWeight: '600', color: '#374151' }}>End Date</div>
+                        <div>{new Date(collab.end_date).toLocaleDateString()}</div>
+                      </div>
+                    )}
                   </div>
 
                   <div style={{ 
                     marginTop: '1rem',
-                    paddingTop: '1rem',
-                    borderTop: '1px solid #e5e7eb',
-                    fontSize: '0.875rem',
                     color: '#00A79D',
+                    fontSize: '0.875rem',
                     fontWeight: '600',
-                    textAlign: 'right'
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.5rem'
                   }}>
                     View Details →
                   </div>
@@ -361,5 +366,3 @@ function CollaborativesList() {
     </div>
   )
 }
-
-export default CollaborativesList

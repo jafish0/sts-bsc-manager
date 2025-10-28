@@ -1,4 +1,5 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { supabase } from '../utils/supabase'
 import {
   STSIOA_COPYRIGHT,
@@ -10,12 +11,24 @@ import {
 } from '../config/stsioa'
 import '../styles/STSIOA.css'
 
-function STSIOA({ teamCodeData, assessmentResponseId, onComplete }) {
+function STSIOA() {
+  const navigate = useNavigate()
+  const [assessmentResponseId, setAssessmentResponseId] = useState(null)
   const [responses, setResponses] = useState({})
   const [currentDomain, setCurrentDomain] = useState(1)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [showInfo, setShowInfo] = useState(false)
+
+  useEffect(() => {
+    const responseId = sessionStorage.getItem('assessmentResponseId')
+    if (!responseId) {
+      alert('No assessment found. Please start from the beginning.')
+      navigate('/')
+      return
+    }
+    setAssessmentResponseId(responseId)
+  }, [navigate])
 
   const handleResponseChange = (questionId, value) => {
     setResponses(prev => ({
@@ -78,6 +91,12 @@ function STSIOA({ teamCodeData, assessmentResponseId, onComplete }) {
 
   const handleSubmit = async (e) => {
     e.preventDefault()
+    
+    if (!assessmentResponseId) {
+      setError('Assessment not initialized. Please refresh and try again.')
+      return
+    }
+
     setLoading(true)
     setError('')
 
@@ -110,19 +129,32 @@ function STSIOA({ teamCodeData, assessmentResponseId, onComplete }) {
         .from('assessment_responses')
         .update({ 
           stsioa_complete: true,
-          is_complete: true
+          is_complete: true,
+          completed_at: new Date().toISOString()
         })
         .eq('id', assessmentResponseId)
 
       if (updateError) throw updateError
 
-      onComplete()
+      // Navigate to completion page
+      navigate('/complete')
 
     } catch (err) {
       console.error('Error saving STSI-OA:', err)
       setError('An error occurred saving your responses. Please try again.')
       setLoading(false)
     }
+  }
+
+  if (!assessmentResponseId) {
+    return (
+      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}>
+        <div style={{ textAlign: 'center' }}>
+          <div style={{ fontSize: '2rem', marginBottom: '1rem' }}>⏳</div>
+          <div>Loading assessment...</div>
+        </div>
+      </div>
+    )
   }
 
   const domain = getCurrentDomainData()

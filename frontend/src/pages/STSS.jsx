@@ -1,4 +1,5 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { supabase } from '../utils/supabase'
 import {
   STSS_COPYRIGHT,
@@ -9,11 +10,23 @@ import {
 } from '../config/stss'
 import '../styles/STSS.css'
 
-function STSS({ teamCodeData, assessmentResponseId, onComplete }) {
+function STSS() {
+  const navigate = useNavigate()
+  const [assessmentResponseId, setAssessmentResponseId] = useState(null)
   const [responses, setResponses] = useState({})
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [showInfo, setShowInfo] = useState(false)
+
+  useEffect(() => {
+    const responseId = sessionStorage.getItem('assessmentResponseId')
+    if (!responseId) {
+      alert('No assessment found. Please start from the beginning.')
+      navigate('/')
+      return
+    }
+    setAssessmentResponseId(responseId)
+  }, [navigate])
 
   const handleResponseChange = (itemId, value) => {
     setResponses(prev => ({
@@ -46,6 +59,12 @@ function STSS({ teamCodeData, assessmentResponseId, onComplete }) {
 
   const handleSubmit = async (e) => {
     e.preventDefault()
+    
+    if (!assessmentResponseId) {
+      setError('Assessment not initialized. Please refresh and try again.')
+      return
+    }
+
     setLoading(true)
     setError('')
 
@@ -87,7 +106,7 @@ function STSS({ teamCodeData, assessmentResponseId, onComplete }) {
 
       if (updateError) throw updateError
 
-      onComplete()
+      navigate('/proqol')
 
     } catch (err) {
       console.error('Error saving STSS:', err)
@@ -96,9 +115,19 @@ function STSS({ teamCodeData, assessmentResponseId, onComplete }) {
     }
   }
 
-  // Helper function to determine if we should show scale header
   const shouldShowScaleHeader = (index) => {
     return index === 0 || index === 6 || index === 12
+  }
+
+  if (!assessmentResponseId) {
+    return (
+      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}>
+        <div style={{ textAlign: 'center' }}>
+          <div style={{ fontSize: '2rem', marginBottom: '1rem' }}>⏳</div>
+          <div>Loading assessment...</div>
+        </div>
+      </div>
+    )
   }
 
   return (

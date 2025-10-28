@@ -6,6 +6,7 @@ import Demographics from './pages/Demographics'
 import STSS from './pages/STSS'
 import ProQOL from './pages/ProQOL'
 import STSIOA from './pages/STSIOA'
+import AssessmentComplete from './pages/AssessmentComplete'
 import Login from './pages/Login'
 import AdminDashboard from './pages/AdminDashboard'
 import CollaborativesList from './pages/CollaborativesList'
@@ -24,6 +25,7 @@ function App() {
           <Route path="/stss" element={<STSS />} />
           <Route path="/proqol" element={<ProQOL />} />
           <Route path="/stsioa" element={<STSIOA />} />
+          <Route path="/complete" element={<AssessmentComplete />} />
           
           {/* Admin Routes */}
           <Route path="/login" element={<Login />} />

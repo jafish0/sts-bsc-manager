@@ -1,22 +1,25 @@
 import { useState, useEffect } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
-import { useAuth } from '../contexts/AuthContext'
+import { useParams, useNavigate } from 'react-router-dom'
 import { supabase } from '../utils/supabase'
 import AddTeamModal from '../components/AddTeamModal'
-import ctacLogo from '../assets/UKCTAC_logoasuite_web__primary_tagline_color.png'
+import ctacLogo from '../assets/CTAC_white.png'
 
-function CollaborativeDetail() {
+export default function CollaborativeDetail() {
   const { id } = useParams()
+  const navigate = useNavigate()
   const [collaborative, setCollaborative] = useState(null)
   const [teams, setTeams] = useState([])
-  const [isEditing, setIsEditing] = useState(false)
-  const [editData, setEditData] = useState({})
   const [loading, setLoading] = useState(true)
+  const [isEditing, setIsEditing] = useState(false)
   const [saving, setSaving] = useState(false)
-  const [error, setError] = useState('')
   const [showAddTeamModal, setShowAddTeamModal] = useState(false)
-  const { profile, signOut } = useAuth()
-  const navigate = useNavigate()
+  const [editForm, setEditForm] = useState({
+    name: '',
+    description: '',
+    start_date: '',
+    end_date: '',
+    status: 'active'
+  })
 
   useEffect(() => {
     fetchCollaborative()
@@ -32,11 +35,18 @@ function CollaborativeDetail() {
         .single()
 
       if (error) throw error
+
       setCollaborative(data)
-      setEditData(data)
+      setEditForm({
+        name: data.name,
+        description: data.description || '',
+        start_date: data.start_date,
+        end_date: data.end_date || '',
+        status: data.status || 'active'
+      })
     } catch (error) {
       console.error('Error fetching collaborative:', error)
-      setError('Failed to load collaborative')
+      alert('Error loading collaborative details')
     } finally {
       setLoading(false)
     }
@@ -52,11 +62,11 @@ function CollaborativeDetail() {
             id,
             code,
             timepoint,
-            active
+            created_at
           )
         `)
         .eq('collaborative_id', id)
-        .order('created_at', { ascending: true })
+        .order('created_at', { ascending: false })
 
       if (error) throw error
       setTeams(data || [])
@@ -66,74 +76,39 @@ function CollaborativeDetail() {
   }
 
   const handleSave = async () => {
-    setError('')
     setSaving(true)
-
-    // Validation
-    if (!editData.name?.trim()) {
-      setError('Collaborative name is required')
-      setSaving(false)
-      return
-    }
-
-    if (editData.start_date && editData.end_date && 
-        new Date(editData.end_date) <= new Date(editData.start_date)) {
-      setError('End date must be after start date')
-      setSaving(false)
-      return
-    }
-
     try {
-      const { data, error: updateError } = await supabase
+      const { error } = await supabase
         .from('collaboratives')
-        .update({
-          name: editData.name.trim(),
-          description: editData.description?.trim() || null,
-          start_date: editData.start_date || null,
-          end_date: editData.end_date || null,
-          baseline_start_date: editData.baseline_start_date || null,
-          baseline_end_date: editData.baseline_end_date || null,
-          endline_start_date: editData.endline_start_date || null,
-          endline_end_date: editData.endline_end_date || null,
-          followup_6mo_start_date: editData.followup_6mo_start_date || null,
-          followup_6mo_end_date: editData.followup_6mo_end_date || null,
-          followup_12mo_start_date: editData.followup_12mo_start_date || null,
-          followup_12mo_end_date: editData.followup_12mo_end_date || null,
-          status: editData.status
-        })
+        .update(editForm)
         .eq('id', id)
-        .select()
-        .single()
 
-      if (updateError) throw updateError
+      if (error) throw error
 
-      setCollaborative(data)
+      setCollaborative({ ...collaborative, ...editForm })
       setIsEditing(false)
-    } catch (err) {
-      console.error('Error updating collaborative:', err)
-      setError(err.message || 'Failed to update collaborative')
+      alert('Collaborative updated successfully!')
+    } catch (error) {
+      console.error('Error updating collaborative:', error)
+      alert('Error updating collaborative')
     } finally {
       setSaving(false)
     }
   }
 
   const handleCancel = () => {
-    setEditData(collaborative)
+    setEditForm({
+      name: collaborative.name,
+      description: collaborative.description || '',
+      start_date: collaborative.start_date,
+      end_date: collaborative.end_date || '',
+      status: collaborative.status || 'active'
+    })
     setIsEditing(false)
-    setError('')
-  }
-
-  const handleChange = (field, value) => {
-    setEditData(prev => ({ ...prev, [field]: value }))
-  }
-
-  const handleAddTeamSuccess = () => {
-    setShowAddTeamModal(false)
-    fetchTeams() // Refresh teams list
   }
 
   const handleSignOut = async () => {
-    await signOut()
+    await supabase.auth.signOut()
     navigate('/login')
   }
 
@@ -146,35 +121,53 @@ function CollaborativeDetail() {
     })
   }
 
-  const getStatusBadge = (status) => {
-    const statusConfig = {
-      'active': { text: 'Active', color: '#10b981', bg: '#d1fae5' },
-      'upcoming': { text: 'Upcoming', color: '#0ea5e9', bg: '#e0f2fe' },
-      'completed': { text: 'Completed', color: '#6b7280', bg: '#f3f4f6' }
+  const copyToClipboard = async (text) => {
+    try {
+      await navigator.clipboard.writeText(text)
+      alert('Code copied to clipboard!')
+    } catch (err) {
+      console.error('Failed to copy:', err)
+      alert('Failed to copy code')
     }
-    return statusConfig[status] || statusConfig['active']
   }
 
-  const copyToClipboard = (text) => {
-    navigator.clipboard.writeText(text)
-    alert('Code copied to clipboard!')
+  const getTimepointLabel = (timepoint) => {
+    const labels = {
+      baseline: 'Baseline',
+      endline: 'Endline',
+      '6_month': '6-Month Follow-up',
+      '12_month': '12-Month Follow-up'
+    }
+    return labels[timepoint] || timepoint
+  }
+
+  const handleAddTeamSuccess = () => {
+    setShowAddTeamModal(false)
+    fetchTeams()
   }
 
   if (loading) {
     return (
-      <div style={{ minHeight: '100vh', background: '#f3f4f6', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <p style={{ color: '#6b7280', fontSize: '1.125rem' }}>Loading collaborative...</p>
+      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}>
+        <div style={{ textAlign: 'center' }}>
+          <div style={{ fontSize: '2rem', marginBottom: '1rem' }}>📋</div>
+          <div>Loading collaborative details...</div>
+        </div>
       </div>
     )
   }
 
   if (!collaborative) {
     return (
-      <div style={{ minHeight: '100vh', background: '#f3f4f6', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', height: '100vh', padding: '2rem' }}>
         <div style={{ textAlign: 'center' }}>
-          <h2 style={{ color: '#ef4444' }}>Collaborative Not Found</h2>
+          <div style={{ fontSize: '3rem', marginBottom: '1rem' }}>❌</div>
+          <h2 style={{ color: '#374151', marginBottom: '1rem' }}>Collaborative Not Found</h2>
+          <p style={{ color: '#6b7280', marginBottom: '2rem' }}>
+            The collaborative you're looking for doesn't exist or has been removed.
+          </p>
           <button
-            onClick={() => navigate('/collaboratives')}
+            onClick={() => navigate('/admin/collaboratives')}
             style={{
               background: 'linear-gradient(135deg, #00A79D 0%, #0E1F56 100%)',
               color: 'white',
@@ -193,42 +186,39 @@ function CollaborativeDetail() {
     )
   }
 
-  const statusBadge = getStatusBadge(isEditing ? editData.status : collaborative.status)
-
   return (
-    <div style={{ minHeight: '100vh', background: '#f3f4f6' }}>
+    <div style={{ minHeight: '100vh', background: 'linear-gradient(135deg, #0E1F56 0%, #1a2f6f 100%)' }}>
       {/* Header */}
-      <header style={{
-        background: 'linear-gradient(135deg, #0E1F56 0%, #00A79D 100%)',
-        color: 'white',
-        padding: '1rem 2rem',
-        boxShadow: '0 2px 8px rgba(0, 0, 0, 0.1)',
-        display: 'flex',
-        justifyContent: 'space-between',
-        alignItems: 'center'
+      <div style={{ 
+        background: 'rgba(255, 255, 255, 0.1)', 
+        backdropFilter: 'blur(10px)',
+        borderBottom: '1px solid rgba(255, 255, 255, 0.2)',
+        padding: '1.5rem 2rem',
+        boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)'
       }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', cursor: 'pointer' }}
-             onClick={() => navigate('/collaboratives')}>
-          <img 
-            src={ctacLogo} 
-            alt="CTAC" 
-            style={{ height: '50px', width: 'auto' }}
-          />
-          <div>
-            <h1 style={{ fontSize: '1.25rem', margin: 0 }}>Collaborative Details</h1>
-            <p style={{ fontSize: '0.875rem', margin: 0, opacity: 0.9 }}>
-              View and manage collaborative information
-            </p>
-          </div>
-        </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '1.5rem' }}>
-          <div style={{ textAlign: 'right' }}>
-            <p style={{ margin: 0, fontSize: '0.9rem', fontWeight: '600' }}>
-              {profile?.email}
-            </p>
-            <p style={{ margin: 0, fontSize: '0.8rem', opacity: 0.8 }}>
-              {profile?.role === 'super_admin' ? 'Super Admin' : profile?.role}
-            </p>
+        <div style={{ 
+          maxWidth: '1400px', 
+          margin: '0 auto', 
+          display: 'flex', 
+          justifyContent: 'space-between', 
+          alignItems: 'center',
+          flexWrap: 'wrap',
+          gap: '1rem'
+        }}>
+          <div 
+            style={{ display: 'flex', alignItems: 'center', gap: '1.5rem', cursor: 'pointer' }}
+            onClick={() => navigate('/admin/collaboratives')}>
+            <img 
+              src={ctacLogo} 
+              alt="CTAC" 
+              style={{ height: '50px', width: 'auto' }}
+            />
+            <div>
+              <h1 style={{ fontSize: '1.25rem', margin: 0 }}>Collaborative Details</h1>
+              <p style={{ fontSize: '0.875rem', margin: 0, opacity: 0.9 }}>
+                View and manage collaborative information
+              </p>
+            </div>
           </div>
           <button
             onClick={handleSignOut}
@@ -244,24 +234,24 @@ function CollaborativeDetail() {
               transition: 'all 0.2s'
             }}
             onMouseEnter={(e) => {
-              e.target.style.background = 'white'
-              e.target.style.color = '#0E1F56'
+              e.currentTarget.style.background = 'white'
+              e.currentTarget.style.color = '#0E1F56'
             }}
-            onMouseLeave={(e) => {
-              e.target.style.background = 'rgba(255, 255, 255, 0.2)'
-              e.target.style.color = 'white'
+            onMouseOut={(e) => {
+              e.currentTarget.style.background = 'rgba(255, 255, 255, 0.2)'
+              e.currentTarget.style.color = 'white'
             }}
           >
             Sign Out
           </button>
         </div>
-      </header>
+      </div>
 
       {/* Main Content */}
-      <div style={{ padding: '2rem', maxWidth: '1200px', margin: '0 auto' }}>
+      <div style={{ maxWidth: '1400px', margin: '0 auto', padding: '2rem' }}>
         {/* Back Button */}
         <button
-          onClick={() => navigate('/collaboratives')}
+          onClick={() => navigate('/admin/collaboratives')}
           style={{
             background: 'white',
             color: '#6b7280',
@@ -280,482 +270,229 @@ function CollaborativeDetail() {
           ← Back to Collaboratives
         </button>
 
-        {/* Main Card */}
-        <div style={{
-          background: 'white',
-          borderRadius: '12px',
+        {/* Collaborative Info Card */}
+        <div style={{ 
+          background: 'white', 
+          borderRadius: '12px', 
           padding: '2rem',
-          boxShadow: '0 4px 12px rgba(0, 0, 0, 0.1)',
-          marginBottom: '2rem'
+          marginBottom: '2rem',
+          boxShadow: '0 4px 12px rgba(0, 0, 0, 0.1)'
         }}>
-          {/* Header with Edit Button */}
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', marginBottom: '2rem' }}>
-            <div style={{ flex: 1 }}>
-              {isEditing ? (
-                <input
-                  type="text"
-                  value={editData.name}
-                  onChange={(e) => handleChange('name', e.target.value)}
-                  style={{
-                    fontSize: '2rem',
-                    fontWeight: '700',
-                    color: '#0E1F56',
-                    border: '2px solid #00A79D',
-                    borderRadius: '8px',
-                    padding: '0.5rem',
-                    width: '100%',
-                    boxSizing: 'border-box'
-                  }}
-                />
-              ) : (
-                <h2 style={{ color: '#0E1F56', margin: 0, fontSize: '2rem' }}>
-                  {collaborative.name}
-                </h2>
-              )}
-            </div>
-            <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center', marginLeft: '1rem' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', marginBottom: '1.5rem' }}>
+            <div>
+              <h2 style={{ color: '#0E1F56', fontSize: '1.875rem', margin: '0 0 0.5rem 0' }}>
+                {isEditing ? (
+                  <input
+                    type="text"
+                    value={editForm.name}
+                    onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
+                    style={{
+                      fontSize: '1.875rem',
+                      fontWeight: '700',
+                      padding: '0.5rem',
+                      border: '2px solid #0E1F56',
+                      borderRadius: '8px',
+                      width: '100%'
+                    }}
+                  />
+                ) : (
+                  collaborative.name
+                )}
+              </h2>
               <span style={{
-                background: statusBadge.bg,
-                color: statusBadge.color,
-                padding: '0.5rem 1rem',
+                background: collaborative.status === 'active' ? '#d1fae5' : '#f3f4f6',
+                color: collaborative.status === 'active' ? '#10b981' : '#6b7280',
+                padding: '0.25rem 0.75rem',
                 borderRadius: '12px',
                 fontSize: '0.875rem',
-                fontWeight: '600',
-                whiteSpace: 'nowrap'
+                fontWeight: '600'
               }}>
-                {statusBadge.text}
+                {collaborative.status === 'active' ? 'Active' : 'Completed'}
               </span>
-              {!isEditing ? (
+            </div>
+
+            {!isEditing ? (
+              <button
+                onClick={() => setIsEditing(true)}
+                style={{
+                  background: 'linear-gradient(135deg, #00A79D 0%, #0E1F56 100%)',
+                  color: 'white',
+                  padding: '0.625rem 1.25rem',
+                  borderRadius: '8px',
+                  border: 'none',
+                  fontWeight: '600',
+                  cursor: 'pointer',
+                  fontSize: '0.9rem'
+                }}
+              >
+                Edit
+              </button>
+            ) : (
+              <div style={{ display: 'flex', gap: '0.75rem' }}>
                 <button
-                  onClick={() => setIsEditing(true)}
+                  onClick={handleCancel}
+                  disabled={saving}
                   style={{
-                    background: 'linear-gradient(135deg, #00A79D 0%, #0E1F56 100%)',
+                    background: '#e5e7eb',
+                    color: '#374151',
+                    padding: '0.625rem 1.25rem',
+                    borderRadius: '8px',
+                    border: 'none',
+                    fontWeight: '600',
+                    cursor: saving ? 'not-allowed' : 'pointer',
+                    fontSize: '0.9rem',
+                    opacity: saving ? 0.5 : 1
+                  }}
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleSave}
+                  disabled={saving}
+                  style={{
+                    background: saving ? '#9ca3af' : 'linear-gradient(135deg, #00A79D 0%, #0E1F56 100%)',
                     color: 'white',
                     padding: '0.625rem 1.25rem',
                     borderRadius: '8px',
                     border: 'none',
                     fontWeight: '600',
-                    cursor: 'pointer',
+                    cursor: saving ? 'not-allowed' : 'pointer',
                     fontSize: '0.9rem'
                   }}
                 >
-                  Edit
+                  {saving ? 'Saving...' : 'Save'}
                 </button>
-              ) : (
-                <>
-                  <button
-                    onClick={handleCancel}
-                    disabled={saving}
-                    style={{
-                      background: '#e5e7eb',
-                      color: '#374151',
-                      padding: '0.625rem 1.25rem',
-                      borderRadius: '8px',
-                      border: 'none',
-                      fontWeight: '600',
-                      cursor: saving ? 'not-allowed' : 'pointer',
-                      fontSize: '0.9rem',
-                      opacity: saving ? 0.6 : 1
-                    }}
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    onClick={handleSave}
-                    disabled={saving}
-                    style={{
-                      background: saving ? '#9ca3af' : 'linear-gradient(135deg, #00A79D 0%, #0E1F56 100%)',
-                      color: 'white',
-                      padding: '0.625rem 1.25rem',
-                      borderRadius: '8px',
-                      border: 'none',
-                      fontWeight: '600',
-                      cursor: saving ? 'not-allowed' : 'pointer',
-                      fontSize: '0.9rem'
-                    }}
-                  >
-                    {saving ? 'Saving...' : 'Save'}
-                  </button>
-                </>
-              )}
-            </div>
-          </div>
-
-          {/* Error Message */}
-          {error && (
-            <div style={{
-              background: '#fee2e2',
-              border: '1px solid #ef4444',
-              color: '#991b1b',
-              padding: '0.75rem',
-              borderRadius: '8px',
-              marginBottom: '1.5rem',
-              fontSize: '0.9rem'
-            }}>
-              {error}
-            </div>
-          )}
-
-          {/* Description */}
-          <div style={{ marginBottom: '2rem' }}>
-            <label style={{ 
-              display: 'block', 
-              color: '#6b7280', 
-              fontSize: '0.875rem', 
-              fontWeight: '600',
-              marginBottom: '0.5rem'
-            }}>
-              Description
-            </label>
-            {isEditing ? (
-              <textarea
-                value={editData.description || ''}
-                onChange={(e) => handleChange('description', e.target.value)}
-                rows={3}
-                style={{
-                  width: '100%',
-                  padding: '0.75rem',
-                  border: '2px solid #e5e7eb',
-                  borderRadius: '8px',
-                  fontSize: '1rem',
-                  fontFamily: 'inherit',
-                  resize: 'vertical',
-                  boxSizing: 'border-box'
-                }}
-                onFocus={(e) => e.target.style.borderColor = '#00A79D'}
-                onBlur={(e) => e.target.style.borderColor = '#e5e7eb'}
-              />
-            ) : (
-              <p style={{ color: '#374151', margin: 0, lineHeight: '1.6' }}>
-                {collaborative.description || 'No description provided'}
-              </p>
+              </div>
             )}
           </div>
 
-          {/* Overall Dates */}
-          <div style={{
-            display: 'grid',
-            gridTemplateColumns: '1fr 1fr',
-            gap: '1.5rem',
-            marginBottom: '2rem',
-            paddingBottom: '2rem',
-            borderBottom: '2px solid #e5e7eb'
-          }}>
-            <div>
-              <label style={{ 
-                display: 'block', 
-                color: '#6b7280', 
-                fontSize: '0.875rem', 
-                fontWeight: '600',
-                marginBottom: '0.5rem'
-              }}>
-                Overall Start Date
-              </label>
-              {isEditing ? (
-                <input
-                  type="date"
-                  value={editData.start_date || ''}
-                  onChange={(e) => handleChange('start_date', e.target.value)}
+          {isEditing ? (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+              <div>
+                <label style={{ display: 'block', fontWeight: '600', marginBottom: '0.5rem', color: '#374151' }}>
+                  Description
+                </label>
+                <textarea
+                  value={editForm.description}
+                  onChange={(e) => setEditForm({ ...editForm, description: e.target.value })}
+                  rows={3}
                   style={{
                     width: '100%',
                     padding: '0.75rem',
-                    border: '2px solid #e5e7eb',
+                    border: '2px solid #d1d5db',
                     borderRadius: '8px',
-                    fontSize: '1rem',
-                    boxSizing: 'border-box'
+                    fontSize: '0.95rem',
+                    fontFamily: 'inherit'
                   }}
-                  onFocus={(e) => e.target.style.borderColor = '#00A79D'}
-                  onBlur={(e) => e.target.style.borderColor = '#e5e7eb'}
                 />
-              ) : (
-                <p style={{ color: '#374151', fontSize: '1.125rem', fontWeight: '600', margin: 0 }}>
-                  {formatDate(collaborative.start_date)}
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '1rem' }}>
+                <div>
+                  <label style={{ display: 'block', fontWeight: '600', marginBottom: '0.5rem', color: '#374151' }}>
+                    Start Date
+                  </label>
+                  <input
+                    type="date"
+                    value={editForm.start_date}
+                    onChange={(e) => setEditForm({ ...editForm, start_date: e.target.value })}
+                    style={{
+                      width: '100%',
+                      padding: '0.75rem',
+                      border: '2px solid #d1d5db',
+                      borderRadius: '8px',
+                      fontSize: '0.95rem'
+                    }}
+                  />
+                </div>
+
+                <div>
+                  <label style={{ display: 'block', fontWeight: '600', marginBottom: '0.5rem', color: '#374151' }}>
+                    End Date
+                  </label>
+                  <input
+                    type="date"
+                    value={editForm.end_date}
+                    onChange={(e) => setEditForm({ ...editForm, end_date: e.target.value })}
+                    style={{
+                      width: '100%',
+                      padding: '0.75rem',
+                      border: '2px solid #d1d5db',
+                      borderRadius: '8px',
+                      fontSize: '0.95rem'
+                    }}
+                  />
+                </div>
+
+                <div>
+                  <label style={{ display: 'block', fontWeight: '600', marginBottom: '0.5rem', color: '#374151' }}>
+                    Status
+                  </label>
+                  <select
+                    value={editForm.status}
+                    onChange={(e) => setEditForm({ ...editForm, status: e.target.value })}
+                    style={{
+                      width: '100%',
+                      padding: '0.75rem',
+                      border: '2px solid #d1d5db',
+                      borderRadius: '8px',
+                      fontSize: '0.95rem'
+                    }}
+                  >
+                    <option value="active">Active</option>
+                    <option value="completed">Completed</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <>
+              {collaborative.description && (
+                <p style={{ color: '#6b7280', fontSize: '1rem', lineHeight: '1.6', marginBottom: '1.5rem' }}>
+                  {collaborative.description}
                 </p>
               )}
-            </div>
 
-            <div>
-              <label style={{ 
-                display: 'block', 
-                color: '#6b7280', 
-                fontSize: '0.875rem', 
-                fontWeight: '600',
-                marginBottom: '0.5rem'
+              <div style={{ 
+                display: 'grid', 
+                gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', 
+                gap: '1.5rem',
+                paddingTop: '1.5rem',
+                borderTop: '2px solid #e5e7eb'
               }}>
-                Overall End Date
-              </label>
-              {isEditing ? (
-                <input
-                  type="date"
-                  value={editData.end_date || ''}
-                  onChange={(e) => handleChange('end_date', e.target.value)}
-                  style={{
-                    width: '100%',
-                    padding: '0.75rem',
-                    border: '2px solid #e5e7eb',
-                    borderRadius: '8px',
-                    fontSize: '1rem',
-                    boxSizing: 'border-box'
-                  }}
-                  onFocus={(e) => e.target.style.borderColor = '#00A79D'}
-                  onBlur={(e) => e.target.style.borderColor = '#e5e7eb'}
-                />
-              ) : (
-                <p style={{ color: '#374151', fontSize: '1.125rem', fontWeight: '600', margin: 0 }}>
-                  {formatDate(collaborative.end_date)}
-                </p>
-              )}
-            </div>
-          </div>
-
-          {/* Status (only in edit mode) */}
-          {isEditing && (
-            <div style={{ marginBottom: '2rem' }}>
-              <label style={{ 
-                display: 'block', 
-                color: '#6b7280', 
-                fontSize: '0.875rem', 
-                fontWeight: '600',
-                marginBottom: '0.5rem'
-              }}>
-                Status
-              </label>
-              <select
-                value={editData.status || 'active'}
-                onChange={(e) => handleChange('status', e.target.value)}
-                style={{
-                  width: '100%',
-                  padding: '0.75rem',
-                  border: '2px solid #e5e7eb',
-                  borderRadius: '8px',
-                  fontSize: '1rem',
-                  boxSizing: 'border-box',
-                  cursor: 'pointer'
-                }}
-              >
-                <option value="active">Active</option>
-                <option value="upcoming">Upcoming</option>
-                <option value="completed">Completed</option>
-              </select>
-            </div>
+                <div>
+                  <div style={{ fontSize: '0.875rem', color: '#6b7280', marginBottom: '0.25rem' }}>Start Date</div>
+                  <div style={{ fontSize: '1.125rem', fontWeight: '600', color: '#0E1F56' }}>
+                    {formatDate(collaborative.start_date)}
+                  </div>
+                </div>
+                <div>
+                  <div style={{ fontSize: '0.875rem', color: '#6b7280', marginBottom: '0.25rem' }}>End Date</div>
+                  <div style={{ fontSize: '1.125rem', fontWeight: '600', color: '#0E1F56' }}>
+                    {formatDate(collaborative.end_date)}
+                  </div>
+                </div>
+                <div>
+                  <div style={{ fontSize: '0.875rem', color: '#6b7280', marginBottom: '0.25rem' }}>Teams</div>
+                  <div style={{ fontSize: '1.125rem', fontWeight: '600', color: '#00A79D' }}>
+                    {teams.length}
+                  </div>
+                </div>
+              </div>
+            </>
           )}
-
-          {/* Assessment Timepoints */}
-          <h3 style={{ color: '#0E1F56', fontSize: '1.25rem', marginBottom: '1rem' }}>
-            Assessment Timepoints
-          </h3>
-
-          <div style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))',
-            gap: '1.5rem'
-          }}>
-            {/* Baseline */}
-            <div style={{ 
-              background: '#f9fafb', 
-              padding: '1.25rem', 
-              borderRadius: '8px',
-              borderLeft: '4px solid #00A79D'
-            }}>
-              <h4 style={{ color: '#374151', fontSize: '0.95rem', fontWeight: '600', marginTop: 0, marginBottom: '0.75rem' }}>
-                Baseline
-              </h4>
-              {isEditing ? (
-                <>
-                  <input
-                    type="date"
-                    value={editData.baseline_start_date || ''}
-                    onChange={(e) => handleChange('baseline_start_date', e.target.value)}
-                    placeholder="Start"
-                    style={{
-                      width: '100%',
-                      padding: '0.5rem',
-                      border: '1px solid #e5e7eb',
-                      borderRadius: '6px',
-                      fontSize: '0.875rem',
-                      marginBottom: '0.5rem',
-                      boxSizing: 'border-box'
-                    }}
-                  />
-                  <input
-                    type="date"
-                    value={editData.baseline_end_date || ''}
-                    onChange={(e) => handleChange('baseline_end_date', e.target.value)}
-                    placeholder="End"
-                    style={{
-                      width: '100%',
-                      padding: '0.5rem',
-                      border: '1px solid #e5e7eb',
-                      borderRadius: '6px',
-                      fontSize: '0.875rem',
-                      boxSizing: 'border-box'
-                    }}
-                  />
-                </>
-              ) : (
-                <>
-                  <p style={{ color: '#6b7280', fontSize: '0.8rem', margin: '0 0 0.25rem 0' }}>Start: {formatDate(collaborative.baseline_start_date)}</p>
-                  <p style={{ color: '#6b7280', fontSize: '0.8rem', margin: 0 }}>End: {formatDate(collaborative.baseline_end_date)}</p>
-                </>
-              )}
-            </div>
-
-            {/* Endline */}
-            <div style={{ 
-              background: '#f9fafb', 
-              padding: '1.25rem', 
-              borderRadius: '8px',
-              borderLeft: '4px solid #0E1F56'
-            }}>
-              <h4 style={{ color: '#374151', fontSize: '0.95rem', fontWeight: '600', marginTop: 0, marginBottom: '0.75rem' }}>
-                Endline
-              </h4>
-              {isEditing ? (
-                <>
-                  <input
-                    type="date"
-                    value={editData.endline_start_date || ''}
-                    onChange={(e) => handleChange('endline_start_date', e.target.value)}
-                    style={{
-                      width: '100%',
-                      padding: '0.5rem',
-                      border: '1px solid #e5e7eb',
-                      borderRadius: '6px',
-                      fontSize: '0.875rem',
-                      marginBottom: '0.5rem',
-                      boxSizing: 'border-box'
-                    }}
-                  />
-                  <input
-                    type="date"
-                    value={editData.endline_end_date || ''}
-                    onChange={(e) => handleChange('endline_end_date', e.target.value)}
-                    style={{
-                      width: '100%',
-                      padding: '0.5rem',
-                      border: '1px solid #e5e7eb',
-                      borderRadius: '6px',
-                      fontSize: '0.875rem',
-                      boxSizing: 'border-box'
-                    }}
-                  />
-                </>
-              ) : (
-                <>
-                  <p style={{ color: '#6b7280', fontSize: '0.8rem', margin: '0 0 0.25rem 0' }}>Start: {formatDate(collaborative.endline_start_date)}</p>
-                  <p style={{ color: '#6b7280', fontSize: '0.8rem', margin: 0 }}>End: {formatDate(collaborative.endline_end_date)}</p>
-                </>
-              )}
-            </div>
-
-            {/* 6-Month Follow-up */}
-            <div style={{ 
-              background: '#f9fafb', 
-              padding: '1.25rem', 
-              borderRadius: '8px',
-              borderLeft: '4px solid #10b981'
-            }}>
-              <h4 style={{ color: '#374151', fontSize: '0.95rem', fontWeight: '600', marginTop: 0, marginBottom: '0.75rem' }}>
-                6-Month Follow-up
-              </h4>
-              {isEditing ? (
-                <>
-                  <input
-                    type="date"
-                    value={editData.followup_6mo_start_date || ''}
-                    onChange={(e) => handleChange('followup_6mo_start_date', e.target.value)}
-                    style={{
-                      width: '100%',
-                      padding: '0.5rem',
-                      border: '1px solid #e5e7eb',
-                      borderRadius: '6px',
-                      fontSize: '0.875rem',
-                      marginBottom: '0.5rem',
-                      boxSizing: 'border-box'
-                    }}
-                  />
-                  <input
-                    type="date"
-                    value={editData.followup_6mo_end_date || ''}
-                    onChange={(e) => handleChange('followup_6mo_end_date', e.target.value)}
-                    style={{
-                      width: '100%',
-                      padding: '0.5rem',
-                      border: '1px solid #e5e7eb',
-                      borderRadius: '6px',
-                      fontSize: '0.875rem',
-                      boxSizing: 'border-box'
-                    }}
-                  />
-                </>
-              ) : (
-                <>
-                  <p style={{ color: '#6b7280', fontSize: '0.8rem', margin: '0 0 0.25rem 0' }}>Start: {formatDate(collaborative.followup_6mo_start_date)}</p>
-                  <p style={{ color: '#6b7280', fontSize: '0.8rem', margin: 0 }}>End: {formatDate(collaborative.followup_6mo_end_date)}</p>
-                </>
-              )}
-            </div>
-
-            {/* 12-Month Follow-up */}
-            <div style={{ 
-              background: '#f9fafb', 
-              padding: '1.25rem', 
-              borderRadius: '8px',
-              borderLeft: '4px solid #f59e0b'
-            }}>
-              <h4 style={{ color: '#374151', fontSize: '0.95rem', fontWeight: '600', marginTop: 0, marginBottom: '0.75rem' }}>
-                12-Month Follow-up
-              </h4>
-              {isEditing ? (
-                <>
-                  <input
-                    type="date"
-                    value={editData.followup_12mo_start_date || ''}
-                    onChange={(e) => handleChange('followup_12mo_start_date', e.target.value)}
-                    style={{
-                      width: '100%',
-                      padding: '0.5rem',
-                      border: '1px solid #e5e7eb',
-                      borderRadius: '6px',
-                      fontSize: '0.875rem',
-                      marginBottom: '0.5rem',
-                      boxSizing: 'border-box'
-                    }}
-                  />
-                  <input
-                    type="date"
-                    value={editData.followup_12mo_end_date || ''}
-                    onChange={(e) => handleChange('followup_12mo_end_date', e.target.value)}
-                    style={{
-                      width: '100%',
-                      padding: '0.5rem',
-                      border: '1px solid #e5e7eb',
-                      borderRadius: '6px',
-                      fontSize: '0.875rem',
-                      boxSizing: 'border-box'
-                    }}
-                  />
-                </>
-              ) : (
-                <>
-                  <p style={{ color: '#6b7280', fontSize: '0.8rem', margin: '0 0 0.25rem 0' }}>Start: {formatDate(collaborative.followup_12mo_start_date)}</p>
-                  <p style={{ color: '#6b7280', fontSize: '0.8rem', margin: 0 }}>End: {formatDate(collaborative.followup_12mo_end_date)}</p>
-                </>
-              )}
-            </div>
-          </div>
         </div>
 
         {/* Teams Section */}
-        <div style={{
-          background: 'white',
-          borderRadius: '12px',
+        <div style={{ 
+          background: 'white', 
+          borderRadius: '12px', 
           padding: '2rem',
           boxShadow: '0 4px 12px rgba(0, 0, 0, 0.1)'
         }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
-            <h3 style={{ color: '#0E1F56', fontSize: '1.25rem', margin: 0 }}>
-              Teams ({teams.length})
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
+            <h3 style={{ fontSize: '1.5rem', fontWeight: '700', color: '#0E1F56', margin: 0 }}>
+              Teams
             </h3>
             <button
               onClick={() => setShowAddTeamModal(true)}
@@ -776,105 +513,87 @@ function CollaborativeDetail() {
           </div>
 
           {teams.length === 0 ? (
-            <div style={{
-              background: '#f9fafb',
-              borderRadius: '8px',
-              padding: '3rem',
-              textAlign: 'center',
-              border: '2px dashed #e5e7eb'
-            }}>
-              <p style={{ color: '#6b7280', marginBottom: '1rem', fontSize: '1.05rem' }}>
-                No teams added yet
-              </p>
-              <p style={{ color: '#9ca3af', fontSize: '0.9rem' }}>
-                Add teams to this collaborative to generate assessment codes
-              </p>
+            <div style={{ textAlign: 'center', padding: '3rem', color: '#6b7280' }}>
+              <div style={{ fontSize: '3rem', marginBottom: '1rem', opacity: 0.3 }}>👥</div>
+              <p style={{ fontSize: '1.125rem', marginBottom: '0.5rem', fontWeight: '600' }}>No teams yet</p>
+              <p style={{ fontSize: '0.95rem' }}>Add your first team to get started</p>
             </div>
           ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
               {teams.map((team) => (
                 <div
                   key={team.id}
                   style={{
-                    background: '#f9fafb',
-                    borderRadius: '8px',
+                    border: '2px solid #e5e7eb',
+                    borderRadius: '12px',
                     padding: '1.5rem',
-                    border: '1px solid #e5e7eb'
+                    transition: 'all 0.2s'
                   }}
                 >
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', marginBottom: '1rem' }}>
-                    <div style={{ flex: 1 }}>
-                      <h4 style={{ color: '#0E1F56', margin: '0 0 0.5rem 0', fontSize: '1.125rem' }}>
-                        {team.agency_name}
-                      </h4>
-                      {team.team_name && (
-                        <p style={{ color: '#6b7280', margin: '0 0 0.25rem 0', fontSize: '0.9rem', fontStyle: 'italic' }}>
-                          {team.team_name}
-                        </p>
-                      )}
-                      {team.primary_contact_name && (
-                        <p style={{ color: '#6b7280', margin: '0 0 0.25rem 0', fontSize: '0.9rem' }}>
-                          Contact: {team.primary_contact_name}
-                        </p>
-                      )}
-                      {team.primary_contact_email && (
-                        <p style={{ color: '#6b7280', margin: '0 0 0.25rem 0', fontSize: '0.9rem' }}>
-                          Email: {team.primary_contact_email}
-                        </p>
-                      )}
-                      {team.estimated_staff_count && (
-                        <p style={{ color: '#6b7280', margin: 0, fontSize: '0.9rem' }}>
-                          Staff: ~{team.estimated_staff_count}
-                        </p>
-                      )}
-                    </div>
+                  <div style={{ marginBottom: '1rem' }}>
+                    <h4 style={{ fontSize: '1.25rem', fontWeight: '700', color: '#0E1F56', margin: '0 0 0.5rem 0' }}>
+                      {team.team_name}
+                    </h4>
+                    <p style={{ color: '#6b7280', fontSize: '0.95rem', margin: 0 }}>
+                      {team.agency_name}
+                    </p>
                   </div>
 
-                  {/* Team Codes */}
-                  <div style={{ marginTop: '1rem', paddingTop: '1rem', borderTop: '1px solid #e5e7eb' }}>
-                    <h5 style={{ color: '#374151', fontSize: '0.875rem', fontWeight: '600', marginBottom: '0.75rem' }}>
-                      Assessment Codes:
-                    </h5>
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '0.75rem' }}>
-                      {team.team_codes?.map((code) => (
-                        <div
-                          key={code.id}
+                  {team.contact_name && (
+                    <div style={{ marginBottom: '1rem', fontSize: '0.9rem', color: '#6b7280' }}>
+                      <strong>Contact:</strong> {team.contact_name}
+                      {team.contact_email && ` (${team.contact_email})`}
+                    </div>
+                  )}
+
+                  <div style={{ 
+                    display: 'grid', 
+                    gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', 
+                    gap: '1rem',
+                    marginTop: '1rem',
+                    paddingTop: '1rem',
+                    borderTop: '1px solid #e5e7eb'
+                  }}>
+                    {team.team_codes && team.team_codes.map((code) => (
+                      <div
+                        key={code.id}
+                        style={{
+                          background: '#f9fafb',
+                          padding: '1rem',
+                          borderRadius: '8px',
+                          border: '1px solid #e5e7eb'
+                        }}
+                      >
+                        <div style={{ fontSize: '0.75rem', fontWeight: '600', color: '#6b7280', marginBottom: '0.5rem', textTransform: 'uppercase' }}>
+                          {getTimepointLabel(code.timepoint)}
+                        </div>
+                        <div style={{ 
+                          fontSize: '1.125rem', 
+                          fontWeight: '700', 
+                          color: '#0E1F56',
+                          fontFamily: 'monospace',
+                          marginBottom: '0.75rem',
+                          letterSpacing: '0.05em'
+                        }}>
+                          {code.code}
+                        </div>
+                        <button
+                          onClick={() => copyToClipboard(code.code)}
                           style={{
-                            background: 'white',
-                            padding: '0.75rem',
-                            borderRadius: '6px',
-                            border: '1px solid #e5e7eb',
-                            display: 'flex',
-                            justifyContent: 'space-between',
-                            alignItems: 'center'
+                            background: '#e0f2fe',
+                            color: '#0369a1',
+                            border: 'none',
+                            padding: '0.375rem 0.75rem',
+                            borderRadius: '4px',
+                            cursor: 'pointer',
+                            fontSize: '0.75rem',
+                            fontWeight: '600'
                           }}
                         >
-                          <div>
-                            <p style={{ color: '#6b7280', fontSize: '0.75rem', margin: '0 0 0.25rem 0', textTransform: 'uppercase' }}>
-                              {code.timepoint.replace('_', ' ')}
-                            </p>
-                            <p style={{ color: '#0E1F56', fontSize: '0.9rem', fontWeight: '600', margin: 0, fontFamily: 'monospace' }}>
-                              {code.code}
-                            </p>
-                          </div>
-                          <button
-                            onClick={() => copyToClipboard(code.code)}
-                            style={{
-                              background: '#e0f2fe',
-                              color: '#0369a1',
-                              border: 'none',
-                              padding: '0.375rem 0.75rem',
-                              borderRadius: '4px',
-                              cursor: 'pointer',
-                              fontSize: '0.75rem',
-                              fontWeight: '600'
-                            }}
-                          >
-                            Copy
-                          </button>
-                        </div>
-                      ))}
-                    </div>
+                          📋 Copy Code
+                        </button>
+                      </div>
+                    ))}
                   </div>
                 </div>
               ))}
@@ -894,5 +613,3 @@ function CollaborativeDetail() {
     </div>
   )
 }
-
-export default CollaborativeDetail
