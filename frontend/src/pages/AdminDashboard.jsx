@@ -1,241 +1,162 @@
-import { useAuth } from '../contexts/AuthContext'
 import { useNavigate } from 'react-router-dom'
-import ctacLogo from '../assets/UKCTAC_logoasuite_web__primary_tagline_color.png'
+import { useAuth } from '../contexts/AuthContext'
+import { supabase } from '../utils/supabase'
 
-function AdminDashboard() {
-  const { profile, signOut } = useAuth()
+export default function AdminDashboard() {
   const navigate = useNavigate()
+  const { user } = useAuth()
 
-  const handleSignOut = async () => {
-    await signOut()
-    navigate('/login')
+  const handleLogout = async () => {
+    const { error } = await supabase.auth.signOut()
+    if (error) {
+      console.error('Error logging out:', error)
+      alert('Error logging out')
+    } else {
+      navigate('/login')
+    }
   }
 
   return (
     <div style={{ minHeight: '100vh', background: '#f3f4f6' }}>
       {/* Header */}
-      <header style={{
-        background: 'linear-gradient(135deg, #0E1F56 0%, #00A79D 100%)',
-        color: 'white',
-        padding: '1rem 2rem',
-        boxShadow: '0 2px 8px rgba(0, 0, 0, 0.1)',
-        display: 'flex',
-        justifyContent: 'space-between',
-        alignItems: 'center'
+      <div style={{ 
+        background: '#0E1F56', 
+        color: 'white', 
+        padding: '1.5rem 2rem',
+        boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
       }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-          <img 
-            src={ctacLogo} 
-            alt="CTAC" 
-            style={{ height: '50px', width: 'auto' }}
-          />
+        <div style={{ maxWidth: '1400px', margin: '0 auto', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <div>
-            <h1 style={{ fontSize: '1.25rem', margin: 0 }}>Admin Dashboard</h1>
-            <p style={{ fontSize: '0.875rem', margin: 0, opacity: 0.9 }}>
-              STS Breakthrough Series Collaborative Manager
-            </p>
-          </div>
-        </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '1.5rem' }}>
-          <div style={{ textAlign: 'right' }}>
-            <p style={{ margin: 0, fontSize: '0.9rem', fontWeight: '600' }}>
-              {profile?.email}
-            </p>
-            <p style={{ margin: 0, fontSize: '0.8rem', opacity: 0.8 }}>
-              {profile?.role === 'super_admin' ? 'Super Admin' : 
-               profile?.role === 'agency_admin' ? 'Agency Admin' : 
-               profile?.role === 'team_leader' ? 'Team Leader' : 
-               profile?.role}
+            <h1 style={{ margin: 0, fontSize: '1.875rem' }}>STS-BSC Manager</h1>
+            <p style={{ margin: '0.25rem 0 0 0', opacity: 0.9, fontSize: '0.875rem' }}>
+              Admin Dashboard
             </p>
           </div>
           <button
-            onClick={handleSignOut}
+            onClick={handleLogout}
             style={{
-              background: 'rgba(255, 255, 255, 0.2)',
+              padding: '0.5rem 1rem',
+              background: '#00A79D',
               color: 'white',
-              border: '2px solid white',
-              padding: '0.5rem 1.25rem',
-              borderRadius: '8px',
+              border: 'none',
+              borderRadius: '0.375rem',
               cursor: 'pointer',
-              fontWeight: '600',
-              fontSize: '0.9rem',
-              transition: 'all 0.2s'
-            }}
-            onMouseEnter={(e) => {
-              e.target.style.background = 'white'
-              e.target.style.color = '#0E1F56'
-            }}
-            onMouseLeave={(e) => {
-              e.target.style.background = 'rgba(255, 255, 255, 0.2)'
-              e.target.style.color = 'white'
+              fontWeight: '500'
             }}
           >
-            Sign Out
+            Logout
           </button>
         </div>
-      </header>
+      </div>
 
       {/* Main Content */}
-      <div style={{ padding: '2rem', maxWidth: '1400px', margin: '0 auto' }}>
-        <div style={{
-          background: 'white',
-          borderRadius: '12px',
-          padding: '2rem',
-          boxShadow: '0 4px 12px rgba(0, 0, 0, 0.1)',
-          marginBottom: '2rem'
-        }}>
-          <h2 style={{ color: '#0E1F56', marginTop: 0 }}>
-            👋 Welcome, {profile?.email?.split('@')[0] || 'Admin'}!
+      <div style={{ maxWidth: '1400px', margin: '0 auto', padding: '2rem' }}>
+        {/* Welcome Section */}
+        <div style={{ marginBottom: '2rem' }}>
+          <h2 style={{ color: '#0E1F56', marginBottom: '0.5rem' }}>
+            Welcome back!
           </h2>
-          <p style={{ color: '#6b7280', marginBottom: 0 }}>
-            Manage your breakthrough series collaboratives and track assessment progress.
+          <p style={{ color: '#6b7280' }}>
+            Manage your breakthrough series collaboratives and monitor assessment progress.
           </p>
         </div>
 
-        {/* Quick Actions */}
-        <div style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))',
-          gap: '1.5rem',
-          marginBottom: '2rem'
-        }}>
-          <div 
-            onClick={() => navigate('/collaboratives')}
+        {/* Action Cards */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '1.5rem' }}>
+          <button
+            onClick={() => navigate('/admin/collaboratives')}
             style={{
-              background: 'white',
-              borderRadius: '12px',
               padding: '2rem',
-              boxShadow: '0 4px 12px rgba(0, 0, 0, 0.1)',
+              background: 'white',
+              border: '2px solid #d1d5db',
+              borderRadius: '0.75rem',
               cursor: 'pointer',
               transition: 'all 0.2s',
-              borderLeft: '4px solid #00A79D'
+              textAlign: 'left'
             }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.transform = 'translateY(-4px)'
-              e.currentTarget.style.boxShadow = '0 8px 20px rgba(0, 0, 0, 0.15)'
+            onMouseOver={(e) => {
+              e.currentTarget.style.borderColor = '#0E1F56'
+              e.currentTarget.style.transform = 'translateY(-2px)'
+              e.currentTarget.style.boxShadow = '0 4px 6px rgba(0,0,0,0.1)'
             }}
-            onMouseLeave={(e) => {
+            onMouseOut={(e) => {
+              e.currentTarget.style.borderColor = '#d1d5db'
               e.currentTarget.style.transform = 'translateY(0)'
-              e.currentTarget.style.boxShadow = '0 4px 12px rgba(0, 0, 0, 0.1)'
+              e.currentTarget.style.boxShadow = 'none'
             }}
           >
-            <div style={{ fontSize: '2.5rem', marginBottom: '0.5rem' }}>🎯</div>
-            <h3 style={{ color: '#0E1F56', margin: '0 0 0.5rem 0' }}>Manage Collaboratives</h3>
-            <p style={{ color: '#6b7280', margin: 0, fontSize: '0.9rem' }}>
-              View, create, and manage breakthrough series collaboratives
-            </p>
-            <div style={{ 
-              marginTop: '1rem', 
-              color: '#00A79D', 
-              fontWeight: '600',
-              fontSize: '0.9rem'
-            }}>
-              Go to Collaboratives →
+            <div style={{ fontSize: '2rem', marginBottom: '0.5rem' }}>📋</div>
+            <div style={{ color: '#0E1F56', fontSize: '1.25rem', fontWeight: '600', marginBottom: '0.5rem' }}>
+              Manage Collaboratives
             </div>
-          </div>
-
-          <div style={{
-            background: 'white',
-            borderRadius: '12px',
-            padding: '2rem',
-            boxShadow: '0 4px 12px rgba(0, 0, 0, 0.1)',
-            borderLeft: '4px solid #9ca3af',
-            opacity: 0.6
-          }}>
-            <div style={{ fontSize: '2.5rem', marginBottom: '0.5rem' }}>👥</div>
-            <h3 style={{ color: '#0E1F56', margin: '0 0 0.5rem 0' }}>Manage Teams</h3>
-            <p style={{ color: '#6b7280', margin: 0, fontSize: '0.9rem' }}>
-              Add teams, generate codes, view participation
-            </p>
-            <div style={{ 
-              marginTop: '1rem', 
-              color: '#9ca3af', 
-              fontWeight: '600',
-              fontSize: '0.9rem'
-            }}>
-              Coming Soon
+            <div style={{ color: '#6b7280', fontSize: '0.875rem' }}>
+              Create and manage breakthrough series collaboratives
             </div>
-          </div>
+          </button>
 
-          <div style={{
-            background: 'white',
-            borderRadius: '12px',
-            padding: '2rem',
-            boxShadow: '0 4px 12px rgba(0, 0, 0, 0.1)',
-            borderLeft: '4px solid #9ca3af',
-            opacity: 0.6
-          }}>
-            <div style={{ fontSize: '2.5rem', marginBottom: '0.5rem' }}>📊</div>
-            <h3 style={{ color: '#0E1F56', margin: '0 0 0.5rem 0' }}>View Data</h3>
-            <p style={{ color: '#6b7280', margin: 0, fontSize: '0.9rem' }}>
-              Aggregate results, visualizations, and trends
-            </p>
-            <div style={{ 
-              marginTop: '1rem', 
-              color: '#9ca3af', 
-              fontWeight: '600',
-              fontSize: '0.9rem'
-            }}>
-              Coming Soon
+          <button
+            onClick={() => navigate('/admin/completion')}
+            style={{
+              padding: '2rem',
+              background: 'white',
+              border: '2px solid #d1d5db',
+              borderRadius: '0.75rem',
+              cursor: 'pointer',
+              transition: 'all 0.2s',
+              textAlign: 'left'
+            }}
+            onMouseOver={(e) => {
+              e.currentTarget.style.borderColor = '#00A79D'
+              e.currentTarget.style.transform = 'translateY(-2px)'
+              e.currentTarget.style.boxShadow = '0 4px 6px rgba(0,0,0,0.1)'
+            }}
+            onMouseOut={(e) => {
+              e.currentTarget.style.borderColor = '#d1d5db'
+              e.currentTarget.style.transform = 'translateY(0)'
+              e.currentTarget.style.boxShadow = 'none'
+            }}
+          >
+            <div style={{ fontSize: '2rem', marginBottom: '0.5rem' }}>📊</div>
+            <div style={{ color: '#0E1F56', fontSize: '1.25rem', fontWeight: '600', marginBottom: '0.5rem' }}>
+              Completion Tracking
             </div>
-          </div>
-        </div>
+            <div style={{ color: '#6b7280', fontSize: '0.875rem' }}>
+              Monitor assessment completion across teams
+            </div>
+          </button>
 
-        {/* Quick Stats Grid */}
-        <div style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))',
-          gap: '1.5rem',
-          marginBottom: '2rem'
-        }}>
-          <div style={{
-            background: 'white',
-            borderRadius: '12px',
-            padding: '1.5rem',
-            boxShadow: '0 4px 12px rgba(0, 0, 0, 0.1)',
-            borderLeft: '4px solid #00A79D'
-          }}>
-            <h3 style={{ color: '#6b7280', fontSize: '0.875rem', fontWeight: '600', margin: '0 0 0.5rem 0' }}>
-              ACTIVE COLLABORATIVES
-            </h3>
-            <p style={{ color: '#0E1F56', fontSize: '2rem', fontWeight: '700', margin: 0 }}>
-              0
-            </p>
-          </div>
-
-          <div style={{
-            background: 'white',
-            borderRadius: '12px',
-            padding: '1.5rem',
-            boxShadow: '0 4px 12px rgba(0, 0, 0, 0.1)',
-            borderLeft: '4px solid #0E1F56'
-          }}>
-            <h3 style={{ color: '#6b7280', fontSize: '0.875rem', fontWeight: '600', margin: '0 0 0.5rem 0' }}>
-              TOTAL TEAMS
-            </h3>
-            <p style={{ color: '#0E1F56', fontSize: '2rem', fontWeight: '700', margin: 0 }}>
-              0
-            </p>
-          </div>
-
-          <div style={{
-            background: 'white',
-            borderRadius: '12px',
-            padding: '1.5rem',
-            boxShadow: '0 4px 12px rgba(0, 0, 0, 0.1)',
-            borderLeft: '4px solid #10b981'
-          }}>
-            <h3 style={{ color: '#6b7280', fontSize: '0.875rem', fontWeight: '600', margin: '0 0 0.5rem 0' }}>
-              ASSESSMENTS COMPLETED
-            </h3>
-            <p style={{ color: '#0E1F56', fontSize: '2rem', fontWeight: '700', margin: 0 }}>
-              0
-            </p>
-          </div>
+          <button
+            onClick={() => navigate('/admin/data-visualization')}
+            style={{
+              padding: '2rem',
+              background: 'white',
+              border: '2px solid #d1d5db',
+              borderRadius: '0.75rem',
+              cursor: 'pointer',
+              transition: 'all 0.2s',
+              textAlign: 'left'
+            }}
+            onMouseOver={(e) => {
+              e.currentTarget.style.borderColor = '#00A79D'
+              e.currentTarget.style.transform = 'translateY(-2px)'
+              e.currentTarget.style.boxShadow = '0 4px 6px rgba(0,0,0,0.1)'
+            }}
+            onMouseOut={(e) => {
+              e.currentTarget.style.borderColor = '#d1d5db'
+              e.currentTarget.style.transform = 'translateY(0)'
+              e.currentTarget.style.boxShadow = 'none'
+            }}
+          >
+            <div style={{ fontSize: '2rem', marginBottom: '0.5rem' }}>📈</div>
+            <div style={{ color: '#0E1F56', fontSize: '1.25rem', fontWeight: '600', marginBottom: '0.5rem' }}>
+              Data Visualization
+            </div>
+            <div style={{ color: '#6b7280', fontSize: '0.875rem' }}>
+              View charts and graphs of assessment results
+            </div>
+          </button>
         </div>
       </div>
     </div>
   )
 }
-
-export default AdminDashboard
