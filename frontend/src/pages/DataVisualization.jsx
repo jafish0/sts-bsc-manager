@@ -261,6 +261,34 @@ export default function DataVisualization() {
         routine: stsioaScores.reduce((sum, s) => sum + s.routine, 0) / stsioaScores.length
       } : null
 
+      // Calculate STSI-OA scores by job role
+      const stsioaByJobRole = {}
+      stsioaResponses.forEach(response => {
+        const demo = demographics.find(d => d.assessment_response_id === response.assessment_response_id)
+        if (demo && demo.job_role) {
+          if (!stsioaByJobRole[demo.job_role]) {
+            stsioaByJobRole[demo.job_role] = []
+          }
+          const resilience = (response.q1 + response.q2 + response.q3 + response.q4 + response.q5 + response.q6 + response.q7) || 0
+          const safety = (response.q8 + response.q9 + response.q10 + response.q11 + response.q12 + response.q13 + response.q14) || 0
+          const policies = (response.q15 + response.q16 + response.q17 + response.q18 + response.q19 + response.q20) || 0
+          const leadership = (response.q21 + response.q22 + response.q23 + response.q24 + response.q25 + response.q26) || 0
+          const routine = (response.q27 + response.q28 + response.q29 + response.q30 + response.q31 + response.q32 + response.q33 + response.q34 + response.q35 + response.q36 + response.q37) || 0
+          const total = resilience + safety + policies + leadership + routine
+          stsioaByJobRole[demo.job_role].push(total)
+        }
+      })
+
+      // Calculate mean and SD for each job role
+      const stsioaJobRoleStats = {}
+      Object.keys(stsioaByJobRole).forEach(jobRole => {
+        const scores = stsioaByJobRole[jobRole]
+        const mean = scores.reduce((a, b) => a + b, 0) / scores.length
+        const variance = scores.reduce((sum, score) => sum + Math.pow(score - mean, 2), 0) / scores.length
+        const sd = Math.sqrt(variance)
+        stsioaJobRoleStats[jobRole] = { mean: mean.toFixed(2), sd: sd.toFixed(2), count: scores.length }
+      })
+
       setData({
         totalResponses: demographics.length,
         demographics: {
@@ -274,7 +302,8 @@ export default function DataVisualization() {
         },
         stss: avgSTSS,
         proqol: avgBurnout,
-        stsioa: avgSTSIOA
+        stsioa: avgSTSIOA,
+        stsioaByJobRole: stsioaJobRoleStats
       })
     } catch (error) {
       console.error('Error loading data:', error)
@@ -307,52 +336,76 @@ export default function DataVisualization() {
     let currentAngle = 0
 
     return (
-      <div style={{ position: 'relative', width: '220px', height: '220px', margin: '0 auto' }}>
-        <svg viewBox="0 0 100 100" style={{ transform: 'rotate(-90deg)' }}>
-          {Object.entries(data).map(([key, value], index) => {
-            const percentage = (value / total) * 100
-            const angle = (percentage / 100) * 360
-            const startAngle = currentAngle
-            currentAngle += angle
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: '100%' }}>
+        <div style={{ position: 'relative', width: '200px', height: '200px', margin: '0 auto 1rem' }}>
+          <svg viewBox="0 0 100 100" style={{ transform: 'rotate(-90deg)' }}>
+            {Object.entries(data).map(([key, value], index) => {
+              const percentage = (value / total) * 100
+              const angle = (percentage / 100) * 360
+              const startAngle = currentAngle
+              const midAngle = startAngle + angle / 2
+              currentAngle += angle
 
-            // Calculate path for pie slice
-            const x1 = 50 + 40 * Math.cos((Math.PI * startAngle) / 180)
-            const y1 = 50 + 40 * Math.sin((Math.PI * startAngle) / 180)
-            const x2 = 50 + 40 * Math.cos((Math.PI * (startAngle + angle)) / 180)
-            const y2 = 50 + 40 * Math.sin((Math.PI * (startAngle + angle)) / 180)
-            const largeArc = angle > 180 ? 1 : 0
+              // Calculate path for pie slice
+              const x1 = 50 + 40 * Math.cos((Math.PI * startAngle) / 180)
+              const y1 = 50 + 40 * Math.sin((Math.PI * startAngle) / 180)
+              const x2 = 50 + 40 * Math.cos((Math.PI * (startAngle + angle)) / 180)
+              const y2 = 50 + 40 * Math.sin((Math.PI * (startAngle + angle)) / 180)
+              const largeArc = angle > 180 ? 1 : 0
 
-            return (
-              <path
-                key={key}
-                d={`M 50 50 L ${x1} ${y1} A 40 40 0 ${largeArc} 1 ${x2} ${y2} Z`}
-                fill={colors[index % colors.length]}
-                stroke="white"
-                strokeWidth="0.5"
-              />
-            )
-          })}
-        </svg>
-        <div style={{ 
-          position: 'absolute', 
-          top: '100%', 
-          left: '0',
-          right: '0',
-          marginTop: '1rem',
-          fontSize: '0.75rem'
+              // Calculate label position (at 70% of radius from center)
+              const labelX = 50 + 28 * Math.cos((Math.PI * midAngle) / 180)
+              const labelY = 50 + 28 * Math.sin((Math.PI * midAngle) / 180)
+
+              return (
+                <g key={key}>
+                  <path
+                    d={`M 50 50 L ${x1} ${y1} A 40 40 0 ${largeArc} 1 ${x2} ${y2} Z`}
+                    fill={colors[index % colors.length]}
+                    stroke="white"
+                    strokeWidth="0.5"
+                  />
+                  {percentage > 5 && (
+                    <text
+                      x={labelX}
+                      y={labelY}
+                      textAnchor="middle"
+                      dominantBaseline="middle"
+                      fontSize="4"
+                      fontWeight="bold"
+                      fill="white"
+                      stroke="rgba(0,0,0,0.3)"
+                      strokeWidth="0.3"
+                      transform={`rotate(90 ${labelX} ${labelY})`}
+                    >
+                      {percentage.toFixed(0)}%
+                    </text>
+                  )}
+                </g>
+              )
+            })}
+          </svg>
+        </div>
+        <div style={{
+          width: '100%',
+          fontSize: '0.7rem',
+          display: 'flex',
+          flexWrap: 'wrap',
+          gap: '0.5rem',
+          justifyContent: 'center'
         }}>
           {Object.entries(data).map(([key, value], index) => {
             const percentage = ((value / total) * 100).toFixed(1)
             return (
-              <div key={key} style={{ display: 'flex', alignItems: 'center', marginBottom: '0.25rem' }}>
-                <div style={{ 
-                  width: '12px', 
-                  height: '12px', 
+              <div key={key} style={{ display: 'flex', alignItems: 'center', minWidth: 'fit-content' }}>
+                <div style={{
+                  width: '10px',
+                  height: '10px',
                   backgroundColor: colors[index % colors.length],
-                  marginRight: '0.5rem',
+                  marginRight: '0.3rem',
                   flexShrink: 0
                 }} />
-                <span>{key} ({percentage}%)</span>
+                <span style={{ whiteSpace: 'nowrap' }}>{key} ({percentage}%)</span>
               </div>
             )
           })}
@@ -478,20 +531,36 @@ export default function DataVisualization() {
             </button>
             <h1 style={{ margin: 0, fontSize: '1.5rem' }}>Data Visualization</h1>
           </div>
-          <button
-            onClick={handleLogout}
-            style={{
-              padding: '0.5rem 1rem',
-              background: '#00A79D',
-              color: 'white',
-              border: 'none',
-              borderRadius: '0.375rem',
-              cursor: 'pointer',
-              fontWeight: '500'
-            }}
-          >
-            Logout
-          </button>
+          <div style={{ display: 'flex', gap: '0.5rem' }}>
+            <button
+              onClick={() => window.print()}
+              style={{
+                padding: '0.5rem 1rem',
+                background: '#4682b4',
+                color: 'white',
+                border: 'none',
+                borderRadius: '0.375rem',
+                cursor: 'pointer',
+                fontWeight: '500'
+              }}
+            >
+              📄 Download PDF
+            </button>
+            <button
+              onClick={handleLogout}
+              style={{
+                padding: '0.5rem 1rem',
+                background: '#00A79D',
+                color: 'white',
+                border: 'none',
+                borderRadius: '0.375rem',
+                cursor: 'pointer',
+                fontWeight: '500'
+              }}
+            >
+              Logout
+            </button>
+          </div>
         </div>
       </div>
 
@@ -784,6 +853,28 @@ export default function DataVisualization() {
                 )}
               </div>
             </div>
+
+            {/* Row 3: STSI-OA Job Role Comparison */}
+            {data.stsioaByJobRole && Object.keys(data.stsioaByJobRole).length > 0 && (
+              <div style={{ marginTop: '1rem' }}>
+                <div style={{ background: 'white', borderRadius: '0.5rem', padding: '1.5rem' }}>
+                  <div style={{ background: '#4682b4', color: 'white', padding: '0.5rem', marginBottom: '1rem', fontWeight: 'bold', textAlign: 'center' }}>
+                    STSI-OA Scores by Job Role
+                  </div>
+                  <div style={{ fontSize: '0.85rem', lineHeight: '1.8', marginBottom: '1rem' }}>
+                    {Object.entries(data.stsioaByJobRole).map(([jobRole, stats], index, arr) => (
+                      <span key={jobRole}>
+                        <strong>{jobRole}</strong> (M={stats.mean}, SD={stats.sd}, n={stats.count})
+                        {index < arr.length - 1 ? ', ' : ''}
+                      </span>
+                    ))}
+                  </div>
+                  <div style={{ fontSize: '0.8rem', fontStyle: 'italic', color: '#666', marginTop: '0.5rem' }}>
+                    Note: Higher scores indicate more STS-informed organizational practices. Scores range from 0-148.
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}
