@@ -5,7 +5,7 @@ export const GENDER_OPTIONS = [
   { value: 'M', label: 'Male' },
   { value: 'F', label: 'Female' },
   { value: 'prefer_not_answer', label: 'Prefer Not to Answer' },
-  { value: 'not_listed', label: 'Not Listed (please specify)' }
+  { value: 'not_listed', label: 'Prefer to self-describe' }
 ]
 
 export const AGE_CONFIG = {

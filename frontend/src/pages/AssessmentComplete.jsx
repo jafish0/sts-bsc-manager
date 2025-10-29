@@ -37,8 +37,8 @@ function AssessmentComplete() {
               <strong>What happens next?</strong>
             </p>
             <p>
-              Your responses will be aggregated with those of your team members to provide valuable insights 
-              into secondary traumatic stress levels and organizational support within your collaborative.
+              Your responses will be aggregated with those of your agency to provide valuable insights
+              into secondary traumatic stress levels and organizational support within your agency or organization.
             </p>
           </div>
 
