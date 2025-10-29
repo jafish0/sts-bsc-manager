@@ -207,26 +207,18 @@ export default function DataVisualization() {
         else exposurePercentiles['75-100']++
       })
 
-      // Process STSS
-      const stssScores = stssResponses.map(r => {
-        const intrusion = (r.q1 + r.q2 + r.q3 + r.q4 + r.q5) || 0
-        const avoidance = (r.q6 + r.q7) || 0
-        const negCognition = (r.q8 + r.q9 + r.q10 + r.q11 + r.q12 + r.q13 + r.q14) || 0
-        const arousal = (r.q15 + r.q16 + r.q17 + r.q18 + r.q19 + r.q20) || 0
-        return {
-          total: intrusion + avoidance + negCognition + arousal,
-          intrusion,
-          avoidance,
-          negCognition,
-          arousal
-        }
-      })
+      // Process STSS - use pre-calculated scores from database
+      const stssScores = stssResponses.map(r => ({
+        total: r.total_score || 0,
+        intrusion: r.intrusion_score || 0,
+        avoidance: r.avoidance_score || 0,
+        arousal: r.arousal_score || 0
+      }))
 
       const avgSTSS = stssScores.length > 0 ? {
         total: stssScores.reduce((sum, s) => sum + s.total, 0) / stssScores.length,
         intrusion: stssScores.reduce((sum, s) => sum + s.intrusion, 0) / stssScores.length,
         avoidance: stssScores.reduce((sum, s) => sum + s.avoidance, 0) / stssScores.length,
-        negCognition: stssScores.reduce((sum, s) => sum + s.negCognition, 0) / stssScores.length,
         arousal: stssScores.reduce((sum, s) => sum + s.arousal, 0) / stssScores.length
       } : null
 
@@ -245,20 +237,22 @@ export default function DataVisualization() {
         ? burnoutScores.reduce((sum, s) => sum + s, 0) / burnoutScores.length 
         : null
 
-      // Process STSI-OA
+      // Process STSI-OA - use pre-calculated domain scores from database
       const stsioaScores = stsioaResponses.map(r => {
-        const resilience = (r.q1 + r.q2 + r.q3 + r.q4 + r.q5 + r.q6 + r.q7) || 0
-        const safety = (r.q8 + r.q9 + r.q10 + r.q11 + r.q12 + r.q13 + r.q14) || 0
-        const policies = (r.q15 + r.q16 + r.q17 + r.q18 + r.q19 + r.q20) || 0
-        const leadership = (r.q21 + r.q22 + r.q23 + r.q24 + r.q25 + r.q26) || 0
-        const routine = (r.q27 + r.q28 + r.q29 + r.q30 + r.q31 + r.q32 + r.q33 + r.q34 + r.q35 + r.q36 + r.q37) || 0
+        const domain1 = r.domain_1_score || 0
+        const domain2 = r.domain_2_score || 0
+        const domain3 = r.domain_3_score || 0
+        const domain4 = r.domain_4_score || 0
+        const domain5 = r.domain_5_score || 0
+        const domain6 = r.domain_6_score || 0
         return {
-          total: resilience + safety + policies + leadership + routine,
-          resilience,
-          safety,
-          policies,
-          leadership,
-          routine
+          total: domain1 + domain2 + domain3 + domain4 + domain5 + domain6,
+          resilience: domain1,
+          safety: domain2,
+          policies: domain3,
+          leadership: domain4,
+          routine: domain5,
+          evaluation: domain6
         }
       })
 
@@ -268,10 +262,11 @@ export default function DataVisualization() {
         safety: stsioaScores.reduce((sum, s) => sum + s.safety, 0) / stsioaScores.length,
         policies: stsioaScores.reduce((sum, s) => sum + s.policies, 0) / stsioaScores.length,
         leadership: stsioaScores.reduce((sum, s) => sum + s.leadership, 0) / stsioaScores.length,
-        routine: stsioaScores.reduce((sum, s) => sum + s.routine, 0) / stsioaScores.length
+        routine: stsioaScores.reduce((sum, s) => sum + s.routine, 0) / stsioaScores.length,
+        evaluation: stsioaScores.reduce((sum, s) => sum + s.evaluation, 0) / stsioaScores.length
       } : null
 
-      // Calculate STSI-OA scores by job role
+      // Calculate STSI-OA scores by job role - use pre-calculated domain scores
       const stsioaByJobRole = {}
       stsioaResponses.forEach(response => {
         const demo = demographics.find(d => d.assessment_response_id === response.assessment_response_id)
@@ -279,12 +274,9 @@ export default function DataVisualization() {
           if (!stsioaByJobRole[demo.job_role]) {
             stsioaByJobRole[demo.job_role] = []
           }
-          const resilience = (response.q1 + response.q2 + response.q3 + response.q4 + response.q5 + response.q6 + response.q7) || 0
-          const safety = (response.q8 + response.q9 + response.q10 + response.q11 + response.q12 + response.q13 + response.q14) || 0
-          const policies = (response.q15 + response.q16 + response.q17 + response.q18 + response.q19 + response.q20) || 0
-          const leadership = (response.q21 + response.q22 + response.q23 + response.q24 + response.q25 + response.q26) || 0
-          const routine = (response.q27 + response.q28 + response.q29 + response.q30 + response.q31 + response.q32 + response.q33 + response.q34 + response.q35 + response.q36 + response.q37) || 0
-          const total = resilience + safety + policies + leadership + routine
+          const total = (response.domain_1_score || 0) + (response.domain_2_score || 0) +
+                       (response.domain_3_score || 0) + (response.domain_4_score || 0) +
+                       (response.domain_5_score || 0) + (response.domain_6_score || 0)
           stsioaByJobRole[demo.job_role].push(total)
         }
       })
@@ -748,13 +740,14 @@ export default function DataVisualization() {
                         </div>
                         <BarChart
                           data={{
-                            'Resilience (0-28)': data.stsioa.resilience,
-                            'Safety (0-28)': data.stsioa.safety,
-                            'Policies (0-24)': data.stsioa.policies,
-                            'Leadership (0-24)': data.stsioa.leadership,
-                            'Routine (0-44)': data.stsioa.routine
+                            'Resilience': data.stsioa.resilience,
+                            'Safety': data.stsioa.safety,
+                            'Policies': data.stsioa.policies,
+                            'Leadership': data.stsioa.leadership,
+                            'Routine': data.stsioa.routine,
+                            'Evaluation': data.stsioa.evaluation
                           }}
-                          maxValue={44}
+                          maxValue={45}
                           color="#10b981"
                           height={150}
                         />
@@ -819,12 +812,11 @@ export default function DataVisualization() {
                       </div>
                       <BarChart
                         data={{
-                          'Intrusion (5-25)': data.stss.intrusion,
-                          'Avoidance (2-10)': data.stss.avoidance,
-                          'Neg Cognitions (7-35)': data.stss.negCognition,
-                          'Arousal (6-30)': data.stss.arousal
+                          'Intrusion': data.stss.intrusion,
+                          'Avoidance': data.stss.avoidance,
+                          'Arousal': data.stss.arousal
                         }}
-                        maxValue={35}
+                        maxValue={40}
                         color="#10b981"
                         height={150}
                       />
