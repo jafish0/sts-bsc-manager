@@ -148,6 +148,16 @@ export default function DataVisualization() {
       const proqolResponses = proqolRes.data || []
       const stsioaResponses = stsioaRes.data || []
 
+      // Debug logging
+      console.log('=== DATA FETCHING DEBUG ===')
+      console.log('Assessment Response IDs:', assessmentResponseIds.length)
+      console.log('Demographics count:', demographics.length)
+      console.log('STSS responses count:', stssResponses.length)
+      console.log('ProQOL responses count:', proqolResponses.length)
+      console.log('STSIOA responses count:', stsioaResponses.length)
+      console.log('STSS sample:', stssResponses[0])
+      console.log('STSIOA sample:', stsioaResponses[0])
+
       // Process demographics
       const jobRoleCounts = {}
       const areaOfRespCounts = {}
