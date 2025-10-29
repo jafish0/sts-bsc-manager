@@ -305,54 +305,63 @@ export default function DataVisualization() {
 
     const total = Object.values(data).reduce((sum, val) => sum + val, 0)
     let currentAngle = 0
+    const centerX = 50
+    const centerY = 50
+    const radius = 35
 
     return (
-      <div style={{ position: 'relative', width: '220px', height: '220px', margin: '0 auto' }}>
-        <svg viewBox="0 0 100 100" style={{ transform: 'rotate(-90deg)' }}>
-          {Object.entries(data).map(([key, value], index) => {
-            const percentage = (value / total) * 100
-            const angle = (percentage / 100) * 360
-            const startAngle = currentAngle
-            currentAngle += angle
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '1rem', minHeight: '180px' }}>
+        {/* Pie chart */}
+        <div style={{ width: '180px', height: '180px', flexShrink: 0 }}>
+          <svg viewBox="0 0 100 100" style={{ transform: 'rotate(-90deg)' }}>
+            {Object.entries(data).map(([key, value], index) => {
+              const percentage = (value / total) * 100
+              const angle = (percentage / 100) * 360
+              const startAngle = currentAngle
+              currentAngle += angle
 
-            // Calculate path for pie slice
-            const x1 = 50 + 40 * Math.cos((Math.PI * startAngle) / 180)
-            const y1 = 50 + 40 * Math.sin((Math.PI * startAngle) / 180)
-            const x2 = 50 + 40 * Math.cos((Math.PI * (startAngle + angle)) / 180)
-            const y2 = 50 + 40 * Math.sin((Math.PI * (startAngle + angle)) / 180)
-            const largeArc = angle > 180 ? 1 : 0
+              // Calculate path for pie slice
+              const x1 = centerX + radius * Math.cos((Math.PI * startAngle) / 180)
+              const y1 = centerY + radius * Math.sin((Math.PI * startAngle) / 180)
+              const x2 = centerX + radius * Math.cos((Math.PI * (startAngle + angle)) / 180)
+              const y2 = centerY + radius * Math.sin((Math.PI * (startAngle + angle)) / 180)
+              const largeArc = angle > 180 ? 1 : 0
 
-            return (
-              <path
-                key={key}
-                d={`M 50 50 L ${x1} ${y1} A 40 40 0 ${largeArc} 1 ${x2} ${y2} Z`}
-                fill={colors[index % colors.length]}
-                stroke="white"
-                strokeWidth="0.5"
-              />
-            )
-          })}
-        </svg>
-        <div style={{ 
-          position: 'absolute', 
-          top: '100%', 
-          left: '0',
-          right: '0',
-          marginTop: '1rem',
-          fontSize: '0.75rem'
+              return (
+                <path
+                  key={key}
+                  d={`M ${centerX} ${centerY} L ${x1} ${y1} A ${radius} ${radius} 0 ${largeArc} 1 ${x2} ${y2} Z`}
+                  fill={colors[index % colors.length]}
+                  stroke="white"
+                  strokeWidth="1"
+                />
+              )
+            })}
+          </svg>
+        </div>
+
+        {/* Legend - side by side */}
+        <div style={{
+          flex: 1,
+          fontSize: '0.7rem',
+          lineHeight: '1.6',
+          maxWidth: '200px'
         }}>
           {Object.entries(data).map(([key, value], index) => {
             const percentage = ((value / total) * 100).toFixed(1)
+            // Truncate long labels
+            const displayKey = key.length > 20 ? key.substring(0, 20) + '...' : key
             return (
-              <div key={key} style={{ display: 'flex', alignItems: 'center', marginBottom: '0.25rem' }}>
-                <div style={{ 
-                  width: '12px', 
-                  height: '12px', 
+              <div key={key} style={{ display: 'flex', alignItems: 'center', marginBottom: '0.3rem' }}>
+                <div style={{
+                  width: '10px',
+                  height: '10px',
                   backgroundColor: colors[index % colors.length],
-                  marginRight: '0.5rem',
-                  flexShrink: 0
+                  marginRight: '0.4rem',
+                  flexShrink: 0,
+                  borderRadius: '2px'
                 }} />
-                <span>{key} ({percentage}%)</span>
+                <span style={{ fontSize: '0.7rem' }}>{displayKey} ({percentage}%)</span>
               </div>
             )
           })}
@@ -367,75 +376,97 @@ export default function DataVisualization() {
       return <div style={{ padding: '2rem', textAlign: 'center', color: '#666' }}>No data available</div>
     }
 
-    const barWidth = 80 / Object.keys(data).length
+    const entries = Object.entries(data)
+    const numBars = entries.length
     const chartHeight = height
+    const chartPadding = { top: 10, right: 10, bottom: 40, left: 40 }
+    const plotHeight = chartHeight - chartPadding.top - chartPadding.bottom
+    const plotWidth = 100 - chartPadding.left - chartPadding.right
 
     return (
-      <div style={{ width: '100%', height: `${chartHeight}px`, position: 'relative', marginTop: '1rem' }}>
-        {/* Y-axis labels */}
-        <div style={{ position: 'absolute', left: 0, top: 0, bottom: 20, width: '30px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', fontSize: '0.7rem', textAlign: 'right', paddingRight: '5px' }}>
-          <span>{maxValue}</span>
-          <span>{(maxValue * 0.75).toFixed(0)}</span>
-          <span>{(maxValue * 0.5).toFixed(0)}</span>
-          <span>{(maxValue * 0.25).toFixed(0)}</span>
-          <span>0</span>
-        </div>
-
-        {/* Chart area */}
-        <div style={{ position: 'absolute', left: '35px', right: 0, top: 0, bottom: 0 }}>
-          <svg width="100%" height={chartHeight} style={{ overflow: 'visible' }}>
-            {/* Grid lines */}
-            {[0, 0.25, 0.5, 0.75, 1].map(pct => (
-              <line
-                key={pct}
-                x1="0"
-                y1={chartHeight * (1 - pct) - 20}
-                x2="100%"
-                y2={chartHeight * (1 - pct) - 20}
-                stroke="#e5e7eb"
-                strokeWidth="1"
-              />
-            ))}
-
-            {/* Bars */}
-            {Object.entries(data).map(([label, value], index) => {
-              const x = (index / Object.keys(data).length) * 100
-              const barHeight = ((value / maxValue) * (chartHeight - 20))
-              const y = chartHeight - barHeight - 20
-
+      <div style={{ width: '100%', height: `${chartHeight}px`, marginTop: '0.5rem' }}>
+        <svg width="100%" height="100%" viewBox={`0 0 100 ${chartHeight}`} preserveAspectRatio="none">
+          {/* Grid lines and Y-axis */}
+          <g>
+            {[0, 0.25, 0.5, 0.75, 1].map(pct => {
+              const y = chartPadding.top + plotHeight * (1 - pct)
               return (
-                <g key={label}>
-                  <rect
-                    x={`${x}%`}
-                    y={y}
-                    width={`${barWidth * 0.8}%`}
-                    height={barHeight}
-                    fill={color}
+                <g key={pct}>
+                  <line
+                    x1={chartPadding.left}
+                    y1={y}
+                    x2={100 - chartPadding.right}
+                    y2={y}
+                    stroke="#e5e7eb"
+                    strokeWidth="0.3"
                   />
                   <text
-                    x={`${x + barWidth * 0.4}%`}
-                    y={y - 5}
-                    textAnchor="middle"
-                    fontSize="10"
-                    fill="#000"
+                    x={chartPadding.left - 2}
+                    y={y}
+                    textAnchor="end"
+                    fontSize="6"
+                    fill="#666"
+                    dominantBaseline="middle"
                   >
-                    M={value.toFixed(2)}
-                  </text>
-                  <text
-                    x={`${x + barWidth * 0.4}%`}
-                    y={chartHeight}
-                    textAnchor="middle"
-                    fontSize="9"
-                    fill="#000"
-                    style={{ writingMode: 'horizontal-tb' }}
-                  >
-                    {label.length > 15 ? label.substring(0, 15) + '...' : label}
+                    {(maxValue * pct).toFixed(0)}
                   </text>
                 </g>
               )
             })}
-          </svg>
-        </div>
+          </g>
+
+          {/* Bars and labels */}
+          {entries.map(([label, value], index) => {
+            const barWidth = plotWidth / numBars * 0.7
+            const barSpacing = plotWidth / numBars
+            const x = chartPadding.left + index * barSpacing + barSpacing * 0.15
+            const barHeight = (value / maxValue) * plotHeight
+            const y = chartPadding.top + plotHeight - barHeight
+
+            // Truncate label intelligently
+            const maxChars = numBars > 4 ? 8 : 12
+            let displayLabel = label
+            if (label.includes('(')) {
+              // Keep the part before parentheses and abbreviate
+              const parts = label.split('(')
+              displayLabel = parts[0].trim().substring(0, maxChars)
+            } else {
+              displayLabel = label.length > maxChars ? label.substring(0, maxChars) + '...' : label
+            }
+
+            return (
+              <g key={label}>
+                <rect
+                  x={x}
+                  y={y}
+                  width={barWidth}
+                  height={barHeight}
+                  fill={color}
+                  rx="0.5"
+                />
+                <text
+                  x={x + barWidth / 2}
+                  y={y - 2}
+                  textAnchor="middle"
+                  fontSize="5"
+                  fill="#000"
+                  fontWeight="600"
+                >
+                  {value.toFixed(1)}
+                </text>
+                <text
+                  x={x + barWidth / 2}
+                  y={chartHeight - chartPadding.bottom + 8}
+                  textAnchor="middle"
+                  fontSize="5"
+                  fill="#333"
+                >
+                  {displayLabel}
+                </text>
+              </g>
+            )
+          })}
+        </svg>
       </div>
     )
   }
@@ -606,65 +637,62 @@ export default function DataVisualization() {
             {/* Row 1: Demographics, Job Role, Area of Responsibility, STSI-OA */}
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 2fr', gap: '1rem', marginBottom: '1rem' }}>
               {/* Demographics */}
-              <div style={{ background: 'white', borderRadius: '0.5rem', padding: '1rem' }}>
-                <div style={{ background: '#4682b4', color: 'white', padding: '0.5rem', marginBottom: '1rem', fontWeight: 'bold', textAlign: 'center' }}>
+              <div style={{ background: 'white', borderRadius: '0.5rem', padding: '1rem', boxShadow: '0 2px 4px rgba(0,0,0,0.1)', minHeight: '280px' }}>
+                <div style={{ background: '#0E1F56', color: 'white', padding: '0.5rem', marginBottom: '1rem', fontWeight: '600', textAlign: 'center', fontSize: '0.875rem', borderRadius: '0.25rem' }}>
                   Demographics
                 </div>
-                <div style={{ fontSize: '0.85rem', lineHeight: '1.6' }}>
-                  <p>Respondents were mostly female ({data.demographics.femalePercent}%). The age of respondents ranged with an average age of {data.demographics.avgAge}.</p>
-                  <p>The number of years in service of respondents ranged with an average of {data.demographics.avgYearsService} years.</p>
+                <div style={{ fontSize: '0.8rem', lineHeight: '1.8', color: '#374151' }}>
+                  <p style={{ margin: '0 0 0.75rem 0' }}>Respondents were mostly female ({data.demographics.femalePercent}%). The age of respondents ranged with an average age of {data.demographics.avgAge}.</p>
+                  <p style={{ margin: 0 }}>The number of years in service of respondents ranged with an average of {data.demographics.avgYearsService} years.</p>
                 </div>
               </div>
 
               {/* Job Role */}
-              <div style={{ background: 'white', borderRadius: '0.5rem', padding: '1rem' }}>
-                <div style={{ background: '#4682b4', color: 'white', padding: '0.5rem', marginBottom: '1rem', fontWeight: 'bold', textAlign: 'center' }}>
+              <div style={{ background: 'white', borderRadius: '0.5rem', padding: '1rem', boxShadow: '0 2px 4px rgba(0,0,0,0.1)', minHeight: '280px' }}>
+                <div style={{ background: '#0E1F56', color: 'white', padding: '0.5rem', marginBottom: '1rem', fontWeight: '600', textAlign: 'center', fontSize: '0.875rem', borderRadius: '0.25rem' }}>
                   Job Role
                 </div>
-                <PieChart 
+                <PieChart
                   data={data.demographics.jobRoles}
-                  colors={['#3b82f6', '#8b5cf6', '#ec4899', '#f59e0b', '#10b981', '#06b6d4', '#6366f1', '#84cc16']}
+                  colors={['#0E1F56', '#00A79D', '#3b82f6', '#8b5cf6', '#f59e0b', '#10b981', '#ec4899', '#06b6d4']}
                 />
               </div>
 
               {/* Area of Responsibility */}
-              <div style={{ background: 'white', borderRadius: '0.5rem', padding: '1rem' }}>
-                <div style={{ background: '#4682b4', color: 'white', padding: '0.5rem', marginBottom: '1rem', fontWeight: 'bold', textAlign: 'center' }}>
+              <div style={{ background: 'white', borderRadius: '0.5rem', padding: '1rem', boxShadow: '0 2px 4px rgba(0,0,0,0.1)', minHeight: '280px' }}>
+                <div style={{ background: '#0E1F56', color: 'white', padding: '0.5rem', marginBottom: '1rem', fontWeight: '600', textAlign: 'center', fontSize: '0.875rem', borderRadius: '0.25rem' }}>
                   Area of Responsibility
                 </div>
-                <PieChart 
+                <PieChart
                   data={data.demographics.areasOfResp}
-                  colors={['#3b82f6', '#8b5cf6', '#ec4899', '#f59e0b', '#10b981', '#06b6d4', '#6366f1', '#84cc16']}
+                  colors={['#0E1F56', '#00A79D', '#3b82f6', '#8b5cf6', '#f59e0b', '#10b981', '#ec4899', '#06b6d4']}
                 />
               </div>
 
               {/* STSI-OA */}
-              <div style={{ background: 'white', borderRadius: '0.5rem', padding: '1rem' }}>
-                <div style={{ background: '#4682b4', color: 'white', padding: '0.5rem', marginBottom: '0.5rem', fontWeight: 'bold', textAlign: 'center' }}>
+              <div style={{ background: 'white', borderRadius: '0.5rem', padding: '1rem', boxShadow: '0 2px 4px rgba(0,0,0,0.1)', minHeight: '280px' }}>
+                <div style={{ background: '#0E1F56', color: 'white', padding: '0.5rem', marginBottom: '0.5rem', fontWeight: '600', textAlign: 'center', fontSize: '0.8rem', borderRadius: '0.25rem' }}>
                   Secondary Traumatic Stress-Informed Organization Assessment (STSI-OA)
                 </div>
-                <div style={{ fontSize: '0.75rem', fontWeight: 'bold', textAlign: 'center', marginBottom: '0.5rem' }}>
+                <div style={{ fontSize: '0.7rem', fontWeight: '600', textAlign: 'center', marginBottom: '0.75rem', color: '#4b5563' }}>
                   Higher STSI-OA Scores indicate more STS informed
                 </div>
                 {data.stsioa ? (
                   <>
                     <div style={{ display: 'flex', gap: '1rem' }}>
                       <div style={{ flex: 1 }}>
-                        <div style={{ fontSize: '0.75rem', fontWeight: 'bold', marginBottom: '0.5rem', textAlign: 'center' }}>
+                        <div style={{ fontSize: '0.7rem', fontWeight: '600', marginBottom: '0.5rem', textAlign: 'center', color: '#374151' }}>
                           Mean STSI-OA Total Score
                         </div>
                         <BarChart
-                          data={{ 'Total Score': data.stsioa.total }}
+                          data={{ 'Total': data.stsioa.total }}
                           maxValue={150}
-                          color="#4682b4"
-                          height={150}
+                          color="#0E1F56"
+                          height={140}
                         />
-                        <div style={{ textAlign: 'center', fontSize: '0.7rem', marginTop: '0.5rem' }}>
-                          50th Percentile
-                        </div>
                       </div>
                       <div style={{ flex: 2 }}>
-                        <div style={{ fontSize: '0.75rem', fontWeight: 'bold', marginBottom: '0.5rem', textAlign: 'center' }}>
+                        <div style={{ fontSize: '0.7rem', fontWeight: '600', marginBottom: '0.5rem', textAlign: 'center', color: '#374151' }}>
                           Mean Subscale STSI-OA Score
                         </div>
                         <BarChart
@@ -676,17 +704,17 @@ export default function DataVisualization() {
                             'Routine (0-44)': data.stsioa.routine
                           }}
                           maxValue={44}
-                          color="#10b981"
-                          height={150}
+                          color="#00A79D"
+                          height={140}
                         />
                       </div>
                     </div>
-                    <div style={{ fontSize: '0.7rem', marginTop: '0.5rem', padding: '0.5rem', background: '#f3f4f6', borderRadius: '0.25rem' }}>
+                    <div style={{ fontSize: '0.65rem', marginTop: '0.5rem', padding: '0.5rem', background: '#f9fafb', borderRadius: '0.25rem', color: '#6b7280', lineHeight: '1.4' }}>
                       Mean scores across subscales show organizational STS-informed practices.
                     </div>
                   </>
                 ) : (
-                  <div style={{ padding: '2rem', textAlign: 'center', color: '#666' }}>No STSI-OA data available</div>
+                  <div style={{ padding: '2rem', textAlign: 'center', color: '#9ca3af' }}>No STSI-OA data available</div>
                 )}
               </div>
             </div>
@@ -694,48 +722,45 @@ export default function DataVisualization() {
             {/* Row 2: Exposure, STSS, ProQOL */}
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr 1fr', gap: '1rem' }}>
               {/* Level of Exposure */}
-              <div style={{ background: 'white', borderRadius: '0.5rem', padding: '1rem' }}>
-                <div style={{ background: '#4682b4', color: 'white', padding: '0.5rem', marginBottom: '1rem', fontWeight: 'bold', textAlign: 'center' }}>
+              <div style={{ background: 'white', borderRadius: '0.5rem', padding: '1rem', boxShadow: '0 2px 4px rgba(0,0,0,0.1)', minHeight: '280px' }}>
+                <div style={{ background: '#0E1F56', color: 'white', padding: '0.5rem', marginBottom: '1rem', fontWeight: '600', textAlign: 'center', fontSize: '0.875rem', borderRadius: '0.25rem' }}>
                   Level of Exposure
                 </div>
-                <div style={{ fontSize: '0.85rem', fontWeight: 'bold', marginBottom: '0.5rem' }}>
+                <div style={{ fontSize: '0.75rem', fontWeight: '600', marginBottom: '0.75rem', color: '#374151' }}>
                   Level of exposure to traumatic material
                 </div>
-                <PieChart 
+                <PieChart
                   data={data.demographics.exposurePercentiles}
                   colors={['#10b981', '#3b82f6', '#f59e0b', '#ef4444']}
                 />
-                <div style={{ fontSize: '0.75rem', marginTop: '1rem', textAlign: 'center' }}>
+                <div style={{ fontSize: '0.7rem', marginTop: '0.75rem', textAlign: 'center', color: '#6b7280', lineHeight: '1.4' }}>
                   The average rank (0-100) of level of exposure to traumatic material was {data.demographics.exposureAvg}
                 </div>
               </div>
 
               {/* STSS */}
-              <div style={{ background: 'white', borderRadius: '0.5rem', padding: '1rem' }}>
-                <div style={{ background: '#4682b4', color: 'white', padding: '0.5rem', marginBottom: '0.5rem', fontWeight: 'bold', textAlign: 'center' }}>
+              <div style={{ background: 'white', borderRadius: '0.5rem', padding: '1rem', boxShadow: '0 2px 4px rgba(0,0,0,0.1)', minHeight: '280px' }}>
+                <div style={{ background: '#0E1F56', color: 'white', padding: '0.5rem', marginBottom: '0.5rem', fontWeight: '600', textAlign: 'center', fontSize: '0.8rem', borderRadius: '0.25rem' }}>
                   Secondary Traumatic Stress Scale (STSS)
                 </div>
-                <div style={{ fontSize: '0.75rem', fontWeight: 'bold', textAlign: 'center', marginBottom: '0.5rem' }}>
+                <div style={{ fontSize: '0.7rem', fontWeight: '600', textAlign: 'center', marginBottom: '0.75rem', color: '#4b5563' }}>
                   Higher STSS Scores indicate higher Secondary Traumatic Stress (STS)
                 </div>
                 {data.stss ? (
                   <div style={{ display: 'flex', gap: '1rem' }}>
                     <div style={{ flex: 1 }}>
-                      <div style={{ fontSize: '0.75rem', fontWeight: 'bold', marginBottom: '0.5rem', textAlign: 'center' }}>
+                      <div style={{ fontSize: '0.7rem', fontWeight: '600', marginBottom: '0.5rem', textAlign: 'center', color: '#374151' }}>
                         Mean STSS Total Score
                       </div>
                       <BarChart
-                        data={{ 'Total Score': data.stss.total }}
-                        maxValue={70}
-                        color="#4682b4"
-                        height={150}
+                        data={{ 'Total': data.stss.total }}
+                        maxValue={85}
+                        color="#0E1F56"
+                        height={140}
                       />
-                      <div style={{ textAlign: 'center', fontSize: '0.7rem', marginTop: '0.5rem' }}>
-                        50th Percentile
-                      </div>
                     </div>
                     <div style={{ flex: 2 }}>
-                      <div style={{ fontSize: '0.75rem', fontWeight: 'bold', marginBottom: '0.5rem', textAlign: 'center' }}>
+                      <div style={{ fontSize: '0.7rem', fontWeight: '600', marginBottom: '0.5rem', textAlign: 'center', color: '#374151' }}>
                         Mean Subscale STSS Scores
                       </div>
                       <BarChart
@@ -746,41 +771,41 @@ export default function DataVisualization() {
                           'Arousal (6-30)': data.stss.arousal
                         }}
                         maxValue={35}
-                        color="#10b981"
-                        height={150}
+                        color="#00A79D"
+                        height={140}
                       />
                     </div>
                   </div>
                 ) : (
-                  <div style={{ padding: '2rem', textAlign: 'center', color: '#666' }}>No STSS data available</div>
+                  <div style={{ padding: '2rem', textAlign: 'center', color: '#9ca3af' }}>No STSS data available</div>
                 )}
               </div>
 
               {/* ProQOL Burnout */}
-              <div style={{ background: 'white', borderRadius: '0.5rem', padding: '1rem' }}>
-                <div style={{ background: '#4682b4', color: 'white', padding: '0.5rem', marginBottom: '1rem', fontWeight: 'bold', textAlign: 'center' }}>
+              <div style={{ background: 'white', borderRadius: '0.5rem', padding: '1rem', boxShadow: '0 2px 4px rgba(0,0,0,0.1)', minHeight: '280px' }}>
+                <div style={{ background: '#0E1F56', color: 'white', padding: '0.5rem', marginBottom: '1rem', fontWeight: '600', textAlign: 'center', fontSize: '0.875rem', borderRadius: '0.25rem' }}>
                   ProQOL Burnout
                 </div>
-                <div style={{ fontSize: '0.75rem', marginBottom: '1rem', textAlign: 'center' }}>
-                  ProQOL Burnout Scores: 22 or less= low burnout; 23-41= average; 42 or above=high
+                <div style={{ fontSize: '0.7rem', marginBottom: '1rem', textAlign: 'center', color: '#6b7280', lineHeight: '1.5' }}>
+                  ProQOL Burnout Scores: 22 or less= low; 23-41= average; 42 or above=high
                 </div>
                 {data.proqol !== null ? (
                   <>
-                    <div style={{ fontSize: '0.75rem', fontWeight: 'bold', marginBottom: '0.5rem', textAlign: 'center' }}>
+                    <div style={{ fontSize: '0.7rem', fontWeight: '600', marginBottom: '0.5rem', textAlign: 'center', color: '#374151' }}>
                       Mean ProQOL Burnout Score
                     </div>
                     <BarChart
                       data={{ 'Burnout': data.proqol }}
                       maxValue={50}
                       color="#f59e0b"
-                      height={150}
+                      height={120}
                     />
-                    <div style={{ fontSize: '0.7rem', marginTop: '0.5rem', padding: '0.5rem', background: '#f3f4f6', borderRadius: '0.25rem' }}>
+                    <div style={{ fontSize: '0.75rem', marginTop: '0.75rem', padding: '0.75rem', background: data.proqol <= 22 ? '#d1fae5' : data.proqol <= 41 ? '#fef3c7' : '#fee2e2', borderRadius: '0.375rem', textAlign: 'center', fontWeight: '600', color: data.proqol <= 22 ? '#065f46' : data.proqol <= 41 ? '#92400e' : '#991b1b' }}>
                       {data.proqol <= 22 ? 'Low burnout' : data.proqol <= 41 ? 'Average burnout' : 'High burnout'}
                     </div>
                   </>
                 ) : (
-                  <div style={{ padding: '2rem', textAlign: 'center', color: '#666' }}>No ProQOL data available</div>
+                  <div style={{ padding: '2rem', textAlign: 'center', color: '#9ca3af' }}>No ProQOL data available</div>
                 )}
               </div>
             </div>
