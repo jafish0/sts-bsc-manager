@@ -208,17 +208,27 @@ export default function DataVisualization() {
       })
 
       // Process STSS - use pre-calculated scores from database
-      const stssScores = stssResponses.map(r => ({
-        total: r.total_score || 0,
-        intrusion: r.intrusion_score || 0,
-        avoidance: r.avoidance_score || 0,
-        arousal: r.arousal_score || 0
-      }))
+      const stssScores = stssResponses.map(r => {
+        const total = r.total_score || 0
+        const intrusion = r.intrusion_score || 0
+        const avoidance = r.avoidance_score || 0
+        const arousal = r.arousal_score || 0
+        // Calculate negative cognitions from total (since it's not in a separate column)
+        const negCognition = total - intrusion - avoidance - arousal
+        return {
+          total,
+          intrusion,
+          avoidance,
+          negCognition,
+          arousal
+        }
+      })
 
       const avgSTSS = stssScores.length > 0 ? {
         total: stssScores.reduce((sum, s) => sum + s.total, 0) / stssScores.length,
         intrusion: stssScores.reduce((sum, s) => sum + s.intrusion, 0) / stssScores.length,
         avoidance: stssScores.reduce((sum, s) => sum + s.avoidance, 0) / stssScores.length,
+        negCognition: stssScores.reduce((sum, s) => sum + s.negCognition, 0) / stssScores.length,
         arousal: stssScores.reduce((sum, s) => sum + s.arousal, 0) / stssScores.length
       } : null
 
@@ -726,13 +736,10 @@ export default function DataVisualization() {
                         </div>
                         <BarChart
                           data={{ 'Total Score': data.stsioa.total }}
-                          maxValue={150}
+                          maxValue={100}
                           color="#4682b4"
                           height={150}
                         />
-                        <div style={{ textAlign: 'center', fontSize: '0.7rem', marginTop: '0.5rem' }}>
-                          50th Percentile
-                        </div>
                       </div>
                       <div style={{ flex: 2 }}>
                         <div style={{ fontSize: '0.75rem', fontWeight: 'bold', marginBottom: '0.5rem', textAlign: 'center' }}>
@@ -747,7 +754,7 @@ export default function DataVisualization() {
                             'Routine': data.stsioa.routine,
                             'Evaluation': data.stsioa.evaluation
                           }}
-                          maxValue={45}
+                          maxValue={25}
                           color="#10b981"
                           height={150}
                         />
@@ -778,7 +785,7 @@ export default function DataVisualization() {
                   colors={['#10b981', '#3b82f6', '#f59e0b', '#ef4444']}
                 />
                 <div style={{ fontSize: '0.75rem', marginTop: '1rem', textAlign: 'center' }}>
-                  The average rank (0-100) of level of exposure to traumatic material was {data.demographics.exposureAvg}
+                  The average rank (0-100) of level of exposure to traumatic material was <strong style={{ fontSize: '0.9rem', color: '#0E1F56' }}>{data.demographics.exposureAvg}</strong>
                 </div>
               </div>
 
@@ -798,13 +805,10 @@ export default function DataVisualization() {
                       </div>
                       <BarChart
                         data={{ 'Total Score': data.stss.total }}
-                        maxValue={70}
+                        maxValue={100}
                         color="#4682b4"
                         height={150}
                       />
-                      <div style={{ textAlign: 'center', fontSize: '0.7rem', marginTop: '0.5rem' }}>
-                        50th Percentile
-                      </div>
                     </div>
                     <div style={{ flex: 2 }}>
                       <div style={{ fontSize: '0.75rem', fontWeight: 'bold', marginBottom: '0.5rem', textAlign: 'center' }}>
@@ -812,11 +816,12 @@ export default function DataVisualization() {
                       </div>
                       <BarChart
                         data={{
-                          'Intrusion': data.stss.intrusion,
-                          'Avoidance': data.stss.avoidance,
-                          'Arousal': data.stss.arousal
+                          'Intrusion Subscale (5-25)': data.stss.intrusion,
+                          'Avoidance Subscale (2-10)': data.stss.avoidance,
+                          'Negative Cognitions and Mood Subscale (7-35)': data.stss.negCognition,
+                          'Arousal Subscale (6-30)': data.stss.arousal
                         }}
-                        maxValue={40}
+                        maxValue={35}
                         color="#10b981"
                         height={150}
                       />
