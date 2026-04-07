@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { supabase } from '../utils/supabase'
 import AddTeamModal from '../components/AddTeamModal'
+import InviteTeamLeaderModal from '../components/InviteTeamLeaderModal'
 import ctacLogo from '../assets/CTAC_white.png'
 
 export default function CollaborativeDetail() {
@@ -13,6 +14,8 @@ export default function CollaborativeDetail() {
   const [isEditing, setIsEditing] = useState(false)
   const [saving, setSaving] = useState(false)
   const [showAddTeamModal, setShowAddTeamModal] = useState(false)
+  const [inviteTeam, setInviteTeam] = useState(null)
+  const [teamLeaders, setTeamLeaders] = useState({})
   const [editForm, setEditForm] = useState({
     name: '',
     description: '',
@@ -24,6 +27,7 @@ export default function CollaborativeDetail() {
   useEffect(() => {
     fetchCollaborative()
     fetchTeams()
+    fetchTeamLeaders()
   }, [id])
 
   const fetchCollaborative = async () => {
@@ -72,6 +76,37 @@ export default function CollaborativeDetail() {
       setTeams(data || [])
     } catch (error) {
       console.error('Error fetching teams:', error)
+    }
+  }
+
+  const fetchTeamLeaders = async () => {
+    try {
+      // Get all teams for this collaborative first
+      const { data: collabTeams } = await supabase
+        .from('teams')
+        .select('id')
+        .eq('collaborative_id', id)
+
+      if (!collabTeams?.length) return
+
+      const teamIds = collabTeams.map(t => t.id)
+      const { data: leaders, error } = await supabase
+        .from('user_profiles')
+        .select('id, full_name, email, team_id, role')
+        .in('team_id', teamIds)
+        .in('role', ['agency_admin', 'team_leader'])
+
+      if (error) throw error
+
+      // Group by team_id
+      const grouped = {}
+      for (const leader of (leaders || [])) {
+        if (!grouped[leader.team_id]) grouped[leader.team_id] = []
+        grouped[leader.team_id].push(leader)
+      }
+      setTeamLeaders(grouped)
+    } catch (err) {
+      console.error('Error fetching team leaders:', err)
     }
   }
 
@@ -135,8 +170,8 @@ export default function CollaborativeDetail() {
     const labels = {
       baseline: 'Baseline',
       endline: 'Endline',
-      '6_month': '6-Month Follow-up',
-      '12_month': '12-Month Follow-up'
+      'followup_6mo': '6-Month Follow-up',
+      'followup_12mo': '12-Month Follow-up'
     }
     return labels[timepoint] || timepoint
   }
@@ -530,19 +565,83 @@ export default function CollaborativeDetail() {
                     transition: 'all 0.2s'
                   }}
                 >
-                  <div style={{ marginBottom: '1rem' }}>
-                    <h4 style={{ fontSize: '1.25rem', fontWeight: '700', color: '#0E1F56', margin: '0 0 0.5rem 0' }}>
-                      {team.team_name}
-                    </h4>
-                    <p style={{ color: '#6b7280', fontSize: '0.95rem', margin: 0 }}>
-                      {team.agency_name}
-                    </p>
+                  <div style={{ marginBottom: '1rem', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                    <div>
+                      <h4 style={{ fontSize: '1.25rem', fontWeight: '700', color: '#0E1F56', margin: '0 0 0.5rem 0' }}>
+                        {team.team_name}
+                      </h4>
+                      <p style={{ color: '#6b7280', fontSize: '0.95rem', margin: 0 }}>
+                        {team.agency_name}
+                      </p>
+                    </div>
+                    <div style={{ display: 'flex', gap: '0.5rem' }}>
+                      <button
+                        onClick={() => navigate(`/admin/smartie-goals/${team.id}`)}
+                        style={{
+                          background: '#0E1F56',
+                          color: 'white',
+                          border: 'none',
+                          padding: '0.5rem 1rem',
+                          borderRadius: '6px',
+                          cursor: 'pointer',
+                          fontSize: '0.85rem',
+                          fontWeight: '600',
+                          whiteSpace: 'nowrap'
+                        }}
+                      >
+                        Goals
+                      </button>
+                      <button
+                        onClick={() => navigate(`/admin/team-report/${team.id}`)}
+                        style={{
+                          background: '#00A79D',
+                          color: 'white',
+                          border: 'none',
+                          padding: '0.5rem 1rem',
+                          borderRadius: '6px',
+                          cursor: 'pointer',
+                          fontSize: '0.85rem',
+                          fontWeight: '600',
+                          whiteSpace: 'nowrap'
+                        }}
+                      >
+                        View Report
+                      </button>
+                      <button
+                        onClick={() => setInviteTeam(team)}
+                        style={{
+                          background: 'white',
+                          color: '#0E1F56',
+                          border: '2px solid #0E1F56',
+                          padding: '0.4rem 0.85rem',
+                          borderRadius: '6px',
+                          cursor: 'pointer',
+                          fontSize: '0.85rem',
+                          fontWeight: '600',
+                          whiteSpace: 'nowrap'
+                        }}
+                      >
+                        + Invite Leader
+                      </button>
+                    </div>
                   </div>
 
                   {team.contact_name && (
-                    <div style={{ marginBottom: '1rem', fontSize: '0.9rem', color: '#6b7280' }}>
+                    <div style={{ marginBottom: '0.5rem', fontSize: '0.9rem', color: '#6b7280' }}>
                       <strong>Contact:</strong> {team.contact_name}
                       {team.contact_email && ` (${team.contact_email})`}
+                    </div>
+                  )}
+
+                  {teamLeaders[team.id]?.length > 0 && (
+                    <div style={{ marginBottom: '1rem', fontSize: '0.85rem', color: '#6b7280' }}>
+                      <strong>Team Leaders:</strong>{' '}
+                      {teamLeaders[team.id].map((l, i) => (
+                        <span key={l.id}>
+                          {i > 0 && ', '}
+                          {l.full_name || l.email}
+                        </span>
+                      ))}
                     </div>
                   )}
 
@@ -608,6 +707,16 @@ export default function CollaborativeDetail() {
           collaborativeId={id}
           onClose={() => setShowAddTeamModal(false)}
           onSuccess={handleAddTeamSuccess}
+        />
+      )}
+
+      {/* Invite Team Leader Modal */}
+      {inviteTeam && (
+        <InviteTeamLeaderModal
+          teamId={inviteTeam.id}
+          teamName={inviteTeam.agency_name || inviteTeam.team_name}
+          onClose={() => setInviteTeam(null)}
+          onSuccess={() => fetchTeamLeaders()}
         />
       )}
     </div>

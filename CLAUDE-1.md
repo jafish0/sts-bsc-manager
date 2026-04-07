@@ -123,13 +123,11 @@ The assessment suite has **92 questions total** across 4 instruments plus a demo
 **Scoring:** Higher scores = more secondary traumatic stress (bad)  
 **Total range:** 17–85
 
-**Subscales:**
+**Subscales (DSM-5 aligned 4-factor model):**
 - **Intrusion** (items 2, 3, 6, 10, 13) — range 5–25
-- **Avoidance** (items 1, 5, 7, 9, 12, 14, 17) — range 7–35
-- **Negative Cognitions & Mood** (items 4, 8, 11, 15, 16) — range 5–25
-- **Arousal** (items 4, 8, 11, 15, 16) — range 5–25
-
-⚠️ **Known visualization bug:** The Negative Cognitions subscale was missing from the dashboard charts. Verify it is included.
+- **Avoidance** (items 1, 9, 12, 14) — range 4–20
+- **Negative Cognitions & Mood** (items 5, 7, 11, 17) — range 4–20
+- **Arousal** (items 4, 8, 15, 16) — range 4–20
 
 **Scale header** should repeat every 6 questions for usability.
 
@@ -208,15 +206,16 @@ Anonymous assessment suite with all 4 instruments (92 questions total), team cod
 Supabase authentication, three-tier RBAC, collaborative management, team management, automatic 4-code generation per team (one per timepoint).
 
 ### 🔧 Phase 3 — In Progress
-Completion tracking dashboard and data visualization components are built but have known issues:
-- STSS missing Negative Cognitions subscale in charts
-- STSI-OA charts have incorrect Y-axis scales (should be domain-specific, not global)
-- Level of Exposure formatting problems in dashboard display
-- Chart visual quality needs improvement to reach professional/publication standards
+Completion tracking dashboard and data visualization components are built. Major bugs fixed (2026-04-07):
+- ✅ STSS updated to DSM-5 4-factor model with all 4 subscales
+- ✅ STSI-OA domain charts now use domain-specific Y-axis max values
+- ✅ ProQOL now shows all 3 subscales (CS, Burnout, STS) instead of just Burnout
+- ✅ Level of Exposure shows mean and SD properly
+- ✅ Timepoint filter values fixed (were `6_month`/`12_month`, now match DB `followup_6mo`/`followup_12mo`)
+- ✅ ProQOL uses pre-calculated scores from DB instead of broken column name references
+- ✅ Charts upgraded from hand-rolled SVG to Recharts library
 
 **Remaining Phase 3 work:**
-- Fix all known visualization bugs
-- Improve chart quality to publication-ready standard
 - Team-level reports
 - Export capabilities (Excel, PDF)
 

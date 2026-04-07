@@ -1,9 +1,21 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../utils/supabase'
 import { useNavigate } from 'react-router-dom'
+import { useAuth } from '../contexts/AuthContext'
 
 export default function CompletionTracking() {
   const navigate = useNavigate()
+  const { user } = useAuth()
+
+  const handleSignOut = async () => {
+    const { error } = await supabase.auth.signOut()
+    if (error) {
+      console.error('Error signing out:', error)
+      alert('Error signing out')
+    } else {
+      navigate('/login')
+    }
+  }
   const [loading, setLoading] = useState(true)
   const [collaboratives, setCollaboratives] = useState([])
   const [selectedCollaborative, setSelectedCollaborative] = useState(null)
@@ -13,8 +25,8 @@ export default function CompletionTracking() {
   const timepoints = [
     { value: 'baseline', label: 'Baseline' },
     { value: 'endline', label: 'Endline' },
-    { value: '6_month', label: '6-Month Follow-up' },
-    { value: '12_month', label: '12-Month Follow-up' }
+    { value: 'followup_6mo', label: '6-Month Follow-up' },
+    { value: 'followup_12mo', label: '12-Month Follow-up' }
   ]
 
   // Load collaboratives on mount
@@ -149,19 +161,34 @@ export default function CompletionTracking() {
   if (collaboratives.length === 0) {
     return (
       <div style={{ padding: '2rem' }}>
-        <button
-          onClick={() => navigate('/admin')}
-          style={{
-            marginBottom: '2rem',
-            padding: '0.5rem 1rem',
-            background: 'white',
-            border: '1px solid #d1d5db',
-            borderRadius: '0.375rem',
-            cursor: 'pointer'
-          }}
-        >
-          ← Back to Dashboard
-        </button>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
+          <button
+            onClick={() => navigate('/admin')}
+            style={{
+              padding: '0.5rem 1rem',
+              background: 'white',
+              border: '1px solid #d1d5db',
+              borderRadius: '0.375rem',
+              cursor: 'pointer'
+            }}
+          >
+            ← Back to Dashboard
+          </button>
+          <button
+            onClick={handleSignOut}
+            style={{
+              padding: '0.5rem 1rem',
+              background: '#00A79D',
+              color: 'white',
+              border: 'none',
+              borderRadius: '0.375rem',
+              cursor: 'pointer',
+              fontWeight: '500'
+            }}
+          >
+            Sign Out
+          </button>
+        </div>
         <div style={{ textAlign: 'center', padding: '3rem' }}>
           <h2 style={{ color: '#0E1F56', marginBottom: '1rem' }}>No Collaboratives Found</h2>
           <p style={{ color: '#6b7280' }}>Create a collaborative first to track completion.</p>
@@ -174,19 +201,34 @@ export default function CompletionTracking() {
     <div style={{ padding: '2rem', maxWidth: '1400px', margin: '0 auto' }}>
       {/* Header */}
       <div style={{ marginBottom: '2rem' }}>
-        <button
-          onClick={() => navigate('/admin')}
-          style={{
-            marginBottom: '1rem',
-            padding: '0.5rem 1rem',
-            background: 'white',
-            border: '1px solid #d1d5db',
-            borderRadius: '0.375rem',
-            cursor: 'pointer'
-          }}
-        >
-          ← Back to Dashboard
-        </button>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+          <button
+            onClick={() => navigate('/admin')}
+            style={{
+              padding: '0.5rem 1rem',
+              background: 'white',
+              border: '1px solid #d1d5db',
+              borderRadius: '0.375rem',
+              cursor: 'pointer'
+            }}
+          >
+            ← Back to Dashboard
+          </button>
+          <button
+            onClick={handleSignOut}
+            style={{
+              padding: '0.5rem 1rem',
+              background: '#00A79D',
+              color: 'white',
+              border: 'none',
+              borderRadius: '0.375rem',
+              cursor: 'pointer',
+              fontWeight: '500'
+            }}
+          >
+            Sign Out
+          </button>
+        </div>
         <h1 style={{ color: '#0E1F56', marginBottom: '0.5rem' }}>Completion Tracking</h1>
         <p style={{ color: '#6b7280' }}>Monitor assessment completion across teams and timepoints</p>
       </div>

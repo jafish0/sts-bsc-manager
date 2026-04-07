@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { supabase } from '../utils/supabase'
 import { useAuth } from '../contexts/AuthContext'
 import ctacLogo from '../assets/UKCTAC_logoasuite_web__primary_tagline_color.png'
 import ukLogo from '../assets/UK_Lockup-286.png'
@@ -9,8 +10,34 @@ function Login() {
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
+  const [showForgotPassword, setShowForgotPassword] = useState(false)
+  const [resetEmail, setResetEmail] = useState('')
+  const [resetSent, setResetSent] = useState(false)
+  const [resetLoading, setResetLoading] = useState(false)
+  const [resetError, setResetError] = useState('')
   const { signIn } = useAuth()
   const navigate = useNavigate()
+
+  const handleForgotPassword = async (e) => {
+    e.preventDefault()
+    setResetError('')
+    if (!resetEmail.trim() || !resetEmail.includes('@')) {
+      setResetError('Please enter a valid email address')
+      return
+    }
+    setResetLoading(true)
+    try {
+      const { error } = await supabase.auth.resetPasswordForEmail(resetEmail.trim(), {
+        redirectTo: window.location.origin + '/set-password',
+      })
+      if (error) throw error
+      setResetSent(true)
+    } catch (err) {
+      setResetError(err.message || 'Failed to send reset email')
+    } finally {
+      setResetLoading(false)
+    }
+  }
 
   const handleSubmit = async (e) => {
     e.preventDefault()
@@ -24,7 +51,7 @@ function Login() {
       setLoading(false)
     } else {
       // Navigate to dashboard after successful login
-      navigate('/dashboard')
+      navigate('/admin')
     }
   }
 
@@ -157,9 +184,26 @@ function Login() {
           >
             {loading ? 'Signing in...' : 'Sign In'}
           </button>
+
+          <div style={{ textAlign: 'center', marginTop: '1rem' }}>
+            <button
+              type="button"
+              onClick={() => { setShowForgotPassword(true); setResetEmail(email); setResetSent(false); setResetError('') }}
+              style={{
+                background: 'none',
+                border: 'none',
+                color: '#00A79D',
+                cursor: 'pointer',
+                fontSize: '0.875rem',
+                textDecoration: 'underline'
+              }}
+            >
+              Forgot your password?
+            </button>
+          </div>
         </form>
 
-        <div style={{ 
+        <div style={{
           marginTop: '2rem',
           paddingTop: '1.5rem',
           borderTop: '2px solid #e5e7eb',
@@ -172,6 +216,128 @@ function Login() {
           />
         </div>
       </div>
+
+      {/* Forgot Password Modal */}
+      {showForgotPassword && (
+        <div
+          style={{
+            position: 'fixed',
+            top: 0, left: 0, right: 0, bottom: 0,
+            background: 'rgba(0, 0, 0, 0.5)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 1000,
+            padding: '2rem'
+          }}
+          onClick={() => setShowForgotPassword(false)}
+        >
+          <div
+            style={{
+              background: 'white',
+              borderRadius: '12px',
+              padding: '2rem',
+              maxWidth: '420px',
+              width: '100%'
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {resetSent ? (
+              <div style={{ textAlign: 'center' }}>
+                <div style={{ fontSize: '2.5rem', marginBottom: '0.75rem' }}>&#9993;</div>
+                <h3 style={{ color: '#0E1F56', margin: '0 0 0.5rem' }}>Check Your Email</h3>
+                <p style={{ color: '#6b7280', fontSize: '0.9rem', marginBottom: '1.5rem' }}>
+                  If an account exists for <strong>{resetEmail}</strong>, you'll receive a password reset link shortly.
+                </p>
+                <button
+                  onClick={() => setShowForgotPassword(false)}
+                  style={{
+                    padding: '0.6rem 1.5rem',
+                    background: '#00A79D',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '8px',
+                    cursor: 'pointer',
+                    fontWeight: '600'
+                  }}
+                >
+                  Back to Login
+                </button>
+              </div>
+            ) : (
+              <>
+                <h3 style={{ color: '#0E1F56', margin: '0 0 0.5rem' }}>Reset Password</h3>
+                <p style={{ color: '#6b7280', fontSize: '0.9rem', marginBottom: '1.25rem' }}>
+                  Enter your email and we'll send you a link to reset your password.
+                </p>
+                <form onSubmit={handleForgotPassword}>
+                  <input
+                    type="email"
+                    value={resetEmail}
+                    onChange={(e) => setResetEmail(e.target.value)}
+                    placeholder="Enter your email"
+                    required
+                    style={{
+                      width: '100%',
+                      padding: '0.75rem',
+                      border: '2px solid #e5e7eb',
+                      borderRadius: '8px',
+                      fontSize: '1rem',
+                      boxSizing: 'border-box',
+                      marginBottom: '1rem'
+                    }}
+                  />
+                  {resetError && (
+                    <div style={{
+                      background: '#fee2e2',
+                      border: '1px solid #ef4444',
+                      color: '#991b1b',
+                      padding: '0.5rem',
+                      borderRadius: '8px',
+                      marginBottom: '1rem',
+                      fontSize: '0.85rem'
+                    }}>
+                      {resetError}
+                    </div>
+                  )}
+                  <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'flex-end' }}>
+                    <button
+                      type="button"
+                      onClick={() => setShowForgotPassword(false)}
+                      style={{
+                        padding: '0.6rem 1.25rem',
+                        background: '#e5e7eb',
+                        color: '#374151',
+                        border: 'none',
+                        borderRadius: '8px',
+                        cursor: 'pointer',
+                        fontWeight: '600'
+                      }}
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={resetLoading}
+                      style={{
+                        padding: '0.6rem 1.25rem',
+                        background: resetLoading ? '#9ca3af' : '#00A79D',
+                        color: 'white',
+                        border: 'none',
+                        borderRadius: '8px',
+                        cursor: resetLoading ? 'not-allowed' : 'pointer',
+                        fontWeight: '600'
+                      }}
+                    >
+                      {resetLoading ? 'Sending...' : 'Send Reset Link'}
+                    </button>
+                  </div>
+                </form>
+              </>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   )
 }

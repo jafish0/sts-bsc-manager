@@ -17,18 +17,27 @@ export const STSS_INFO = {
   subscales: [
     {
       name: 'Intrusion',
-      description: 'Unwanted thoughts, images, or memories related to clients\' trauma (5 items)',
-      range: '5-25 points'
+      description: 'Unwanted thoughts, images, or memories related to clients\' trauma (5 items: 2, 3, 6, 10, 13)',
+      range: '5-25 points',
+      items: [2, 3, 6, 10, 13]
     },
     {
-      name: 'Avoidance', 
-      description: 'Efforts to avoid reminders of clients\' traumatic experiences (7 items)',
-      range: '7-35 points'
+      name: 'Avoidance',
+      description: 'Efforts to avoid reminders of clients\' traumatic experiences (4 items: 1, 9, 12, 14)',
+      range: '4-20 points',
+      items: [1, 9, 12, 14]
+    },
+    {
+      name: 'Negative Cognitions & Mood',
+      description: 'Negative changes in thoughts and mood related to work with traumatized clients (4 items: 5, 7, 11, 17)',
+      range: '4-20 points',
+      items: [5, 7, 11, 17]
     },
     {
       name: 'Arousal',
-      description: 'Physical and emotional reactivity related to work with traumatized clients (5 items)',
-      range: '5-25 points'
+      description: 'Physical and emotional reactivity related to work with traumatized clients (4 items: 4, 8, 15, 16)',
+      range: '4-20 points',
+      items: [4, 8, 15, 16]
     }
   ],
   totalRange: 'Total scores range from 17-85, with higher scores indicating greater secondary traumatic stress.',
@@ -67,7 +76,7 @@ export const STSS_ITEMS = [
   {
     id: 5,
     text: 'I felt discouraged about the future',
-    subscale: 'avoidance'
+    subscale: 'negative_cognitions'
   },
   {
     id: 6,
@@ -77,7 +86,7 @@ export const STSS_ITEMS = [
   {
     id: 7,
     text: 'I had little interest in being around others',
-    subscale: 'avoidance'
+    subscale: 'negative_cognitions'
   },
   {
     id: 8,
@@ -97,7 +106,7 @@ export const STSS_ITEMS = [
   {
     id: 11,
     text: 'I had trouble concentrating',
-    subscale: 'arousal'
+    subscale: 'negative_cognitions'
   },
   {
     id: 12,
@@ -127,7 +136,7 @@ export const STSS_ITEMS = [
   {
     id: 17,
     text: 'I noticed gaps in my memory about client sessions',
-    subscale: 'avoidance'
+    subscale: 'negative_cognitions'
   }
 ]
 
