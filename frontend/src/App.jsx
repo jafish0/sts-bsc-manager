@@ -23,6 +23,7 @@ import ForumThreadList from './pages/ForumThreadList'
 import ForumThread from './pages/ForumThread'
 import ChangeFramework from './pages/ChangeFramework'
 import StaffDirectory from './pages/StaffDirectory'
+import TeamMembers from './pages/TeamMembers'
 
 // Detect invite/recovery tokens in URL hash and redirect to /set-password
 function AuthRedirectHandler() {
@@ -123,6 +124,11 @@ function App() {
           <Route path="/admin/staff" element={
             <ProtectedRoute>
               <StaffDirectory />
+            </ProtectedRoute>
+          } />
+          <Route path="/admin/team/:teamId/members" element={
+            <ProtectedRoute>
+              <TeamMembers />
             </ProtectedRoute>
           } />
 

@@ -5,7 +5,8 @@ import { useAuth } from '../contexts/AuthContext'
 import { loadTeamReportData } from '../utils/reportDataLoader'
 import {
   COLORS, STSS_SUBSCALES, STSIOA_DOMAIN_MAX, STSIOA_TOTAL_MAX,
-  TIMEPOINT_LABELS, TIMEPOINT_ORDER, cardStyle, cardHeaderStyle, subtitleStyle
+  TIMEPOINT_LABELS, TIMEPOINT_ORDER, cardStyle, cardHeaderStyle, subtitleStyle,
+  K_ANONYMITY_THRESHOLD
 } from '../utils/constants'
 import { exportTeamReportExcel } from '../utils/exportExcel'
 import { exportTeamReportPdf } from '../utils/exportPdf'
@@ -214,10 +215,20 @@ export default function TeamReport() {
               </table>
             </div>
 
-            {/* Demographics Summary */}
+            {/* Demographics Summary — suppressed when below k-anonymity threshold */}
             {(() => {
               const baselineDemos = tpData[timepointsWithData[0]]?.demographics
               if (!baselineDemos) return null
+              if (baselineDemos.n < K_ANONYMITY_THRESHOLD) {
+                return (
+                  <div style={{ ...cardStyle, marginBottom: '1.5rem', textAlign: 'center', padding: '1.5rem' }}>
+                    <div style={cardHeaderStyle}>Demographics ({TIMEPOINT_LABELS[timepointsWithData[0]]})</div>
+                    <p style={{ color: '#6b7280', fontSize: '0.9rem', margin: '0.5rem 0 0' }}>
+                      Demographic details are hidden when fewer than {K_ANONYMITY_THRESHOLD} responses are available to protect respondent privacy (n={baselineDemos.n}).
+                    </p>
+                  </div>
+                )
+              }
               return (
                 <div style={{ ...cardStyle, marginBottom: '1.5rem' }}>
                   <div style={cardHeaderStyle}>Demographics ({TIMEPOINT_LABELS[timepointsWithData[0]]})</div>

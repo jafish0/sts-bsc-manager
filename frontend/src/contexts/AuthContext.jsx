@@ -50,6 +50,12 @@ export const AuthProvider = ({ children }) => {
         .single()
 
       if (error) throw error
+      // Mark invite as accepted on first login
+      if (data && !data.invite_accepted_at) {
+        const now = new Date().toISOString()
+        await supabase.from('user_profiles').update({ invite_accepted_at: now }).eq('id', userId)
+        data.invite_accepted_at = now
+      }
       setProfile(data)
     } catch (error) {
       console.error('Error loading profile:', error)
@@ -81,6 +87,7 @@ export const AuthProvider = ({ children }) => {
     signOut,
     isSuperAdmin: profile?.role === 'super_admin',
     isAgencyAdmin: profile?.role === 'agency_admin' || profile?.role === 'team_leader',
+    isTeamMember: profile?.role === 'team_member',
   }
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>

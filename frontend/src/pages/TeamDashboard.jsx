@@ -2,13 +2,13 @@ import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../utils/supabase'
 import { useAuth } from '../contexts/AuthContext'
-import { COLORS, cardStyle, cardHeaderStyle } from '../utils/constants'
+import { COLORS, cardStyle, cardHeaderStyle, STSIOA_DOMAIN_MAX, DOMAIN_OPTIONS } from '../utils/constants'
 import { calculatePhase, PHASES, getPhaseGuidance, phaseToChecklistKey } from '../utils/phaseCalculator'
 import { detectChecklistCompletion } from '../utils/checklistAutoDetect'
 
 export default function TeamDashboard() {
   const navigate = useNavigate()
-  const { user, profile, signOut } = useAuth()
+  const { user, profile, signOut, isTeamMember } = useAuth()
   const [team, setTeam] = useState(null)
   const [loading, setLoading] = useState(true)
   const [editing, setEditing] = useState(false)
@@ -24,6 +24,9 @@ export default function TeamDashboard() {
   // Checklist state
   const [checklistItems, setChecklistItems] = useState([])
   const [checklistLoading, setChecklistLoading] = useState(false)
+
+  // Recommendations state
+  const [recommendations, setRecommendations] = useState(null)
 
   useEffect(() => {
     if (profile?.team_id) {
@@ -70,6 +73,9 @@ export default function TeamDashboard() {
         // Load checklist items
         loadChecklist(teamData.id, phase)
       }
+
+      // Load recommendations based on latest STSIOA scores
+      loadRecommendations(teamData.id)
     } catch (err) {
       console.error('Error loading team:', err)
     } finally {
@@ -106,8 +112,96 @@ export default function TeamDashboard() {
     }
   }
 
+  const loadRecommendations = async (teamId) => {
+    try {
+      // Get the team's team_codes to find latest STSIOA data
+      const { data: codes } = await supabase
+        .from('team_codes')
+        .select('id, timepoint')
+        .eq('team_id', teamId)
+
+      if (!codes || codes.length === 0) return
+
+      // Check timepoints from most recent to oldest, find one with STSIOA data
+      const order = ['followup_12mo', 'followup_6mo', 'endline', 'baseline']
+      let stsioaResponses = null
+      let usedTimepoint = null
+
+      for (const tp of order) {
+        const code = codes.find(c => c.timepoint === tp)
+        if (!code) continue
+        const { data: arIds } = await supabase
+          .from('assessment_responses')
+          .select('id')
+          .eq('team_code_id', code.id)
+        if (!arIds || arIds.length === 0) continue
+
+        const { data: responses } = await supabase
+          .from('stsioa_responses')
+          .select('domain_1_score, domain_2_score, domain_3_score, domain_4_score, domain_5_score, domain_6_score')
+          .in('assessment_response_id', arIds.map(a => a.id))
+
+        if (responses && responses.length > 0) {
+          stsioaResponses = responses
+          usedTimepoint = tp
+          break
+        }
+      }
+
+      if (!stsioaResponses || stsioaResponses.length === 0) return
+
+      // Calculate mean scores per domain
+      const domainKeys = ['resilience', 'safety', 'policies', 'leadership', 'routine', 'evaluation']
+      const domainScores = domainKeys.map((key, i) => {
+        const colName = `domain_${i + 1}_score`
+        const scores = stsioaResponses.map(r => r[colName] || 0)
+        const mean = scores.reduce((a, b) => a + b, 0) / scores.length
+        const max = STSIOA_DOMAIN_MAX[key]
+        return { key, mean, max, pct: (mean / max) * 100 }
+      })
+
+      // Sort by percentage (weakest first), take bottom 2
+      const sorted = [...domainScores].sort((a, b) => a.pct - b.pct)
+      const weakest = sorted.slice(0, 2)
+
+      // Load resources matching the weak domains
+      const { data: resources } = await supabase
+        .from('resources')
+        .select('id, title, domains, resource_type')
+        .order('created_at', { ascending: false })
+
+      // Filter resources that match weak domains
+      const matchedResources = {}
+      weakest.forEach(d => {
+        matchedResources[d.key] = (resources || [])
+          .filter(r => r.domains && r.domains.includes(d.key))
+          .slice(0, 3)
+      })
+
+      // Check existing SMARTIE goals for these domains
+      const { data: existingGoals } = await supabase
+        .from('smartie_goals')
+        .select('stsioa_domain, status')
+        .eq('team_id', teamId)
+        .eq('status', 'active')
+
+      const activeGoalDomains = (existingGoals || []).map(g => g.stsioa_domain)
+
+      setRecommendations({
+        weakest,
+        matchedResources,
+        activeGoalDomains,
+        n: stsioaResponses.length,
+        timepoint: usedTimepoint
+      })
+    } catch (err) {
+      console.error('Error loading recommendations:', err)
+    }
+  }
+
   const handleToggleChecklist = async (item) => {
     if (item.is_auto) return // auto items are read-only
+    if (isTeamMember) return // team members are read-only
     const newCompleted = !item.is_completed
     const now = new Date().toISOString()
 
@@ -288,7 +382,7 @@ export default function TeamDashboard() {
               <button onClick={handleSignOut} style={{ padding: '0.5rem 1rem', background: 'rgba(255,255,255,0.15)', color: 'white', border: '1px solid rgba(255,255,255,0.3)', borderRadius: '0.375rem', cursor: 'pointer', fontWeight: '500' }}>
                 Sign Out
               </button>
-              {!editing && (
+              {!editing && !isTeamMember && (
                 <button
                   onClick={() => setEditing(true)}
                   style={{ padding: '0.2rem 0.5rem', background: 'transparent', color: 'rgba(255,255,255,0.6)', border: 'none', cursor: 'pointer', fontSize: '0.7rem', textDecoration: 'underline' }}
@@ -546,6 +640,120 @@ export default function TeamDashboard() {
           </div>
         )}
 
+        {/* Recommended Next Steps */}
+        {recommendations && recommendations.weakest.length > 0 && (
+          <div style={{
+            background: 'white',
+            borderRadius: '0.75rem',
+            padding: '1.5rem',
+            marginBottom: '1.5rem',
+            boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
+            border: `2px solid ${COLORS.teal}20`
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+              <h3 style={{ margin: 0, color: COLORS.navy, fontSize: '1.1rem' }}>
+                Recommended Next Steps
+              </h3>
+              <span style={{ fontSize: '0.75rem', color: '#9ca3af' }}>
+                Based on STSI-OA scores (n={recommendations.n})
+              </span>
+            </div>
+            <p style={{ fontSize: '0.85rem', color: '#6b7280', margin: '0 0 1rem', lineHeight: '1.5' }}>
+              These domains scored lowest on your team's organizational assessment. Strengthening them can improve your STS-informed practices.
+            </p>
+
+            <div style={{ display: 'grid', gridTemplateColumns: recommendations.weakest.length > 1 ? '1fr 1fr' : '1fr', gap: '1rem' }}>
+              {recommendations.weakest.map(domain => {
+                const domainLabel = DOMAIN_OPTIONS.find(d => d.value === domain.key)?.label || domain.key
+                const resources = recommendations.matchedResources[domain.key] || []
+                const hasActiveGoal = recommendations.activeGoalDomains.includes(domain.key)
+                const pctColor = domain.pct < 40 ? COLORS.red : domain.pct < 60 ? '#F59E0B' : COLORS.teal
+
+                return (
+                  <div key={domain.key} style={{
+                    background: '#f9fafb',
+                    borderRadius: '0.5rem',
+                    padding: '1rem',
+                    borderLeft: `4px solid ${pctColor}`
+                  }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
+                      <strong style={{ color: COLORS.navy, fontSize: '0.9rem' }}>{domainLabel}</strong>
+                      <span style={{
+                        fontSize: '0.8rem',
+                        fontWeight: '700',
+                        color: pctColor
+                      }}>
+                        {domain.pct.toFixed(0)}%
+                      </span>
+                    </div>
+
+                    {/* Score bar */}
+                    <div style={{ background: '#e5e7eb', borderRadius: '999px', height: '6px', marginBottom: '0.75rem', overflow: 'hidden' }}>
+                      <div style={{
+                        height: '100%',
+                        borderRadius: '999px',
+                        background: pctColor,
+                        width: `${domain.pct}%`,
+                        transition: 'width 0.4s ease'
+                      }} />
+                    </div>
+
+                    <div style={{ fontSize: '0.8rem', color: '#374151', marginBottom: '0.5rem' }}>
+                      Mean: {domain.mean.toFixed(1)} / {domain.max}
+                    </div>
+
+                    {/* Resources */}
+                    {resources.length > 0 && (
+                      <div style={{ marginBottom: '0.75rem' }}>
+                        <div style={{ fontSize: '0.75rem', fontWeight: '600', color: '#6b7280', marginBottom: '0.25rem' }}>Related Resources:</div>
+                        {resources.map(r => (
+                          <div
+                            key={r.id}
+                            onClick={() => navigate('/admin/resources')}
+                            style={{
+                              fontSize: '0.8rem',
+                              color: COLORS.teal,
+                              cursor: 'pointer',
+                              padding: '0.15rem 0',
+                              textDecoration: 'underline'
+                            }}
+                          >
+                            {r.title}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* SMARTIE Goal CTA */}
+                    {hasActiveGoal ? (
+                      <div style={{ fontSize: '0.75rem', color: COLORS.teal, fontWeight: '600' }}>
+                        Active goal set for this domain
+                      </div>
+                    ) : (
+                      <button
+                        onClick={() => navigate(`/admin/smartie-goals/${team.id}?domain=${domain.key}`)}
+                        style={{
+                          width: '100%',
+                          padding: '0.5rem',
+                          background: COLORS.navy,
+                          color: 'white',
+                          border: 'none',
+                          borderRadius: '0.375rem',
+                          cursor: 'pointer',
+                          fontSize: '0.8rem',
+                          fontWeight: '600'
+                        }}
+                      >
+                        Set a SMARTIE Goal
+                      </button>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+        )}
+
         {/* Action Cards */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '1.5rem', marginBottom: '2rem' }}>
           {/* Team Report */}
@@ -609,6 +817,15 @@ export default function TeamDashboard() {
             description="Meet the BSC faculty and support team"
             borderColor={COLORS.teal}
             onClick={() => navigate('/admin/staff')}
+          />
+
+          {/* Team Members */}
+          <ActionCard
+            icon="🧑‍🤝‍🧑"
+            title="Team"
+            description="View your team members and roles"
+            borderColor={COLORS.navy}
+            onClick={() => navigate(`/admin/team/${team.id}/members`)}
           />
         </div>
       </div>

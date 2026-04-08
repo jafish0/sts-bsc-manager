@@ -31,9 +31,9 @@ function TeamCodeEntry() {
         return
       }
 
-      // Valid code found - store in sessionStorage and navigate to demographics
-      sessionStorage.setItem('teamCodeId', data.id)
-      sessionStorage.setItem('teamCode', data.code)
+      // Valid code found - store in localStorage and navigate to demographics
+      localStorage.setItem('sts_teamCodeId', data.id)
+      localStorage.setItem('sts_teamCode', data.code)
       navigate('/demographics')
 
     } catch (err) {

@@ -8,10 +8,14 @@ function AssessmentComplete() {
   const navigate = useNavigate()
 
   useEffect(() => {
-    // Clear session storage on mount
-    sessionStorage.removeItem('teamCodeId')
-    sessionStorage.removeItem('teamCode')
-    sessionStorage.removeItem('assessmentResponseId')
+    // Clear all assessment data from localStorage on completion
+    localStorage.removeItem('sts_teamCodeId')
+    localStorage.removeItem('sts_teamCode')
+    localStorage.removeItem('sts_assessmentResponseId')
+    localStorage.removeItem('sts_demographics')
+    localStorage.removeItem('sts_stss')
+    localStorage.removeItem('sts_proqol')
+    localStorage.removeItem('sts_stsioa')
   }, [])
 
   return (

@@ -21,6 +21,9 @@ export const STSIOA_DOMAIN_MAX = {
 }
 export const STSIOA_TOTAL_MAX = 200
 
+// K-anonymity: suppress demographic breakdowns when response count is below this threshold
+export const K_ANONYMITY_THRESHOLD = 5
+
 // STSS DSM-5 4-factor subscale item mapping
 export const STSS_SUBSCALES = {
   intrusion: { items: [2, 3, 6, 10, 13], label: 'Intrusion', range: '5-25', max: 25 },

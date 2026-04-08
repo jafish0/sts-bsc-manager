@@ -43,33 +43,50 @@ Deno.serve(async (req) => {
     // Check caller's role using admin client to bypass RLS
     const { data: callerProfile, error: profileError } = await adminClient
       .from('user_profiles')
-      .select('role')
+      .select('role, team_id')
       .eq('id', caller.id)
       .single()
 
-    if (profileError || callerProfile?.role !== 'super_admin') {
-      return new Response(JSON.stringify({ error: 'Only super admins can invite team leaders' }), {
+    if (profileError || !callerProfile) {
+      return new Response(JSON.stringify({ error: 'Could not verify caller permissions' }), {
         status: 403,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       })
     }
 
     // Parse request body
-    const { email, name, team_id } = await req.json()
+    const { email, name, team_id, role, agency_role, is_senior_leader, resend } = await req.json()
 
-    if (!email || !name || !team_id) {
-      return new Response(JSON.stringify({ error: 'email, name, and team_id are required' }), {
+    // Authorization: super_admin can invite to any team, agency_admin/team_leader can invite to own team
+    if (callerProfile.role === 'super_admin') {
+      // allowed for any team
+    } else if (['agency_admin', 'team_leader'].includes(callerProfile.role)) {
+      if (callerProfile.team_id !== team_id) {
+        return new Response(JSON.stringify({ error: 'You can only invite members to your own team' }), {
+          status: 403,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        })
+      }
+    } else {
+      return new Response(JSON.stringify({ error: 'Not authorized to invite users' }), {
+        status: 403,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      })
+    }
+
+    // Validate role parameter
+    const inviteRole = role || 'agency_admin'
+    const allowedRoles = ['agency_admin', 'team_leader', 'team_member']
+    if (!allowedRoles.includes(inviteRole)) {
+      return new Response(JSON.stringify({ error: 'Invalid role: ' + inviteRole }), {
         status: 400,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       })
     }
 
-    // Check if user already exists
-    const { data: existingUsers } = await adminClient.auth.admin.listUsers()
-    const existingUser = existingUsers?.users?.find(u => u.email === email)
-    if (existingUser) {
-      return new Response(JSON.stringify({ error: `A user with email ${email} already exists` }), {
-        status: 409,
+    if (!email || !name || !team_id) {
+      return new Response(JSON.stringify({ error: 'email, name, and team_id are required' }), {
+        status: 400,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       })
     }
@@ -88,12 +105,28 @@ Deno.serve(async (req) => {
       })
     }
 
+    // Check if user already exists
+    const { data: existingUsers } = await adminClient.auth.admin.listUsers()
+    const existingUser = existingUsers?.users?.find(u => u.email === email)
+
+    // Handle resend: delete existing user and re-invite
+    if (existingUser && resend) {
+      await adminClient.from('user_profiles').delete().eq('id', existingUser.id)
+      await adminClient.auth.admin.deleteUser(existingUser.id)
+    } else if (existingUser) {
+      return new Response(JSON.stringify({ error: `A user with email ${email} already exists` }), {
+        status: 409,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      })
+    }
+
     // Invite user via Supabase Auth (sends invite email automatically)
+    const redirectUrl = 'https://sts-bsc-manager.vercel.app/set-password'
     const { data: inviteData, error: inviteError } = await adminClient.auth.admin.inviteUserByEmail(
       email,
       {
         data: { full_name: name },
-        redirectTo: `${supabaseUrl.replace('.supabase.co', '.vercel.app')}/set-password`,
+        redirectTo: redirectUrl,
       }
     )
 
@@ -107,16 +140,20 @@ Deno.serve(async (req) => {
     const newUser = inviteData.user
 
     // Create user_profiles record
+    const profileData: Record<string, unknown> = {
+      id: newUser.id,
+      email: email,
+      full_name: name,
+      role: inviteRole,
+      team_id: team_id,
+      is_active: true,
+    }
+    if (agency_role) profileData.agency_role = agency_role
+    if (is_senior_leader !== undefined) profileData.is_senior_leader = is_senior_leader
+
     const { error: insertError } = await adminClient
       .from('user_profiles')
-      .insert({
-        id: newUser.id,
-        email: email,
-        full_name: name,
-        role: 'agency_admin',
-        team_id: team_id,
-        is_active: true,
-      })
+      .insert(profileData)
 
     if (insertError) {
       // Clean up: delete the auth user if profile creation fails

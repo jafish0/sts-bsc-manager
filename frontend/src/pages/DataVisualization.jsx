@@ -8,14 +8,15 @@ import {
 } from 'recharts'
 import {
   STSIOA_DOMAIN_MAX, STSIOA_TOTAL_MAX, STSS_SUBSCALES, COLORS, PIE_COLORS,
-  TIMEPOINTS, computeSTSSSubscale, stddev, cardStyle, cardHeaderStyle, subtitleStyle
+  TIMEPOINTS, computeSTSSSubscale, stddev, cardStyle, cardHeaderStyle, subtitleStyle,
+  K_ANONYMITY_THRESHOLD
 } from '../utils/constants'
 import { STSIOA_DOMAINS } from '../config/stsioa'
 import { exportDataVizExcel } from '../utils/exportExcel'
 
 export default function DataVisualization() {
   const navigate = useNavigate()
-  const { user, profile, isSuperAdmin, isAgencyAdmin } = useAuth()
+  const { user, profile, isSuperAdmin, isAgencyAdmin, isTeamMember } = useAuth()
   const [loading, setLoading] = useState(true)
   const [collaboratives, setCollaboratives] = useState([])
   const [teams, setTeams] = useState([])
@@ -52,7 +53,7 @@ export default function DataVisualization() {
       }
 
       // Agency admins: pre-select their team and find most recent timepoint
-      if (isAgencyAdmin && profile?.team_id) {
+      if ((isAgencyAdmin || isTeamMember) && profile?.team_id) {
         setSelectedTeam(profile.team_id)
         autoSelectLatestTimepoint(profile.team_id)
       }
@@ -437,47 +438,62 @@ export default function DataVisualization() {
             <div style={{ color: '#6b7280', fontSize: '0.9rem' }}>{getCurrentDate()}</div>
           </div>
 
-          {/* Row 1: Demographics, Job Role, Area of Responsibility */}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '1rem', marginBottom: '1rem' }}>
-            {/* Demographics Summary */}
-            <div style={cardStyle}>
-              <div style={cardHeaderStyle}>Demographics</div>
-              <div style={{ fontSize: '0.85rem', lineHeight: '1.8' }}>
-                <p style={{ margin: '0 0 0.5rem' }}>Respondents were {data.demographics.femalePercent}% female, {data.demographics.malePercent}% male.</p>
-                <p style={{ margin: '0 0 0.5rem' }}>Average age: <strong>{data.demographics.avgAge}</strong></p>
-                <p style={{ margin: '0 0 0.5rem' }}>Average years in service: <strong>{data.demographics.avgYearsService}</strong></p>
-                <p style={{ margin: 0 }}>Average exposure (0-100): <strong>{data.demographics.exposureMean}</strong> (SD={data.demographics.exposureSD})</p>
+          {/* K-anonymity guard for demographic breakdowns */}
+          {data.totalResponses >= K_ANONYMITY_THRESHOLD ? (
+            <>
+              {/* Row 1: Demographics, Job Role, Area of Responsibility */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '1rem', marginBottom: '1rem' }}>
+                {/* Demographics Summary */}
+                <div style={cardStyle}>
+                  <div style={cardHeaderStyle}>Demographics</div>
+                  <div style={{ fontSize: '0.85rem', lineHeight: '1.8' }}>
+                    <p style={{ margin: '0 0 0.5rem' }}>Respondents were {data.demographics.femalePercent}% female, {data.demographics.malePercent}% male.</p>
+                    <p style={{ margin: '0 0 0.5rem' }}>Average age: <strong>{data.demographics.avgAge}</strong></p>
+                    <p style={{ margin: '0 0 0.5rem' }}>Average years in service: <strong>{data.demographics.avgYearsService}</strong></p>
+                    <p style={{ margin: 0 }}>Average exposure (0-100): <strong>{data.demographics.exposureMean}</strong> (SD={data.demographics.exposureSD})</p>
+                  </div>
+                </div>
+
+                {/* Job Role */}
+                <div style={cardStyle}>
+                  <div style={cardHeaderStyle}>Job Role</div>
+                  <RechartsPie data={data.demographics.jobRoles} />
+                </div>
+
+                {/* Area of Responsibility */}
+                <div style={cardStyle}>
+                  <div style={cardHeaderStyle}>Area of Responsibility</div>
+                  <RechartsPie data={data.demographics.areasOfResp} />
+                </div>
               </div>
+            </>
+          ) : (
+            <div style={{ ...cardStyle, marginBottom: '1rem', textAlign: 'center', padding: '1.5rem' }}>
+              <div style={cardHeaderStyle}>Demographics</div>
+              <p style={{ color: '#6b7280', fontSize: '0.9rem', margin: '0.5rem 0 0' }}>
+                Demographic breakdowns are hidden when fewer than {K_ANONYMITY_THRESHOLD} responses are available to protect respondent privacy.
+                Current responses: {data.totalResponses}
+              </p>
             </div>
-
-            {/* Job Role */}
-            <div style={cardStyle}>
-              <div style={cardHeaderStyle}>Job Role</div>
-              <RechartsPie data={data.demographics.jobRoles} />
-            </div>
-
-            {/* Area of Responsibility */}
-            <div style={cardStyle}>
-              <div style={cardHeaderStyle}>Area of Responsibility</div>
-              <RechartsPie data={data.demographics.areasOfResp} />
-            </div>
-          </div>
+          )}
 
           {/* Row 2: Level of Exposure + STSS */}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 3fr', gap: '1rem', marginBottom: '1rem' }}>
-            {/* Level of Exposure */}
-            <div style={cardStyle}>
-              <div style={cardHeaderStyle}>Level of Exposure</div>
-              <div style={subtitleStyle}>Exposure to traumatic material (0-100)</div>
-              <RechartsPie
-                data={data.demographics.exposurePercentiles}
-                colors={[COLORS.green, COLORS.blue, COLORS.amber, COLORS.red]}
-              />
-              <div style={{ marginTop: '1rem', textAlign: 'center', fontSize: '0.85rem', padding: '0.75rem', background: '#f8fafc', borderRadius: '0.25rem', border: '1px solid #e2e8f0' }}>
-                <div>Mean: <strong style={{ fontSize: '1.1rem', color: COLORS.navy }}>{data.demographics.exposureMean}</strong></div>
-                <div>SD: <strong>{data.demographics.exposureSD}</strong></div>
+          <div style={{ display: 'grid', gridTemplateColumns: data.totalResponses >= K_ANONYMITY_THRESHOLD ? '1fr 3fr' : '1fr', gap: '1rem', marginBottom: '1rem' }}>
+            {/* Level of Exposure — only shown when k-anonymity threshold met */}
+            {data.totalResponses >= K_ANONYMITY_THRESHOLD && (
+              <div style={cardStyle}>
+                <div style={cardHeaderStyle}>Level of Exposure</div>
+                <div style={subtitleStyle}>Exposure to traumatic material (0-100)</div>
+                <RechartsPie
+                  data={data.demographics.exposurePercentiles}
+                  colors={[COLORS.green, COLORS.blue, COLORS.amber, COLORS.red]}
+                />
+                <div style={{ marginTop: '1rem', textAlign: 'center', fontSize: '0.85rem', padding: '0.75rem', background: '#f8fafc', borderRadius: '0.25rem', border: '1px solid #e2e8f0' }}>
+                  <div>Mean: <strong style={{ fontSize: '1.1rem', color: COLORS.navy }}>{data.demographics.exposureMean}</strong></div>
+                  <div>SD: <strong>{data.demographics.exposureSD}</strong></div>
+                </div>
               </div>
-            </div>
+            )}
 
             {/* STSS */}
             <div style={cardStyle}>
@@ -626,8 +642,8 @@ export default function DataVisualization() {
             </div>
           </div>
 
-          {/* Row 4: STSI-OA by Job Role */}
-          {data.stsioaByJobRole && Object.keys(data.stsioaByJobRole).length > 0 && (
+          {/* Row 4: STSI-OA by Job Role — suppressed when below k-anonymity threshold */}
+          {data.totalResponses >= K_ANONYMITY_THRESHOLD && data.stsioaByJobRole && Object.keys(data.stsioaByJobRole).length > 0 && (
             <div style={{ ...cardStyle, marginBottom: '1rem' }}>
               <div style={cardHeaderStyle}>STSI-OA Scores by Job Role</div>
               <ResponsiveContainer width="100%" height={250}>

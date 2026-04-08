@@ -31,14 +31,36 @@ function Demographics() {
   const [error, setError] = useState('')
   const [showExposureInfo, setShowExposureInfo] = useState(false)
 
-  // On mount, create assessment_response record
+  // Restore saved form data from localStorage
+  useEffect(() => {
+    const saved = localStorage.getItem('sts_demographics')
+    if (saved) {
+      try {
+        setFormData(JSON.parse(saved))
+      } catch (e) { /* ignore corrupt data */ }
+    }
+  }, [])
+
+  // Auto-save form data on every change
+  useEffect(() => {
+    localStorage.setItem('sts_demographics', JSON.stringify(formData))
+  }, [formData])
+
+  // On mount, create or restore assessment_response record
   useEffect(() => {
     const initializeAssessment = async () => {
-      const teamCodeId = sessionStorage.getItem('teamCodeId')
-      
+      const teamCodeId = localStorage.getItem('sts_teamCodeId')
+
       if (!teamCodeId) {
         alert('No team code found. Please start from the beginning.')
         navigate('/')
+        return
+      }
+
+      // Check if we already have an assessment in progress (browser was closed mid-assessment)
+      const existingId = localStorage.getItem('sts_assessmentResponseId')
+      if (existingId) {
+        setAssessmentResponseId(existingId)
         return
       }
 
@@ -68,9 +90,9 @@ function Demographics() {
           .single()
 
         if (error) throw error
-        
+
         setAssessmentResponseId(data.id)
-        sessionStorage.setItem('assessmentResponseId', data.id)
+        localStorage.setItem('sts_assessmentResponseId', data.id)
       } catch (err) {
         console.error('Error creating assessment response:', err)
         alert('Error starting assessment. Please try again.')

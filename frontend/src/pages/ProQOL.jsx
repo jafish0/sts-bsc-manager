@@ -21,14 +21,27 @@ function ProQOL() {
   const [showInfo, setShowInfo] = useState(false)
 
   useEffect(() => {
-    const responseId = sessionStorage.getItem('assessmentResponseId')
+    const responseId = localStorage.getItem('sts_assessmentResponseId')
     if (!responseId) {
       alert('No assessment found. Please start from the beginning.')
       navigate('/')
       return
     }
     setAssessmentResponseId(responseId)
+
+    // Restore saved responses
+    const saved = localStorage.getItem('sts_proqol')
+    if (saved) {
+      try { setResponses(JSON.parse(saved)) } catch (e) { /* ignore */ }
+    }
   }, [navigate])
+
+  // Auto-save responses on change
+  useEffect(() => {
+    if (Object.keys(responses).length > 0) {
+      localStorage.setItem('sts_proqol', JSON.stringify(responses))
+    }
+  }, [responses])
 
   const handleResponseChange = (itemId, value) => {
     setResponses(prev => ({

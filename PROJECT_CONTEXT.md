@@ -48,7 +48,7 @@ The STS-BSC Manager is a web application built for the **Center on Trauma and Ch
 | `super_admin` | Full system access. Manages all collaboratives, teams, resources, forums. Can moderate and export. | AdminDashboard |
 | `agency_admin` | Team leader. Manages their team's goals, views their team's reports, accesses their collaborative's forum and resources. | TeamDashboard |
 | `team_leader` | Same as agency_admin (legacy role name). | TeamDashboard |
-| `team_member` | (Future) Read-only access to team dashboard, resources, and forum. | TeamDashboard |
+| `team_member` | Read-only access to team dashboard, resources, and forum. Can view but not edit SMARTIE goals, checklists, or team settings. | TeamDashboard |
 
 ---
 
@@ -102,19 +102,24 @@ Each team gets 4 unique codes (one per timepoint: Baseline, Endline, 6-Month, 12
 - **Login** — Supabase Auth with email/password
 - **Forgot Password** — Sends reset email via `supabase.auth.resetPasswordForEmail()`
 - **Set Password** — Handles both invite tokens (`type=invite`) and recovery tokens (`type=recovery`) via URL hash detection in `AuthRedirectHandler`
-- **Invite Team Leaders** — Super admins invite via `invite-team-leader` Edge Function, which creates the auth user + user_profiles row and sends an invite email
+- **Invite Users** — Super admins and agency admins invite via `invite-team-leader` Edge Function (generalized to handle all roles). Creates auth user + user_profiles row and sends invite email. Supports `role` param (`agency_admin`, `team_leader`, `team_member`), `agency_role`, `is_senior_leader`, and `resend` for re-sending invites.
 - **Role-based routing** — `DashboardRouter` component routes to AdminDashboard or TeamDashboard based on `profile.role`
 - **Protected routes** — `ProtectedRoute` component checks auth, supports `requireSuperAdmin` prop
+- **Team Members page** — `/admin/team/:teamId/members` shows roster with pending/active status, invite modal with access level selector, and resend invite capability
 
 ---
 
 ### 3. Collaborative & Team Management
 
 - **Create collaboratives** — Name, description, date range, status
-- **Add teams** — Team name, agency name, contact info. Auto-generates 4 team codes (one per timepoint)
+- **Add teams** — Team name, agency name, contact info. Auto-generates 4 team codes (one per timepoint). Seeds checklist items for new teams.
 - **Invite team leaders** — Email invitation flow with auto-created user profile
+- **Invite team members** — Agency admins can invite members to their own team with role selection (View Only or Full Access), agency role, and senior leader designation
+- **BSC Events** — Track Learning Sessions and custom events per collaborative. LS dates drive phase calculations and assessment window auto-population.
 - **Team codes** — Format: `XXXXXX-XXXXXX-TIMEPOINT`. Copy-to-clipboard. Active/inactive toggle.
 - **Team customization** — Team leaders can set display name and motto
+- **Phase Timeline** — Horizontal stepper on TeamDashboard showing 8 BSC phases, calculated from Learning Session dates
+- **Phase Checklists** — Per-phase activity checklists with auto-detection badges and manual toggles
 
 ---
 
@@ -190,6 +195,72 @@ Per-collaborative discussion forum for teams to share strategies and experiences
 
 ---
 
+### 8. Change Framework (`/admin/change-framework`)
+
+Displays the collaborative improvement framework organized by the 6 STSI-OA domains.
+
+**Features:**
+- Domain tabs with item counts
+- Primary and secondary driver display per domain
+- Super admin inline editing, add, delete drivers
+
+---
+
+### 9. Staff Directory (`/admin/staff`)
+
+Professional directory of BSC faculty and support team.
+
+**Features:**
+- Professional cards with initials avatar, bio expand/collapse, mailto links
+- Super admin CRUD via AddStaffModal
+- Collaborative filtering (global staff vs collaborative-specific)
+
+---
+
+### 10. Team Members (`/admin/team/:teamId/members`)
+
+Team roster management page for agency admins and super admins.
+
+**Features:**
+- Summary stats (total members, leaders, team members, senior leaders)
+- Member cards with role badges, agency role, senior leader designation
+- **Pending/Active status** — tracks whether invited users have accepted and logged in via `invite_accepted_at` column
+- **Invite modal** — Name, email, agency role, senior leader checkbox, access level dropdown (View Only vs Full Access)
+- **Resend invite** — for pending members, deletes and re-creates the invite with a fresh token
+- **Remove member** — deactivates (soft delete) team members
+
+---
+
+### 11. Phase Timeline & Checklists (TeamDashboard)
+
+**Phase Timeline:**
+- Horizontal stepper showing 8 BSC phases (Pre-Work through Sustainability)
+- Current phase highlighted with glow effect, past phases filled, future phases outlined
+- Phase calculated from BSC Learning Session dates via `phaseCalculator.js`
+- Next event card with countdown
+
+**Phase Checklists:**
+- Per-phase activity items with progress bar
+- Auto-detection badges for items that can be verified from existing data (e.g., "Has SMARTIE goals" checks if goals exist)
+- Manual toggle for items that need human confirmation
+- "Go" navigation links to related pages
+- Read-only for `team_member` role
+
+---
+
+### 12. STSI-OA Office Visual (DataVisualization)
+
+Color-coded organizational assessment visual at the bottom of the Data Visualization page.
+
+**Features:**
+- CSS Grid layout matching PowerPoint spatial arrangement (6 domains as office sections)
+- Per-item mean score calculation (excluding N/A responses)
+- Score-to-color mapping: 4-5=green, 3-4=yellow, 2-3=orange, 1-2=red, no data=gray
+- Hover tooltips with full item text, mean, count, color category
+- Color key legend
+
+---
+
 ## Database Schema
 
 ### Core Tables
@@ -220,8 +291,12 @@ team_codes
 
 user_profiles
 ├── id (uuid, PK, = auth.users.id)
-├── email, full_name, role (super_admin/agency_admin/team_leader)
+├── email, full_name
+├── role (super_admin/agency_admin/team_leader/senior_leader/team_member)
 ├── team_id (FK → teams), is_active
+├── agency_role (text — e.g. "Case Manager", "Therapist")
+├── is_senior_leader (boolean, default false)
+├── invite_accepted_at (timestamptz — null = pending, set on first login)
 └── created_at, updated_at
 ```
 
@@ -292,6 +367,36 @@ forum_posts
 ├── body, created_by (FK → user_profiles)
 ├── is_edited
 └── created_at, updated_at
+
+bsc_events
+├── id (uuid, PK)
+├── collaborative_id (FK → collaboratives)
+├── event_type (learning_session/all_team_call/custom)
+├── title, event_date, event_time, location
+└── created_at
+
+bsc_staff
+├── id (uuid, PK)
+├── full_name, title_credentials, role_title, organization
+├── bio, email, phone
+├── collaborative_id (nullable — null = global)
+├── sort_order, is_active
+└── created_at, updated_at
+
+change_framework_drivers
+├── id (uuid, PK)
+├── collaborative_id (FK → collaboratives)
+├── domain, driver_type (primary/secondary)
+├── title, description
+└── created_at, updated_at
+
+checklist_items
+├── id (uuid, PK)
+├── team_id (FK → teams)
+├── phase_key, label, sort_order
+├── is_completed, completed_at, completed_by
+├── is_auto (boolean — auto-detected items)
+└── created_at
 ```
 
 ### Database Functions & Triggers
@@ -300,6 +405,7 @@ forum_posts
 |----------|---------|
 | `is_super_admin()` | SECURITY DEFINER — checks if current user is super_admin (bypasses RLS) |
 | `user_collaborative_id()` | SECURITY DEFINER — returns the collaborative_id for the current user's team |
+| `user_team_id()` | SECURITY DEFINER — returns the team_id for the current user (bypasses RLS) |
 | `update_thread_reply_stats()` | Trigger on forum_posts INSERT/DELETE — updates reply_count and last_reply_at |
 | `forum_set_updated_at()` | Trigger on forum table UPDATE — sets updated_at and is_edited flag |
 
@@ -307,7 +413,8 @@ forum_posts
 
 - **Assessment tables:** Public insert (anonymous), authenticated select
 - **Collaboratives/teams:** Authenticated read, super_admin write
-- **User profiles:** Users see own, super_admins see all (via `is_super_admin()`)
+- **User profiles:** Users see own + own team's profiles (via `user_team_id()`), super_admins see all (via `is_super_admin()`)
+- **Teams:** Users see own team (via `user_team_id()`), super_admins see all
 - **Resources:** Authenticated read, super_admin write
 - **Forum threads:** Users see their collaborative's threads, super_admins see all
 - **Forum posts:** Scoped through parent thread's collaborative
@@ -336,8 +443,10 @@ sts-bsc-manager/
 │       ├── components/
 │       │   ├── ProtectedRoute.jsx
 │       │   ├── AddTeamModal.jsx
+│       │   ├── AddStaffModal.jsx
 │       │   ├── CreateCollaborativeModal.jsx
 │       │   ├── InviteTeamLeaderModal.jsx
+│       │   ├── InviteTeamMemberModal.jsx
 │       │   ├── AddResourceModal.jsx
 │       │   └── SmartieGoalForm.jsx
 │       ├── config/
@@ -366,14 +475,19 @@ sts-bsc-manager/
 │       │   ├── SmartieGoals.jsx
 │       │   ├── Resources.jsx
 │       │   ├── ForumThreadList.jsx
-│       │   └── ForumThread.jsx
+│       │   ├── ForumThread.jsx
+│       │   ├── ChangeFramework.jsx
+│       │   ├── StaffDirectory.jsx
+│       │   └── TeamMembers.jsx
 │       ├── styles/               — CSS files for assessment pages
 │       └── utils/
 │           ├── supabase.js
 │           ├── constants.js
 │           ├── reportDataLoader.js
 │           ├── exportExcel.js
-│           └── exportPdf.js
+│           ├── exportPdf.js
+│           ├── phaseCalculator.js
+│           └── checklistAutoDetect.js
 │
 ├── supabase/
 │   ├── config.toml
@@ -409,6 +523,9 @@ sts-bsc-manager/
 | `/admin/resources` | Resources | Protected | Resource library by domain |
 | `/admin/forum` | ForumThreadList | Protected | Forum thread list |
 | `/admin/forum/:threadId` | ForumThread | Protected | Thread detail + replies |
+| `/admin/change-framework` | ChangeFramework | Protected | Collaborative change framework by domain |
+| `/admin/staff` | StaffDirectory | Protected | BSC faculty and support staff |
+| `/admin/team/:teamId/members` | TeamMembers | Protected | Team roster with invite/manage members |
 
 ---
 
