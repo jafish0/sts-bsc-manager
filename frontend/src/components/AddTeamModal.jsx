@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { supabase } from '../utils/supabase'
+import { DEFAULT_CHECKLIST_ITEMS } from '../utils/checklistAutoDetect'
 
 function AddTeamModal({ collaborativeId, onClose, onSuccess }) {
   const [formData, setFormData] = useState({
@@ -93,7 +94,23 @@ function AddTeamModal({ collaborativeId, onClose, onSuccess }) {
 
       if (codesError) throw codesError
 
-      console.log('Team and codes created successfully')
+      // Seed checklist items for this team
+      const checklistRows = DEFAULT_CHECKLIST_ITEMS.map(item => ({
+        team_id: team.id,
+        collaborative_id: collaborativeId,
+        phase: item.phase,
+        item_key: item.item_key,
+        label: item.label,
+        is_auto: item.is_auto,
+        sort_order: item.sort_order,
+        is_completed: false
+      }))
+      const { error: checklistError } = await supabase
+        .from('checklist_items')
+        .insert(checklistRows)
+      if (checklistError) console.error('Error seeding checklist:', checklistError)
+
+      console.log('Team, codes, and checklist created successfully')
       onSuccess()
     } catch (err) {
       console.error('Error creating team:', err)

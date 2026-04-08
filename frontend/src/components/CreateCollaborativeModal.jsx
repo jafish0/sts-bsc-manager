@@ -1,6 +1,23 @@
 import { useState } from 'react'
 import { supabase } from '../utils/supabase'
 
+const EVENT_TYPES = [
+  { value: 'learning_session', label: 'Learning Session', audience: 'all_teams' },
+  { value: 'all_team_call', label: 'All-Team Call', audience: 'all_teams' },
+  { value: 'senior_leader_call', label: 'Senior Leader Call', audience: 'senior_leaders' },
+  { value: 'other', label: 'Other', audience: 'all_teams' }
+]
+
+const EMPTY_EVENT = {
+  event_type: 'learning_session',
+  title: '',
+  event_date: '',
+  start_time: '',
+  end_time: '',
+  location: 'Virtual',
+  sequence_number: null
+}
+
 function CreateCollaborativeModal({ onClose, onSuccess }) {
   const [formData, setFormData] = useState({
     name: '',
@@ -17,8 +34,45 @@ function CreateCollaborativeModal({ onClose, onSuccess }) {
     followup_12mo_end_date: '',
     status: 'active'
   })
+  const [bscEvents, setBscEvents] = useState([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+
+  const addEvent = () => {
+    // Auto-set title and sequence based on type counts
+    const lsCount = bscEvents.filter(e => e.event_type === 'learning_session').length
+    const newEvt = { ...EMPTY_EVENT, title: `Learning Session ${lsCount + 1}`, sequence_number: lsCount + 1 }
+    setBscEvents(prev => [...prev, newEvt])
+  }
+
+  const updateEvent = (idx, field, value) => {
+    setBscEvents(prev => {
+      const updated = [...prev]
+      updated[idx] = { ...updated[idx], [field]: value }
+      // Auto-set title and audience when type changes
+      if (field === 'event_type') {
+        const typeInfo = EVENT_TYPES.find(t => t.value === value)
+        const countOfType = prev.filter((e, i) => i !== idx && e.event_type === value).length
+        if (value === 'learning_session') {
+          updated[idx].title = `Learning Session ${countOfType + 1}`
+          updated[idx].sequence_number = countOfType + 1
+        } else if (value === 'all_team_call') {
+          updated[idx].title = `All-Team Call ${countOfType + 1}`
+          updated[idx].sequence_number = countOfType + 1
+        } else if (value === 'senior_leader_call') {
+          updated[idx].title = `Senior Leader Call ${countOfType + 1}`
+          updated[idx].sequence_number = countOfType + 1
+        } else {
+          updated[idx].sequence_number = null
+        }
+      }
+      return updated
+    })
+  }
+
+  const removeEvent = (idx) => {
+    setBscEvents(prev => prev.filter((_, i) => i !== idx))
+  }
 
   const handleSubmit = async (e) => {
     e.preventDefault()
@@ -66,6 +120,33 @@ function CreateCollaborativeModal({ onClose, onSuccess }) {
         .single()
 
       if (insertError) throw insertError
+
+      // Insert BSC events if any
+      if (bscEvents.length > 0) {
+        const eventsToInsert = bscEvents
+          .filter(evt => evt.event_date) // only insert events with dates
+          .map(evt => {
+            const typeInfo = EVENT_TYPES.find(t => t.value === evt.event_type)
+            return {
+              collaborative_id: data.id,
+              event_type: evt.event_type,
+              title: evt.title || evt.event_type,
+              event_date: evt.event_date,
+              start_time: evt.start_time || null,
+              end_time: evt.end_time || null,
+              location: evt.location || null,
+              audience: typeInfo?.audience || 'all_teams',
+              sequence_number: evt.sequence_number
+            }
+          })
+
+        if (eventsToInsert.length > 0) {
+          const { error: eventsError } = await supabase
+            .from('bsc_events')
+            .insert(eventsToInsert)
+          if (eventsError) console.error('Error inserting events:', eventsError)
+        }
+      }
 
       console.log('Collaborative created:', data)
       onSuccess()
@@ -411,6 +492,62 @@ function CreateCollaborativeModal({ onClose, onSuccess }) {
                 />
               </div>
             </div>
+          </div>
+
+          {/* BSC Events Schedule */}
+          <div style={{
+            background: '#f0fdf4',
+            padding: '1.5rem',
+            borderRadius: '8px',
+            marginBottom: '1.5rem'
+          }}>
+            <h3 style={{ color: '#0E1F56', fontSize: '1rem', marginTop: 0, marginBottom: '0.5rem' }}>
+              BSC Events Schedule (Optional)
+            </h3>
+            <p style={{ color: '#6b7280', fontSize: '0.85rem', marginBottom: '1rem' }}>
+              Add Learning Sessions, All-Team Calls, and other key events
+            </p>
+
+            {bscEvents.map((evt, idx) => (
+              <div key={idx} style={{
+                background: 'white', border: '1px solid #e5e7eb', borderRadius: '8px',
+                padding: '1rem', marginBottom: '0.75rem'
+              }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
+                  <span style={{ fontSize: '0.8rem', fontWeight: '600', color: '#374151' }}>Event {idx + 1}</span>
+                  <button type="button" onClick={() => removeEvent(idx)} style={{
+                    background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer',
+                    fontSize: '1.1rem', padding: '0', lineHeight: '1'
+                  }}>×</button>
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem', marginBottom: '0.5rem' }}>
+                  <select value={evt.event_type} onChange={(e) => updateEvent(idx, 'event_type', e.target.value)}
+                    style={{ padding: '0.5rem', border: '1px solid #e5e7eb', borderRadius: '6px', fontSize: '0.85rem' }}>
+                    {EVENT_TYPES.map(t => (
+                      <option key={t.value} value={t.value}>{t.label}</option>
+                    ))}
+                  </select>
+                  <input type="text" value={evt.title} onChange={(e) => updateEvent(idx, 'title', e.target.value)}
+                    placeholder="Event title" style={{ padding: '0.5rem', border: '1px solid #e5e7eb', borderRadius: '6px', fontSize: '0.85rem' }} />
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: '0.5rem' }}>
+                  <input type="date" value={evt.event_date} onChange={(e) => updateEvent(idx, 'event_date', e.target.value)}
+                    style={{ padding: '0.5rem', border: '1px solid #e5e7eb', borderRadius: '6px', fontSize: '0.85rem' }} />
+                  <input type="time" value={evt.start_time} onChange={(e) => updateEvent(idx, 'start_time', e.target.value)}
+                    placeholder="Start" style={{ padding: '0.5rem', border: '1px solid #e5e7eb', borderRadius: '6px', fontSize: '0.85rem' }} />
+                  <input type="time" value={evt.end_time} onChange={(e) => updateEvent(idx, 'end_time', e.target.value)}
+                    placeholder="End" style={{ padding: '0.5rem', border: '1px solid #e5e7eb', borderRadius: '6px', fontSize: '0.85rem' }} />
+                  <input type="text" value={evt.location} onChange={(e) => updateEvent(idx, 'location', e.target.value)}
+                    placeholder="Location" style={{ padding: '0.5rem', border: '1px solid #e5e7eb', borderRadius: '6px', fontSize: '0.85rem' }} />
+                </div>
+              </div>
+            ))}
+
+            <button type="button" onClick={addEvent} style={{
+              background: 'none', border: '1px dashed #00A79D', color: '#00A79D',
+              borderRadius: '6px', padding: '0.5rem 1rem', cursor: 'pointer',
+              fontSize: '0.85rem', fontWeight: '600', width: '100%'
+            }}>+ Add Event</button>
           </div>
 
           {/* Status */}

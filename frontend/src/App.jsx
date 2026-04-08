@@ -21,6 +21,8 @@ import SetPassword from './pages/SetPassword'
 import Resources from './pages/Resources'
 import ForumThreadList from './pages/ForumThreadList'
 import ForumThread from './pages/ForumThread'
+import ChangeFramework from './pages/ChangeFramework'
+import StaffDirectory from './pages/StaffDirectory'
 
 // Detect invite/recovery tokens in URL hash and redirect to /set-password
 function AuthRedirectHandler() {
@@ -111,6 +113,16 @@ function App() {
           <Route path="/admin/forum/:threadId" element={
             <ProtectedRoute>
               <ForumThread />
+            </ProtectedRoute>
+          } />
+          <Route path="/admin/change-framework" element={
+            <ProtectedRoute>
+              <ChangeFramework />
+            </ProtectedRoute>
+          } />
+          <Route path="/admin/staff" element={
+            <ProtectedRoute>
+              <StaffDirectory />
             </ProtectedRoute>
           } />
 

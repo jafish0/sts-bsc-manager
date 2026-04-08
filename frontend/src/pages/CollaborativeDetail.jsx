@@ -5,6 +5,15 @@ import AddTeamModal from '../components/AddTeamModal'
 import InviteTeamLeaderModal from '../components/InviteTeamLeaderModal'
 import ctacLogo from '../assets/CTAC_white.png'
 
+const EVENT_TYPES = [
+  { value: 'learning_session', label: 'Learning Session', audience: 'all_teams' },
+  { value: 'all_team_call', label: 'All-Team Call', audience: 'all_teams' },
+  { value: 'senior_leader_call', label: 'Senior Leader Call', audience: 'senior_leaders' },
+  { value: 'team_consultation', label: 'Team Consultation', audience: 'individual_team' },
+  { value: 'assessment_window', label: 'Assessment Window', audience: 'all_teams' },
+  { value: 'other', label: 'Other', audience: 'all_teams' }
+]
+
 export default function CollaborativeDetail() {
   const { id } = useParams()
   const navigate = useNavigate()
@@ -24,10 +33,19 @@ export default function CollaborativeDetail() {
     status: 'active'
   })
 
+  // Events state
+  const [events, setEvents] = useState([])
+  const [showAddEvent, setShowAddEvent] = useState(false)
+  const [newEvent, setNewEvent] = useState({
+    event_type: 'learning_session', title: '', event_date: '',
+    start_time: '', end_time: '', location: 'Virtual'
+  })
+
   useEffect(() => {
     fetchCollaborative()
     fetchTeams()
     fetchTeamLeaders()
+    fetchEvents()
   }, [id])
 
   const fetchCollaborative = async () => {
@@ -108,6 +126,45 @@ export default function CollaborativeDetail() {
     } catch (err) {
       console.error('Error fetching team leaders:', err)
     }
+  }
+
+  const fetchEvents = async () => {
+    const { data } = await supabase
+      .from('bsc_events')
+      .select('*')
+      .eq('collaborative_id', id)
+      .order('event_date')
+    setEvents(data || [])
+  }
+
+  const handleAddEvent = async () => {
+    if (!newEvent.event_date || !newEvent.title.trim()) return
+    const typeInfo = EVENT_TYPES.find(t => t.value === newEvent.event_type)
+    const lsCount = events.filter(e => e.event_type === newEvent.event_type).length
+    const { error } = await supabase
+      .from('bsc_events')
+      .insert({
+        collaborative_id: id,
+        event_type: newEvent.event_type,
+        title: newEvent.title.trim(),
+        event_date: newEvent.event_date,
+        start_time: newEvent.start_time || null,
+        end_time: newEvent.end_time || null,
+        location: newEvent.location || null,
+        audience: typeInfo?.audience || 'all_teams',
+        sequence_number: newEvent.event_type === 'learning_session' ? lsCount + 1 : null
+      })
+    if (error) { alert('Error adding event: ' + error.message); return }
+    setShowAddEvent(false)
+    setNewEvent({ event_type: 'learning_session', title: '', event_date: '', start_time: '', end_time: '', location: 'Virtual' })
+    fetchEvents()
+  }
+
+  const handleDeleteEvent = async (eventId) => {
+    if (!window.confirm('Delete this event?')) return
+    const { error } = await supabase.from('bsc_events').delete().eq('id', eventId)
+    if (error) { alert('Error: ' + error.message); return }
+    setEvents(prev => prev.filter(e => e.id !== eventId))
   }
 
   const handleSave = async () => {
@@ -518,10 +575,89 @@ export default function CollaborativeDetail() {
           )}
         </div>
 
+        {/* BSC Events Section */}
+        <div style={{
+          background: 'white', borderRadius: '12px', padding: '2rem',
+          marginBottom: '2rem', boxShadow: '0 4px 12px rgba(0,0,0,0.1)'
+        }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
+            <h3 style={{ fontSize: '1.5rem', fontWeight: '700', color: '#0E1F56', margin: 0 }}>
+              BSC Events
+            </h3>
+            <button onClick={() => setShowAddEvent(!showAddEvent)} style={{
+              background: showAddEvent ? '#e5e7eb' : 'linear-gradient(135deg, #00A79D 0%, #0E1F56 100%)',
+              color: showAddEvent ? '#374151' : 'white',
+              padding: '0.625rem 1.25rem', borderRadius: '8px', border: 'none',
+              fontWeight: '600', cursor: 'pointer', fontSize: '0.9rem'
+            }}>{showAddEvent ? 'Cancel' : '+ Add Event'}</button>
+          </div>
+
+          {showAddEvent && (
+            <div style={{ background: '#f9fafb', border: '1px solid #e5e7eb', borderRadius: '8px', padding: '1rem', marginBottom: '1rem' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem', marginBottom: '0.5rem' }}>
+                <select value={newEvent.event_type} onChange={(e) => setNewEvent({ ...newEvent, event_type: e.target.value })}
+                  style={{ padding: '0.5rem', border: '1px solid #e5e7eb', borderRadius: '6px', fontSize: '0.85rem' }}>
+                  {EVENT_TYPES.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
+                </select>
+                <input type="text" value={newEvent.title} onChange={(e) => setNewEvent({ ...newEvent, title: e.target.value })}
+                  placeholder="Event title" style={{ padding: '0.5rem', border: '1px solid #e5e7eb', borderRadius: '6px', fontSize: '0.85rem' }} />
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: '0.5rem', marginBottom: '0.75rem' }}>
+                <input type="date" value={newEvent.event_date} onChange={(e) => setNewEvent({ ...newEvent, event_date: e.target.value })}
+                  style={{ padding: '0.5rem', border: '1px solid #e5e7eb', borderRadius: '6px', fontSize: '0.85rem' }} />
+                <input type="time" value={newEvent.start_time} onChange={(e) => setNewEvent({ ...newEvent, start_time: e.target.value })}
+                  style={{ padding: '0.5rem', border: '1px solid #e5e7eb', borderRadius: '6px', fontSize: '0.85rem' }} />
+                <input type="time" value={newEvent.end_time} onChange={(e) => setNewEvent({ ...newEvent, end_time: e.target.value })}
+                  style={{ padding: '0.5rem', border: '1px solid #e5e7eb', borderRadius: '6px', fontSize: '0.85rem' }} />
+                <input type="text" value={newEvent.location} onChange={(e) => setNewEvent({ ...newEvent, location: e.target.value })}
+                  placeholder="Location" style={{ padding: '0.5rem', border: '1px solid #e5e7eb', borderRadius: '6px', fontSize: '0.85rem' }} />
+              </div>
+              <button onClick={handleAddEvent} style={{
+                background: '#00A79D', color: 'white', border: 'none', borderRadius: '6px',
+                padding: '0.5rem 1.25rem', cursor: 'pointer', fontWeight: '600', fontSize: '0.85rem'
+              }}>Add Event</button>
+            </div>
+          )}
+
+          {events.length === 0 ? (
+            <div style={{ textAlign: 'center', padding: '2rem', color: '#6b7280' }}>
+              <p>No events scheduled yet. Add Learning Sessions and other key dates above.</p>
+            </div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+              {events.map(evt => (
+                <div key={evt.id} style={{
+                  display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                  padding: '0.75rem 1rem', background: '#f9fafb', borderRadius: '8px',
+                  border: '1px solid #f3f4f6'
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                    <span style={{
+                      fontSize: '0.65rem', fontWeight: '700', textTransform: 'uppercase',
+                      background: evt.event_type === 'learning_session' ? '#dbeafe' : '#f3f4f6',
+                      color: evt.event_type === 'learning_session' ? '#1e40af' : '#6b7280',
+                      padding: '0.15rem 0.5rem', borderRadius: '4px'
+                    }}>{EVENT_TYPES.find(t => t.value === evt.event_type)?.label || evt.event_type}</span>
+                    <span style={{ fontWeight: '600', color: '#0E1F56', fontSize: '0.9rem' }}>{evt.title}</span>
+                    <span style={{ color: '#6b7280', fontSize: '0.85rem' }}>
+                      {new Date(evt.event_date + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                      {evt.start_time && ` at ${evt.start_time.slice(0,5)}`}
+                    </span>
+                    {evt.location && <span style={{ color: '#9ca3af', fontSize: '0.8rem' }}>({evt.location})</span>}
+                  </div>
+                  <button onClick={() => handleDeleteEvent(evt.id)} style={{
+                    background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', fontSize: '0.8rem'
+                  }}>Delete</button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
         {/* Teams Section */}
-        <div style={{ 
-          background: 'white', 
-          borderRadius: '12px', 
+        <div style={{
+          background: 'white',
+          borderRadius: '12px',
           padding: '2rem',
           boxShadow: '0 4px 12px rgba(0, 0, 0, 0.1)'
         }}>
