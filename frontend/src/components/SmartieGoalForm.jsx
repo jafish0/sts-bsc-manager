@@ -1,14 +1,9 @@
 import { useState, useEffect } from 'react'
-import { COLORS } from '../utils/constants'
+import { COLORS, DOMAIN_OPTIONS } from '../utils/constants'
 
-const DOMAIN_OPTIONS = [
+const GOAL_DOMAIN_OPTIONS = [
   { value: '', label: 'Select a domain...' },
-  { value: 'resilience', label: 'Domain 1 — Promotion of Resilience Building Activities' },
-  { value: 'safety', label: 'Domain 2 — Sense of Safety' },
-  { value: 'policies', label: 'Domain 3 — Organizational Policies' },
-  { value: 'leadership', label: 'Domain 4 — Practices of Leaders' },
-  { value: 'routine', label: 'Domain 5 — Routine Organizational Practices' },
-  { value: 'evaluation', label: 'Domain 6 — Evaluation and Monitoring' },
+  ...DOMAIN_OPTIONS,
   { value: 'other', label: 'Other' }
 ]
 
@@ -136,7 +131,7 @@ export default function SmartieGoalForm({ goal, onSave, onCancel, saving }) {
             onChange={(e) => handleChange('stsioa_domain', e.target.value)}
             style={inputStyle}
           >
-            {DOMAIN_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+            {GOAL_DOMAIN_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
           </select>
         </div>
       </div>

@@ -1,5 +1,15 @@
 // Shared constants for STS-BSC Manager
 
+// STSI-OA domain options (used in SmartieGoalForm, Resources, etc.)
+export const DOMAIN_OPTIONS = [
+  { value: 'resilience', label: 'Domain 1 — Promotion of Resilience Building Activities' },
+  { value: 'safety', label: 'Domain 2 — Sense of Safety' },
+  { value: 'policies', label: 'Domain 3 — Organizational Policies' },
+  { value: 'leadership', label: 'Domain 4 — Practices of Leaders' },
+  { value: 'routine', label: 'Domain 5 — Routine Organizational Practices' },
+  { value: 'evaluation', label: 'Domain 6 — Evaluation and Monitoring' }
+]
+
 // STSI-OA domain max scores
 export const STSIOA_DOMAIN_MAX = {
   resilience: 28,

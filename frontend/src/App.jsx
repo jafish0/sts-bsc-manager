@@ -18,6 +18,7 @@ import DataVisualization from './pages/DataVisualization'
 import TeamReport from './pages/TeamReport'
 import SmartieGoals from './pages/SmartieGoals'
 import SetPassword from './pages/SetPassword'
+import Resources from './pages/Resources'
 
 // Detect invite/recovery tokens in URL hash and redirect to /set-password
 function AuthRedirectHandler() {
@@ -93,6 +94,11 @@ function App() {
           <Route path="/admin/smartie-goals/:teamId" element={
             <ProtectedRoute>
               <SmartieGoals />
+            </ProtectedRoute>
+          } />
+          <Route path="/admin/resources" element={
+            <ProtectedRoute>
+              <Resources />
             </ProtectedRoute>
           } />
 
