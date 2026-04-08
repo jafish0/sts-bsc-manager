@@ -136,7 +136,7 @@ export default function ChangeFramework() {
                 transition: 'all 0.2s'
               }}
             >
-              {d.label.replace(/^Domain \d+ — /, '')}
+              {d.label}
               <span style={{
                 marginLeft: '0.4rem',
                 fontSize: '0.7rem',

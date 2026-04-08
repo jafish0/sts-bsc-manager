@@ -25,7 +25,7 @@ export default function AdminDashboard() {
         padding: '1.5rem 2rem',
         boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
       }}>
-        <div style={{ maxWidth: '1400px', margin: '0 auto', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div style={{ maxWidth: '1200px', margin: '0 auto', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <div>
             <h1 style={{ margin: 0, fontSize: '1.875rem' }}>STS-BSC Manager</h1>
             <p style={{ margin: '0.25rem 0 0 0', opacity: 0.9, fontSize: '0.875rem' }}>
@@ -50,7 +50,7 @@ export default function AdminDashboard() {
       </div>
 
       {/* Main Content */}
-      <div style={{ maxWidth: '1400px', margin: '0 auto', padding: '2rem' }}>
+      <div style={{ maxWidth: '1200px', margin: '0 auto', padding: '2rem' }}>
         {/* Welcome Section */}
         <div style={{ marginBottom: '2rem' }}>
           <h2 style={{ color: '#0E1F56', marginBottom: '0.5rem' }}>

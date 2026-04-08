@@ -289,7 +289,7 @@ export default function CollaborativeDetail() {
         boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)'
       }}>
         <div style={{ 
-          maxWidth: '1400px', 
+          maxWidth: '1200px', 
           margin: '0 auto', 
           display: 'flex', 
           justifyContent: 'space-between', 
@@ -340,7 +340,7 @@ export default function CollaborativeDetail() {
       </div>
 
       {/* Main Content */}
-      <div style={{ maxWidth: '1400px', margin: '0 auto', padding: '2rem' }}>
+      <div style={{ maxWidth: '1200px', margin: '0 auto', padding: '2rem' }}>
         {/* Back Button */}
         <button
           onClick={() => navigate('/admin/collaboratives')}

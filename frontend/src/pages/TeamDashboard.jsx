@@ -214,7 +214,7 @@ export default function TeamDashboard() {
         padding: '2.5rem 2rem 2rem',
         boxShadow: '0 4px 12px rgba(0,0,0,0.15)'
       }}>
-        <div style={{ maxWidth: '1000px', margin: '0 auto' }}>
+        <div style={{ maxWidth: '1200px', margin: '0 auto' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
             <div>
               <div style={{ fontSize: '0.85rem', opacity: 0.8, marginBottom: '0.25rem' }}>
@@ -302,7 +302,7 @@ export default function TeamDashboard() {
       </div>
 
       {/* Dashboard Content */}
-      <div style={{ maxWidth: '1000px', margin: '2rem auto', padding: '0 1rem' }}>
+      <div style={{ maxWidth: '1200px', margin: '2rem auto', padding: '0 1rem' }}>
 
         {/* Phase Timeline Banner */}
         {phaseInfo && (

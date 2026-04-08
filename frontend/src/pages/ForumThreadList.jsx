@@ -187,7 +187,7 @@ export default function ForumThreadList() {
         boxShadow: '0 4px 12px rgba(0,0,0,0.15)'
       }}>
         <div style={{
-          maxWidth: '900px', margin: '0 auto',
+          maxWidth: '1200px', margin: '0 auto',
           display: 'flex', justifyContent: 'space-between', alignItems: 'center'
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '1.25rem', cursor: 'pointer' }}
@@ -210,7 +210,7 @@ export default function ForumThreadList() {
         </div>
       </div>
 
-      <div style={{ maxWidth: '900px', margin: '0 auto', padding: '1.5rem 2rem' }}>
+      <div style={{ maxWidth: '1200px', margin: '0 auto', padding: '1.5rem 2rem' }}>
         {/* Back + Collaborative selector */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', flexWrap: 'wrap', gap: '0.75rem' }}>
           <button onClick={() => navigate('/admin')} style={{

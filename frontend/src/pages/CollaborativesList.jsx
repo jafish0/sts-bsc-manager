@@ -81,7 +81,7 @@ export default function CollaborativesList() {
         boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)'
       }}>
         <div style={{ 
-          maxWidth: '1400px', 
+          maxWidth: '1200px', 
           margin: '0 auto', 
           display: 'flex', 
           justifyContent: 'space-between', 
@@ -98,8 +98,8 @@ export default function CollaborativesList() {
               style={{ height: '50px', width: 'auto' }}
             />
             <div>
-              <h1 style={{ fontSize: '1.25rem', margin: 0 }}>Collaboratives Management</h1>
-              <p style={{ fontSize: '0.875rem', margin: 0, opacity: 0.9 }}>
+              <h1 style={{ fontSize: '1.25rem', margin: 0, color: 'white' }}>Collaboratives Management</h1>
+              <p style={{ fontSize: '0.875rem', margin: 0, opacity: 0.9, color: 'white' }}>
                 STS Breakthrough Series Collaborative Manager
               </p>
             </div>
@@ -132,7 +132,7 @@ export default function CollaborativesList() {
       </div>
 
       {/* Main Content */}
-      <div style={{ maxWidth: '1400px', margin: '0 auto', padding: '3rem 2rem' }}>
+      <div style={{ maxWidth: '1200px', margin: '0 auto', padding: '3rem 2rem' }}>
         {/* Filters and Create Button */}
         <div style={{ 
           display: 'flex', 

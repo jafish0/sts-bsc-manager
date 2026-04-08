@@ -202,7 +202,7 @@ export default function ForumThread() {
         boxShadow: '0 4px 12px rgba(0,0,0,0.15)'
       }}>
         <div style={{
-          maxWidth: '900px', margin: '0 auto',
+          maxWidth: '1200px', margin: '0 auto',
           display: 'flex', justifyContent: 'space-between', alignItems: 'center'
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '1.25rem', cursor: 'pointer' }}
@@ -221,7 +221,7 @@ export default function ForumThread() {
         </div>
       </div>
 
-      <div style={{ maxWidth: '900px', margin: '0 auto', padding: '1.5rem 2rem' }}>
+      <div style={{ maxWidth: '1200px', margin: '0 auto', padding: '1.5rem 2rem' }}>
         {/* Back button */}
         <button onClick={() => navigate('/admin/forum')} style={{
           background: 'white', color: '#6b7280', padding: '0.5rem 1rem',

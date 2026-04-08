@@ -370,7 +370,7 @@ export default function DataVisualization() {
     <div style={{ minHeight: '100vh', background: '#f3f4f6' }}>
       {/* Header */}
       <div style={{ background: COLORS.navy, color: 'white', padding: '1rem 2rem', boxShadow: '0 2px 4px rgba(0,0,0,0.1)' }}>
-        <div style={{ maxWidth: '1400px', margin: '0 auto', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div style={{ maxWidth: '1200px', margin: '0 auto', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
             <button onClick={() => navigate('/admin')} style={{ background: 'transparent', border: '1px solid rgba(255,255,255,0.3)', color: 'white', padding: '0.5rem 1rem', borderRadius: '0.375rem', cursor: 'pointer', fontSize: '0.875rem' }}>
               Back
@@ -397,7 +397,7 @@ export default function DataVisualization() {
 
       {/* Filters */}
       <div style={{ background: 'white', borderBottom: '2px solid #e5e7eb', padding: '1rem 2rem' }}>
-        <div style={{ maxWidth: '1400px', margin: '0 auto', display: 'flex', gap: '1rem', flexWrap: 'wrap', alignItems: 'center' }}>
+        <div style={{ maxWidth: '1200px', margin: '0 auto', display: 'flex', gap: '1rem', flexWrap: 'wrap', alignItems: 'center' }}>
           {/* Collaborative selector - hidden for agency admins (they only have one) */}
           {isSuperAdmin && (
             <div style={{ flex: '1 1 250px' }}>
@@ -428,7 +428,7 @@ export default function DataVisualization() {
 
       {/* Main Dashboard */}
       {data && data.totalResponses > 0 && (
-        <div style={{ maxWidth: '1400px', margin: '2rem auto', padding: '0 1rem' }}>
+        <div style={{ maxWidth: '1200px', margin: '2rem auto', padding: '0 1rem' }}>
           {/* Title */}
           <div style={{ marginBottom: '1.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
             <h2 style={{ margin: 0, color: COLORS.navy, fontSize: '1.5rem' }}>

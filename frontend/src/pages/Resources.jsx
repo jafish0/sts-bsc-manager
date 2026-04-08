@@ -155,7 +155,7 @@ export default function Resources() {
                 transition: 'all 0.15s'
               }}
             >
-              {d.label.replace(/Domain \d — /, '')}
+              {d.label}
               <span style={{
                 marginLeft: '0.4rem', background: activeDomain === d.value ? TEAL : '#e5e7eb',
                 color: activeDomain === d.value ? 'white' : '#6b7280',
@@ -193,12 +193,11 @@ export default function Resources() {
                 {resource.resource_type === 'youtube' && getYoutubeId(resource.youtube_url) && (
                   <div style={{
                     marginBottom: '1rem', borderRadius: '8px', overflow: 'hidden',
-                    position: 'relative', paddingBottom: '56.25%', height: 0
+                    maxWidth: '320px', aspectRatio: '16/9'
                   }}>
                     <iframe
                       src={`https://www.youtube.com/embed/${getYoutubeId(resource.youtube_url)}`}
                       style={{
-                        position: 'absolute', top: 0, left: 0,
                         width: '100%', height: '100%', border: 'none'
                       }}
                       allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
