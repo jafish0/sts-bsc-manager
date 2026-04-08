@@ -1,5 +1,6 @@
 import { Navigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
+import ThemeToggle from './ThemeToggle'
 
 function ProtectedRoute({ children, requireSuperAdmin = false }) {
   const { user, profile, loading } = useAuth()
@@ -67,7 +68,7 @@ function ProtectedRoute({ children, requireSuperAdmin = false }) {
     )
   }
 
-  return children
+  return <>{children}<ThemeToggle /></>
 }
 
 export default ProtectedRoute

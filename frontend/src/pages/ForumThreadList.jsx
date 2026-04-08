@@ -173,13 +173,13 @@ export default function ForumThreadList() {
   }
 
   const inputStyle = {
-    width: '100%', padding: '0.75rem', border: '2px solid #e5e7eb',
+    width: '100%', padding: '0.75rem', border: '2px solid var(--border)',
     borderRadius: '8px', fontSize: '0.95rem', boxSizing: 'border-box',
     transition: 'border-color 0.2s', fontFamily: 'inherit'
   }
 
   return (
-    <div style={{ minHeight: '100vh', background: '#f3f4f6' }}>
+    <div style={{ minHeight: '100vh', background: 'var(--bg-page)' }}>
       {/* Header */}
       <div style={{
         background: `linear-gradient(135deg, ${COLORS.navy} 0%, ${COLORS.teal} 100%)`,
@@ -214,8 +214,8 @@ export default function ForumThreadList() {
         {/* Back + Collaborative selector */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', flexWrap: 'wrap', gap: '0.75rem' }}>
           <button onClick={() => navigate('/admin')} style={{
-            background: 'white', color: '#6b7280', padding: '0.5rem 1rem',
-            borderRadius: '8px', border: '1px solid #e5e7eb', fontWeight: '600',
+            background: 'var(--bg-card)', color: 'var(--text-muted)', padding: '0.5rem 1rem',
+            borderRadius: '8px', border: '1px solid var(--border)', fontWeight: '600',
             cursor: 'pointer', fontSize: '0.9rem'
           }}>&#8592; Back to Dashboard</button>
 
@@ -224,8 +224,8 @@ export default function ForumThreadList() {
               value={collaborativeId || ''}
               onChange={(e) => handleCollaborativeChange(e.target.value)}
               style={{
-                padding: '0.5rem 1rem', borderRadius: '8px', border: '2px solid #e5e7eb',
-                fontSize: '0.9rem', fontWeight: '600', color: COLORS.navy, background: 'white'
+                padding: '0.5rem 1rem', borderRadius: '8px', border: '2px solid var(--border)',
+                fontSize: '0.9rem', fontWeight: '600', color: COLORS.navy, background: 'var(--bg-card)'
               }}
             >
               {collaboratives.map(c => (
@@ -264,7 +264,7 @@ export default function ForumThreadList() {
         {/* New Thread Form */}
         {showNewThread && (
           <form onSubmit={handleNewThread} style={{
-            background: 'white', borderRadius: '12px', padding: '1.5rem',
+            background: 'var(--bg-card)', borderRadius: '12px', padding: '1.5rem',
             border: `2px solid ${COLORS.teal}`, marginBottom: '1.5rem',
             boxShadow: '0 4px 12px rgba(0,167,157,0.1)'
           }}>
@@ -307,19 +307,19 @@ export default function ForumThreadList() {
 
         {/* Thread List */}
         {loading ? (
-          <div style={{ textAlign: 'center', padding: '3rem', color: '#6b7280' }}>Loading threads...</div>
+          <div style={{ textAlign: 'center', padding: '3rem', color: 'var(--text-muted)' }}>Loading threads...</div>
         ) : !collaborativeId ? (
           <div style={{
-            textAlign: 'center', padding: '3rem', color: '#6b7280',
-            background: 'white', borderRadius: '12px', border: '1px solid #e5e7eb'
+            textAlign: 'center', padding: '3rem', color: 'var(--text-muted)',
+            background: 'var(--bg-card)', borderRadius: '12px', border: '1px solid var(--border)'
           }}>
             <p style={{ fontWeight: '600' }}>No collaborative assigned</p>
             <p style={{ fontSize: '0.9rem' }}>Contact CTAC for assistance.</p>
           </div>
         ) : threads.length === 0 ? (
           <div style={{
-            textAlign: 'center', padding: '3rem', color: '#6b7280',
-            background: 'white', borderRadius: '12px', border: '1px solid #e5e7eb'
+            textAlign: 'center', padding: '3rem', color: 'var(--text-muted)',
+            background: 'var(--bg-card)', borderRadius: '12px', border: '1px solid var(--border)'
           }}>
             <div style={{ fontSize: '2.5rem', marginBottom: '0.5rem', opacity: 0.3 }}>&#128172;</div>
             <p style={{ fontWeight: '600', marginBottom: '0.25rem' }}>
@@ -337,7 +337,7 @@ export default function ForumThreadList() {
 
               return (
                 <div key={thread.id} style={{
-                  background: 'white', borderRadius: '12px', padding: '1.25rem',
+                  background: 'var(--bg-card)', borderRadius: '12px', padding: '1.25rem',
                   border: thread.is_pinned ? `2px solid ${COLORS.teal}` : '1px solid #e5e7eb',
                   boxShadow: '0 1px 3px rgba(0,0,0,0.05)',
                   cursor: 'pointer', transition: 'box-shadow 0.15s'
@@ -361,16 +361,16 @@ export default function ForumThreadList() {
                         </h3>
                       </div>
                       <p style={{
-                        color: '#6b7280', fontSize: '0.85rem', margin: '0.25rem 0 0.5rem',
+                        color: 'var(--text-muted)', fontSize: '0.85rem', margin: '0.25rem 0 0.5rem',
                         lineHeight: '1.4', whiteSpace: 'pre-wrap', wordBreak: 'break-word'
                       }}>{preview}</p>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', fontSize: '0.8rem', color: '#9ca3af', flexWrap: 'wrap' }}>
-                        <span style={{ fontWeight: '600', color: '#6b7280' }}>{authorName}</span>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', fontSize: '0.8rem', color: 'var(--text-faint)', flexWrap: 'wrap' }}>
+                        <span style={{ fontWeight: '600', color: 'var(--text-muted)' }}>{authorName}</span>
                         {teamName && <span>{teamName}</span>}
                         <span>{timeAgo(thread.last_reply_at)}</span>
                         <span style={{
-                          background: '#f3f4f6', padding: '0.1rem 0.5rem',
-                          borderRadius: '10px', fontWeight: '600', color: '#6b7280'
+                          background: 'var(--bg-page)', padding: '0.1rem 0.5rem',
+                          borderRadius: '10px', fontWeight: '600', color: 'var(--text-muted)'
                         }}>
                           {thread.reply_count} {thread.reply_count === 1 ? 'reply' : 'replies'}
                         </span>
@@ -402,8 +402,8 @@ export default function ForumThreadList() {
 
             {hasMore && (
               <button onClick={() => fetchThreads(true)} style={{
-                background: 'white', color: COLORS.navy, padding: '0.75rem',
-                borderRadius: '8px', border: '2px solid #e5e7eb', fontWeight: '600',
+                background: 'var(--bg-card)', color: COLORS.navy, padding: '0.75rem',
+                borderRadius: '8px', border: '2px solid var(--border)', fontWeight: '600',
                 cursor: 'pointer', fontSize: '0.9rem', textAlign: 'center'
               }}>Load More</button>
             )}

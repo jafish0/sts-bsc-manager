@@ -166,8 +166,8 @@ export default function CompletionTracking() {
             onClick={() => navigate('/admin')}
             style={{
               padding: '0.5rem 1rem',
-              background: 'white',
-              border: '1px solid #d1d5db',
+              background: 'var(--bg-card)',
+              border: '1px solid var(--border-light)',
               borderRadius: '0.375rem',
               cursor: 'pointer'
             }}
@@ -191,7 +191,7 @@ export default function CompletionTracking() {
         </div>
         <div style={{ textAlign: 'center', padding: '3rem' }}>
           <h2 style={{ color: '#0E1F56', marginBottom: '1rem' }}>No Collaboratives Found</h2>
-          <p style={{ color: '#6b7280' }}>Create a collaborative first to track completion.</p>
+          <p style={{ color: 'var(--text-muted)' }}>Create a collaborative first to track completion.</p>
         </div>
       </div>
     )
@@ -206,8 +206,8 @@ export default function CompletionTracking() {
             onClick={() => navigate('/admin')}
             style={{
               padding: '0.5rem 1rem',
-              background: 'white',
-              border: '1px solid #d1d5db',
+              background: 'var(--bg-card)',
+              border: '1px solid var(--border-light)',
               borderRadius: '0.375rem',
               cursor: 'pointer'
             }}
@@ -230,12 +230,12 @@ export default function CompletionTracking() {
           </button>
         </div>
         <h1 style={{ color: '#0E1F56', marginBottom: '0.5rem' }}>Completion Tracking</h1>
-        <p style={{ color: '#6b7280' }}>Monitor assessment completion across teams and timepoints</p>
+        <p style={{ color: 'var(--text-muted)' }}>Monitor assessment completion across teams and timepoints</p>
       </div>
 
       {/* Collaborative Selector */}
       <div style={{ 
-        background: 'white', 
+        background: 'var(--bg-card)', 
         padding: '1.5rem', 
         borderRadius: '0.5rem', 
         boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
@@ -256,7 +256,7 @@ export default function CompletionTracking() {
             width: '100%',
             maxWidth: '400px',
             padding: '0.75rem',
-            border: '1px solid #d1d5db',
+            border: '1px solid var(--border-light)',
             borderRadius: '0.375rem',
             fontSize: '1rem'
           }}
@@ -304,52 +304,52 @@ export default function CompletionTracking() {
         marginBottom: '2rem'
       }}>
         <div style={{ 
-          background: 'white', 
+          background: 'var(--bg-card)', 
           padding: '1.5rem', 
           borderRadius: '0.5rem',
           boxShadow: '0 1px 3px rgba(0,0,0,0.1)'
         }}>
-          <div style={{ color: '#6b7280', fontSize: '0.875rem', marginBottom: '0.5rem' }}>
+          <div style={{ color: 'var(--text-muted)', fontSize: '0.875rem', marginBottom: '0.5rem' }}>
             Completion Rate
           </div>
           <div style={{ color: '#0E1F56', fontSize: '2rem', fontWeight: 'bold' }}>
             {stats.percentage}%
           </div>
-          <div style={{ color: '#6b7280', fontSize: '0.875rem', marginTop: '0.25rem' }}>
+          <div style={{ color: 'var(--text-muted)', fontSize: '0.875rem', marginTop: '0.25rem' }}>
             {stats.completed} of {stats.total} teams
           </div>
         </div>
 
         <div style={{ 
-          background: 'white', 
+          background: 'var(--bg-card)', 
           padding: '1.5rem', 
           borderRadius: '0.5rem',
           boxShadow: '0 1px 3px rgba(0,0,0,0.1)'
         }}>
-          <div style={{ color: '#6b7280', fontSize: '0.875rem', marginBottom: '0.5rem' }}>
+          <div style={{ color: 'var(--text-muted)', fontSize: '0.875rem', marginBottom: '0.5rem' }}>
             Total Responses
           </div>
           <div style={{ color: '#00A79D', fontSize: '2rem', fontWeight: 'bold' }}>
             {stats.totalResponses}
           </div>
-          <div style={{ color: '#6b7280', fontSize: '0.875rem', marginTop: '0.25rem' }}>
+          <div style={{ color: 'var(--text-muted)', fontSize: '0.875rem', marginTop: '0.25rem' }}>
             Individual assessments
           </div>
         </div>
 
         <div style={{ 
-          background: 'white', 
+          background: 'var(--bg-card)', 
           padding: '1.5rem', 
           borderRadius: '0.5rem',
           boxShadow: '0 1px 3px rgba(0,0,0,0.1)'
         }}>
-          <div style={{ color: '#6b7280', fontSize: '0.875rem', marginBottom: '0.5rem' }}>
+          <div style={{ color: 'var(--text-muted)', fontSize: '0.875rem', marginBottom: '0.5rem' }}>
             Pending
           </div>
           <div style={{ color: '#f59e0b', fontSize: '2rem', fontWeight: 'bold' }}>
             {stats.total - stats.completed}
           </div>
-          <div style={{ color: '#6b7280', fontSize: '0.875rem', marginTop: '0.25rem' }}>
+          <div style={{ color: 'var(--text-muted)', fontSize: '0.875rem', marginTop: '0.25rem' }}>
             Teams not started
           </div>
         </div>
@@ -357,7 +357,7 @@ export default function CompletionTracking() {
 
       {/* Progress Bar */}
       <div style={{ 
-        background: 'white', 
+        background: 'var(--bg-card)', 
         padding: '1.5rem', 
         borderRadius: '0.5rem',
         boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
@@ -395,25 +395,25 @@ export default function CompletionTracking() {
         gap: '1rem'
       }}>
         {loading ? (
-          <div style={{ textAlign: 'center', padding: '2rem', color: '#6b7280' }}>
+          <div style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-muted)' }}>
             Loading completion data...
           </div>
         ) : completionData.length === 0 ? (
           <div style={{ 
-            background: 'white', 
+            background: 'var(--bg-card)', 
             padding: '2rem', 
             borderRadius: '0.5rem',
             boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
             textAlign: 'center'
           }}>
-            <p style={{ color: '#6b7280' }}>No teams found for this collaborative.</p>
+            <p style={{ color: 'var(--text-muted)' }}>No teams found for this collaborative.</p>
           </div>
         ) : (
           completionData.map(team => (
             <div 
               key={team.id}
               style={{ 
-                background: 'white', 
+                background: 'var(--bg-card)', 
                 padding: '1.5rem', 
                 borderRadius: '0.5rem',
                 boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
@@ -425,14 +425,14 @@ export default function CompletionTracking() {
                   <h3 style={{ color: '#0E1F56', marginBottom: '0.25rem', fontSize: '1.125rem' }}>
                     {team.team_name}
                   </h3>
-                  <p style={{ color: '#6b7280', fontSize: '0.875rem' }}>
+                  <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>
                     {team.agency_name}
                   </p>
                 </div>
 
                 <div style={{ display: 'flex', gap: '2rem', alignItems: 'center' }}>
                   <div style={{ textAlign: 'center' }}>
-                    <div style={{ fontSize: '0.75rem', color: '#6b7280', marginBottom: '0.25rem' }}>
+                    <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: '0.25rem' }}>
                       Status
                     </div>
                     <div style={{ 
@@ -449,7 +449,7 @@ export default function CompletionTracking() {
                   </div>
 
                   <div style={{ textAlign: 'center' }}>
-                    <div style={{ fontSize: '0.75rem', color: '#6b7280', marginBottom: '0.25rem' }}>
+                    <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: '0.25rem' }}>
                       Responses
                     </div>
                     <div style={{ color: '#0E1F56', fontSize: '1.5rem', fontWeight: 'bold' }}>
@@ -458,7 +458,7 @@ export default function CompletionTracking() {
                   </div>
 
                   <div style={{ textAlign: 'right', minWidth: '150px' }}>
-                    <div style={{ fontSize: '0.75rem', color: '#6b7280', marginBottom: '0.25rem' }}>
+                    <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: '0.25rem' }}>
                       Last Submission
                     </div>
                     <div style={{ color: '#0E1F56', fontSize: '0.875rem' }}>
@@ -472,17 +472,17 @@ export default function CompletionTracking() {
                 <div style={{ 
                   marginTop: '1rem', 
                   paddingTop: '1rem', 
-                  borderTop: '1px solid #e5e7eb',
+                  borderTop: '1px solid var(--border)',
                   display: 'flex',
                   justifyContent: 'space-between',
                   alignItems: 'center'
                 }}>
                   <div>
-                    <span style={{ fontSize: '0.75rem', color: '#6b7280', marginRight: '0.5rem' }}>
+                    <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginRight: '0.5rem' }}>
                       Team Code:
                     </span>
                     <code style={{ 
-                      background: '#f3f4f6', 
+                      background: 'var(--bg-page)', 
                       padding: '0.25rem 0.5rem', 
                       borderRadius: '0.25rem',
                       fontSize: '0.875rem',

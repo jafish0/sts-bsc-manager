@@ -29,8 +29,8 @@ const emptyForm = {
   target_date: ''
 }
 
-export default function SmartieGoalForm({ goal, onSave, onCancel, saving }) {
-  const [form, setForm] = useState(emptyForm)
+export default function SmartieGoalForm({ goal, onSave, onCancel, saving, initialDomain }) {
+  const [form, setForm] = useState(() => initialDomain ? { ...emptyForm, stsioa_domain: initialDomain } : emptyForm)
 
   useEffect(() => {
     if (goal) {

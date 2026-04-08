@@ -17,7 +17,7 @@ export default function AdminDashboard() {
   }
 
   return (
-    <div style={{ minHeight: '100vh', background: '#f3f4f6' }}>
+    <div style={{ minHeight: '100vh', background: 'var(--bg-page)' }}>
       {/* Header */}
       <div style={{ 
         background: '#0E1F56', 
@@ -56,7 +56,7 @@ export default function AdminDashboard() {
           <h2 style={{ color: '#0E1F56', marginBottom: '0.5rem' }}>
             Welcome back!
           </h2>
-          <p style={{ color: '#6b7280' }}>
+          <p style={{ color: 'var(--text-muted)' }}>
             Manage your breakthrough series collaboratives and monitor assessment progress.
           </p>
         </div>
@@ -67,8 +67,8 @@ export default function AdminDashboard() {
             onClick={() => navigate('/admin/collaboratives')}
             style={{
               padding: '2rem',
-              background: 'white',
-              border: '2px solid #d1d5db',
+              background: 'var(--bg-card)',
+              border: '2px solid var(--border-light)',
               borderRadius: '0.75rem',
               cursor: 'pointer',
               transition: 'all 0.2s',
@@ -89,7 +89,7 @@ export default function AdminDashboard() {
             <div style={{ color: '#0E1F56', fontSize: '1.25rem', fontWeight: '600', marginBottom: '0.5rem' }}>
               Manage Collaboratives
             </div>
-            <div style={{ color: '#6b7280', fontSize: '0.875rem' }}>
+            <div style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>
               Create and manage breakthrough series collaboratives
             </div>
           </button>
@@ -98,8 +98,8 @@ export default function AdminDashboard() {
             onClick={() => navigate('/admin/completion')}
             style={{
               padding: '2rem',
-              background: 'white',
-              border: '2px solid #d1d5db',
+              background: 'var(--bg-card)',
+              border: '2px solid var(--border-light)',
               borderRadius: '0.75rem',
               cursor: 'pointer',
               transition: 'all 0.2s',
@@ -120,7 +120,7 @@ export default function AdminDashboard() {
             <div style={{ color: '#0E1F56', fontSize: '1.25rem', fontWeight: '600', marginBottom: '0.5rem' }}>
               Completion Tracking
             </div>
-            <div style={{ color: '#6b7280', fontSize: '0.875rem' }}>
+            <div style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>
               Monitor assessment completion across teams
             </div>
           </button>
@@ -129,8 +129,8 @@ export default function AdminDashboard() {
             onClick={() => navigate('/admin/data-visualization')}
             style={{
               padding: '2rem',
-              background: 'white',
-              border: '2px solid #d1d5db',
+              background: 'var(--bg-card)',
+              border: '2px solid var(--border-light)',
               borderRadius: '0.75rem',
               cursor: 'pointer',
               transition: 'all 0.2s',
@@ -151,7 +151,7 @@ export default function AdminDashboard() {
             <div style={{ color: '#0E1F56', fontSize: '1.25rem', fontWeight: '600', marginBottom: '0.5rem' }}>
               Data Visualization
             </div>
-            <div style={{ color: '#6b7280', fontSize: '0.875rem' }}>
+            <div style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>
               View charts and graphs of assessment results
             </div>
           </button>
@@ -160,8 +160,8 @@ export default function AdminDashboard() {
             onClick={() => navigate('/admin/collaboratives')}
             style={{
               padding: '2rem',
-              background: 'white',
-              border: '2px solid #d1d5db',
+              background: 'var(--bg-card)',
+              border: '2px solid var(--border-light)',
               borderRadius: '0.75rem',
               cursor: 'pointer',
               transition: 'all 0.2s',
@@ -182,7 +182,7 @@ export default function AdminDashboard() {
             <div style={{ color: '#0E1F56', fontSize: '1.25rem', fontWeight: '600', marginBottom: '0.5rem' }}>
               Team Reports
             </div>
-            <div style={{ color: '#6b7280', fontSize: '0.875rem' }}>
+            <div style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>
               View longitudinal reports by team with export options
             </div>
           </button>
@@ -191,8 +191,8 @@ export default function AdminDashboard() {
             onClick={() => navigate('/admin/resources')}
             style={{
               padding: '2rem',
-              background: 'white',
-              border: '2px solid #d1d5db',
+              background: 'var(--bg-card)',
+              border: '2px solid var(--border-light)',
               borderRadius: '0.75rem',
               cursor: 'pointer',
               transition: 'all 0.2s',
@@ -213,7 +213,7 @@ export default function AdminDashboard() {
             <div style={{ color: '#0E1F56', fontSize: '1.25rem', fontWeight: '600', marginBottom: '0.5rem' }}>
               Resources
             </div>
-            <div style={{ color: '#6b7280', fontSize: '0.875rem' }}>
+            <div style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>
               Manage the resource library for all teams
             </div>
           </button>
@@ -222,8 +222,8 @@ export default function AdminDashboard() {
             onClick={() => navigate('/admin/forum')}
             style={{
               padding: '2rem',
-              background: 'white',
-              border: '2px solid #d1d5db',
+              background: 'var(--bg-card)',
+              border: '2px solid var(--border-light)',
               borderRadius: '0.75rem',
               cursor: 'pointer',
               transition: 'all 0.2s',
@@ -244,7 +244,7 @@ export default function AdminDashboard() {
             <div style={{ color: '#0E1F56', fontSize: '1.25rem', fontWeight: '600', marginBottom: '0.5rem' }}>
               Community Forum
             </div>
-            <div style={{ color: '#6b7280', fontSize: '0.875rem' }}>
+            <div style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>
               Discuss strategies and share experiences with teams
             </div>
           </button>
@@ -253,8 +253,8 @@ export default function AdminDashboard() {
             onClick={() => navigate('/admin/change-framework')}
             style={{
               padding: '2rem',
-              background: 'white',
-              border: '2px solid #d1d5db',
+              background: 'var(--bg-card)',
+              border: '2px solid var(--border-light)',
               borderRadius: '0.75rem',
               cursor: 'pointer',
               transition: 'all 0.2s',
@@ -275,7 +275,7 @@ export default function AdminDashboard() {
             <div style={{ color: '#0E1F56', fontSize: '1.25rem', fontWeight: '600', marginBottom: '0.5rem' }}>
               Change Framework
             </div>
-            <div style={{ color: '#6b7280', fontSize: '0.875rem' }}>
+            <div style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>
               View the collaborative improvement framework by STSI-OA domain
             </div>
           </button>
@@ -284,8 +284,8 @@ export default function AdminDashboard() {
             onClick={() => navigate('/admin/staff')}
             style={{
               padding: '2rem',
-              background: 'white',
-              border: '2px solid #d1d5db',
+              background: 'var(--bg-card)',
+              border: '2px solid var(--border-light)',
               borderRadius: '0.75rem',
               cursor: 'pointer',
               transition: 'all 0.2s',
@@ -306,7 +306,7 @@ export default function AdminDashboard() {
             <div style={{ color: '#0E1F56', fontSize: '1.25rem', fontWeight: '600', marginBottom: '0.5rem' }}>
               Project Staff
             </div>
-            <div style={{ color: '#6b7280', fontSize: '0.875rem' }}>
+            <div style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>
               Meet the BSC faculty and support team
             </div>
           </button>

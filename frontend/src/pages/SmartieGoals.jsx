@@ -35,6 +35,15 @@ export default function SmartieGoals() {
   const [expandedGoal, setExpandedGoal] = useState(null)
   const [userProfile, setUserProfile] = useState(null)
 
+  // Auto-open form if ?domain= param is present (from recommendations)
+  const prefillDomain = searchParams.get('domain')
+  useEffect(() => {
+    if (prefillDomain && !showForm) {
+      setEditingGoal(null)
+      setShowForm(true)
+    }
+  }, [prefillDomain])
+
   useEffect(() => {
     loadData()
   }, [teamId])
@@ -180,7 +189,7 @@ export default function SmartieGoals() {
   const archivedGoals = goals.filter(g => g.status === 'archived')
 
   return (
-    <div style={{ minHeight: '100vh', background: '#f3f4f6' }}>
+    <div style={{ minHeight: '100vh', background: 'var(--bg-page)' }}>
       {/* Header */}
       <div style={{ background: COLORS.navy, color: 'white', padding: '1rem 2rem', boxShadow: '0 2px 4px rgba(0,0,0,0.1)' }}>
         <div style={{ maxWidth: '1200px', margin: '0 auto', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -214,7 +223,7 @@ export default function SmartieGoals() {
       <div style={{ maxWidth: '1200px', margin: '2rem auto', padding: '0 1rem' }}>
         {/* Intro text */}
         <div style={{ ...cardStyle, marginBottom: '1.5rem', borderLeft: `4px solid ${COLORS.teal}` }}>
-          <p style={{ margin: 0, fontSize: '0.9rem', color: '#374151', lineHeight: '1.6' }}>
+          <p style={{ margin: 0, fontSize: '0.9rem', color: 'var(--text-secondary)', lineHeight: '1.6' }}>
             Use this worksheet to identify goals based on your STSI-OA assessment results. We encourage each goal to address a different domain from the assessment. You do not need to complete every field — use it as a guide to frame your thinking, discussion, and planning.
           </p>
         </div>
@@ -230,6 +239,7 @@ export default function SmartieGoals() {
               onSave={handleSave}
               onCancel={() => { setShowForm(false); setEditingGoal(null) }}
               saving={saving}
+              initialDomain={!editingGoal ? prefillDomain : undefined}
             />
           </div>
         )}
@@ -239,7 +249,7 @@ export default function SmartieGoals() {
           <div style={{ ...cardStyle, textAlign: 'center', padding: '3rem' }}>
             <div style={{ fontSize: '2.5rem', marginBottom: '1rem' }}>🎯</div>
             <h2 style={{ color: COLORS.navy, marginBottom: '0.5rem' }}>No Goals Yet</h2>
-            <p style={{ color: '#6b7280', marginBottom: '1.5rem' }}>
+            <p style={{ color: 'var(--text-muted)', marginBottom: '1.5rem' }}>
               Get started by creating your first SMARTIE goal based on your STSI-OA assessment results.
             </p>
             {canEdit && (
@@ -276,7 +286,7 @@ export default function SmartieGoals() {
         {/* Archived Goals */}
         {archivedGoals.length > 0 && !showForm && (
           <div style={{ marginBottom: '2rem' }}>
-            <h2 style={{ color: '#6b7280', fontSize: '1.1rem', marginBottom: '1rem' }}>
+            <h2 style={{ color: 'var(--text-muted)', fontSize: '1.1rem', marginBottom: '1rem' }}>
               Archived ({archivedGoals.length})
             </h2>
             {archivedGoals.map(goal => renderGoalCard(goal))}
@@ -318,24 +328,24 @@ export default function SmartieGoals() {
                 {statusInfo.label}
               </span>
             </div>
-            <div style={{ display: 'flex', gap: '1rem', fontSize: '0.8rem', color: '#6b7280' }}>
+            <div style={{ display: 'flex', gap: '1rem', fontSize: '0.8rem', color: 'var(--text-muted)' }}>
               {goal.stsioa_domain && <span>{DOMAIN_LABELS[goal.stsioa_domain]}</span>}
               {goal.target_date && <span>Target: {new Date(goal.target_date).toLocaleDateString()}</span>}
               <span>Created {new Date(goal.created_at).toLocaleDateString()}</span>
             </div>
           </div>
-          <span style={{ fontSize: '1.2rem', color: '#9ca3af', transform: isExpanded ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.2s' }}>
+          <span style={{ fontSize: '1.2rem', color: 'var(--text-faint)', transform: isExpanded ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.2s' }}>
             ▼
           </span>
         </div>
 
         {/* Expanded Content */}
         {isExpanded && (
-          <div style={{ marginTop: '1rem', paddingTop: '1rem', borderTop: '1px solid #e5e7eb' }} onClick={(e) => e.stopPropagation()}>
+          <div style={{ marginTop: '1rem', paddingTop: '1rem', borderTop: '1px solid var(--border)' }} onClick={(e) => e.stopPropagation()}>
             {goal.rationale && (
               <div style={{ marginBottom: '1rem' }}>
                 <strong style={{ fontSize: '0.85rem', color: COLORS.navy }}>Why this goal:</strong>
-                <p style={{ margin: '0.25rem 0', fontSize: '0.85rem', color: '#374151' }}>{goal.rationale}</p>
+                <p style={{ margin: '0.25rem 0', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>{goal.rationale}</p>
               </div>
             )}
 
@@ -352,7 +362,7 @@ export default function SmartieGoals() {
             {goal.progress_notes && (
               <div style={{ marginTop: '1rem', padding: '0.75rem', background: '#fffbeb', borderRadius: '6px', border: '1px solid #fcd34d' }}>
                 <strong style={{ fontSize: '0.85rem', color: '#92400e' }}>Progress Notes:</strong>
-                <p style={{ margin: '0.25rem 0', fontSize: '0.85rem', color: '#374151' }}>{goal.progress_notes}</p>
+                <p style={{ margin: '0.25rem 0', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>{goal.progress_notes}</p>
               </div>
             )}
 
@@ -364,7 +374,7 @@ export default function SmartieGoals() {
 
             {/* Action Buttons */}
             {canEdit && (
-              <div style={{ display: 'flex', gap: '0.5rem', marginTop: '1rem', paddingTop: '0.75rem', borderTop: '1px solid #e5e7eb' }}>
+              <div style={{ display: 'flex', gap: '0.5rem', marginTop: '1rem', paddingTop: '0.75rem', borderTop: '1px solid var(--border)' }}>
                 <button
                   onClick={() => { setEditingGoal(goal); setShowForm(true) }}
                   style={{ padding: '0.4rem 1rem', background: COLORS.navy, color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '0.8rem', fontWeight: '500' }}
@@ -388,9 +398,9 @@ export default function SmartieGoals() {
   function renderSmartieField(label, value) {
     if (!value) return null
     return (
-      <div style={{ padding: '0.5rem', background: '#f9fafb', borderRadius: '4px' }}>
+      <div style={{ padding: '0.5rem', background: 'var(--bg-card-alt)', borderRadius: '4px' }}>
         <strong style={{ fontSize: '0.75rem', color: COLORS.teal }}>{label}</strong>
-        <p style={{ margin: '0.2rem 0 0', fontSize: '0.8rem', color: '#374151' }}>{value}</p>
+        <p style={{ margin: '0.2rem 0 0', fontSize: '0.8rem', color: 'var(--text-secondary)' }}>{value}</p>
       </div>
     )
   }

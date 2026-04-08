@@ -94,7 +94,7 @@ export function timeAgo(dateString) {
   return `${Math.floor(months / 12)}y ago`
 }
 
-// Shared card styles
-export const cardStyle = { background: 'white', borderRadius: '0.5rem', padding: '1.25rem', boxShadow: '0 1px 3px rgba(0,0,0,0.1)' }
-export const cardHeaderStyle = { background: COLORS.navy, color: 'white', padding: '0.6rem 1rem', marginBottom: '1rem', fontWeight: '600', textAlign: 'center', borderRadius: '0.25rem', fontSize: '0.9rem' }
-export const subtitleStyle = { fontSize: '0.75rem', fontWeight: '600', textAlign: 'center', marginBottom: '0.5rem', color: '#374151' }
+// Shared card styles (using CSS variables for dark mode support)
+export const cardStyle = { background: 'var(--bg-card)', borderRadius: '0.5rem', padding: '1.25rem', boxShadow: 'var(--shadow-card)' }
+export const cardHeaderStyle = { background: 'var(--header-navy)', color: 'white', padding: '0.6rem 1rem', marginBottom: '1rem', fontWeight: '600', textAlign: 'center', borderRadius: '0.25rem', fontSize: '0.9rem' }
+export const subtitleStyle = { fontSize: '0.75rem', fontWeight: '600', textAlign: 'center', marginBottom: '0.5rem', color: 'var(--text-secondary)' }

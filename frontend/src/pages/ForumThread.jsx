@@ -162,22 +162,22 @@ export default function ForumThread() {
   }
 
   const inputStyle = {
-    width: '100%', padding: '0.75rem', border: '2px solid #e5e7eb',
+    width: '100%', padding: '0.75rem', border: '2px solid var(--border)',
     borderRadius: '8px', fontSize: '0.95rem', boxSizing: 'border-box',
     fontFamily: 'inherit', transition: 'border-color 0.2s'
   }
 
   if (loading) {
     return (
-      <div style={{ minHeight: '100vh', background: '#f3f4f6', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <div style={{ color: '#6b7280', fontSize: '1.1rem' }}>Loading thread...</div>
+      <div style={{ minHeight: '100vh', background: 'var(--bg-page)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <div style={{ color: 'var(--text-muted)', fontSize: '1.1rem' }}>Loading thread...</div>
       </div>
     )
   }
 
   if (!thread) {
     return (
-      <div style={{ minHeight: '100vh', background: '#f3f4f6', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <div style={{ minHeight: '100vh', background: 'var(--bg-page)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
         <div style={{ textAlign: 'center' }}>
           <h2 style={{ color: COLORS.navy }}>Thread not found</h2>
           <button onClick={() => navigate('/admin/forum')} style={{
@@ -194,7 +194,7 @@ export default function ForumThread() {
   const threadTeamName = thread.author_team?.teams?.agency_name || ''
 
   return (
-    <div style={{ minHeight: '100vh', background: '#f3f4f6' }}>
+    <div style={{ minHeight: '100vh', background: 'var(--bg-page)' }}>
       {/* Header */}
       <div style={{
         background: `linear-gradient(135deg, ${COLORS.navy} 0%, ${COLORS.teal} 100%)`,
@@ -224,14 +224,14 @@ export default function ForumThread() {
       <div style={{ maxWidth: '1200px', margin: '0 auto', padding: '1.5rem 2rem' }}>
         {/* Back button */}
         <button onClick={() => navigate('/admin/forum')} style={{
-          background: 'white', color: '#6b7280', padding: '0.5rem 1rem',
-          borderRadius: '8px', border: '1px solid #e5e7eb', fontWeight: '600',
+          background: 'var(--bg-card)', color: 'var(--text-muted)', padding: '0.5rem 1rem',
+          borderRadius: '8px', border: '1px solid var(--border)', fontWeight: '600',
           cursor: 'pointer', marginBottom: '1.5rem', fontSize: '0.9rem'
         }}>&#8592; Back to Forum</button>
 
         {/* Thread Card */}
         <div style={{
-          background: 'white', borderRadius: '12px', padding: '1.5rem',
+          background: 'var(--bg-card)', borderRadius: '12px', padding: '1.5rem',
           border: thread.is_pinned ? `2px solid ${COLORS.teal}` : '1px solid #e5e7eb',
           boxShadow: '0 1px 3px rgba(0,0,0,0.05)', marginBottom: '1.5rem'
         }}>
@@ -249,8 +249,8 @@ export default function ForumThread() {
                   {thread.title}
                 </h2>
               </div>
-              <div style={{ fontSize: '0.85rem', color: '#9ca3af', marginTop: '0.25rem' }}>
-                <span style={{ fontWeight: '600', color: '#6b7280' }}>{threadAuthorName}</span>
+              <div style={{ fontSize: '0.85rem', color: 'var(--text-faint)', marginTop: '0.25rem' }}>
+                <span style={{ fontWeight: '600', color: 'var(--text-muted)' }}>{threadAuthorName}</span>
                 {threadTeamName && <span> &middot; {threadTeamName}</span>}
                 <span> &middot; {timeAgo(thread.created_at)}</span>
               </div>
@@ -267,7 +267,7 @@ export default function ForumThread() {
               )}
               {isThreadAuthor && editingThreadBody === null && (
                 <button onClick={() => setEditingThreadBody(thread.body)} title="Edit" style={{
-                  background: '#f3f4f6', color: '#6b7280', border: 'none',
+                  background: 'var(--bg-page)', color: 'var(--text-muted)', border: 'none',
                   padding: '0.4rem 0.6rem', borderRadius: '6px',
                   cursor: 'pointer', fontSize: '0.85rem'
                 }}>&#9998;</button>
@@ -295,7 +295,7 @@ export default function ForumThread() {
               />
               <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'flex-end' }}>
                 <button onClick={() => setEditingThreadBody(null)} style={{
-                  background: '#e5e7eb', color: '#374151', padding: '0.4rem 1rem',
+                  background: '#e5e7eb', color: 'var(--text-secondary)', padding: '0.4rem 1rem',
                   borderRadius: '6px', border: 'none', cursor: 'pointer', fontWeight: '600', fontSize: '0.85rem'
                 }}>Cancel</button>
                 <button onClick={handleSaveThreadEdit} style={{
@@ -306,7 +306,7 @@ export default function ForumThread() {
             </div>
           ) : (
             <p style={{
-              color: '#374151', fontSize: '0.95rem', lineHeight: '1.6',
+              color: 'var(--text-secondary)', fontSize: '0.95rem', lineHeight: '1.6',
               whiteSpace: 'pre-wrap', wordBreak: 'break-word', margin: 0
             }}>{thread.body}</p>
           )}
@@ -327,15 +327,15 @@ export default function ForumThread() {
 
             return (
               <div key={post.id} style={{
-                background: 'white', borderRadius: '10px', padding: '1rem 1.25rem',
-                border: '1px solid #e5e7eb'
+                background: 'var(--bg-card)', borderRadius: '10px', padding: '1rem 1.25rem',
+                border: '1px solid var(--border)'
               }}>
                 <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'flex-start' }}>
                   <InitialsAvatar name={postAuthorName} size={34} />
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.35rem' }}>
-                      <div style={{ fontSize: '0.85rem', color: '#9ca3af' }}>
-                        <span style={{ fontWeight: '600', color: '#374151' }}>{postAuthorName}</span>
+                      <div style={{ fontSize: '0.85rem', color: 'var(--text-faint)' }}>
+                        <span style={{ fontWeight: '600', color: 'var(--text-secondary)' }}>{postAuthorName}</span>
                         {postTeamName && <span> &middot; {postTeamName}</span>}
                         <span> &middot; {timeAgo(post.created_at)}</span>
                         {post.is_edited && <span style={{ fontStyle: 'italic' }}> (edited)</span>}
@@ -344,7 +344,7 @@ export default function ForumThread() {
                         {isPostAuthor && !isEditing && (
                           <button onClick={() => { setEditingPostId(post.id); setEditingPostBody(post.body) }}
                             title="Edit" style={{
-                              background: 'transparent', color: '#9ca3af', border: 'none',
+                              background: 'transparent', color: 'var(--text-faint)', border: 'none',
                               padding: '0.2rem 0.4rem', borderRadius: '4px',
                               cursor: 'pointer', fontSize: '0.8rem'
                             }}>&#9998;</button>
@@ -372,7 +372,7 @@ export default function ForumThread() {
                         />
                         <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'flex-end' }}>
                           <button onClick={() => { setEditingPostId(null); setEditingPostBody('') }} style={{
-                            background: '#e5e7eb', color: '#374151', padding: '0.3rem 0.75rem',
+                            background: '#e5e7eb', color: 'var(--text-secondary)', padding: '0.3rem 0.75rem',
                             borderRadius: '6px', border: 'none', cursor: 'pointer', fontWeight: '600', fontSize: '0.8rem'
                           }}>Cancel</button>
                           <button onClick={() => handleSavePostEdit(post.id)} style={{
@@ -383,7 +383,7 @@ export default function ForumThread() {
                       </div>
                     ) : (
                       <p style={{
-                        color: '#374151', fontSize: '0.9rem', lineHeight: '1.5',
+                        color: 'var(--text-secondary)', fontSize: '0.9rem', lineHeight: '1.5',
                         whiteSpace: 'pre-wrap', wordBreak: 'break-word', margin: 0
                       }}>{post.body}</p>
                     )}
@@ -395,8 +395,8 @@ export default function ForumThread() {
 
           {hasMorePosts && posts.length > 0 && (
             <button onClick={() => loadPosts(true)} style={{
-              background: 'white', color: COLORS.navy, padding: '0.6rem',
-              borderRadius: '8px', border: '2px solid #e5e7eb', fontWeight: '600',
+              background: 'var(--bg-card)', color: COLORS.navy, padding: '0.6rem',
+              borderRadius: '8px', border: '2px solid var(--border)', fontWeight: '600',
               cursor: 'pointer', fontSize: '0.85rem', textAlign: 'center'
             }}>Load More Replies</button>
           )}
@@ -404,8 +404,8 @@ export default function ForumThread() {
 
         {/* Reply Form */}
         <form onSubmit={handleReply} style={{
-          background: 'white', borderRadius: '12px', padding: '1.25rem',
-          border: '1px solid #e5e7eb', boxShadow: '0 1px 3px rgba(0,0,0,0.05)'
+          background: 'var(--bg-card)', borderRadius: '12px', padding: '1.25rem',
+          border: '1px solid var(--border)', boxShadow: '0 1px 3px rgba(0,0,0,0.05)'
         }}>
           <h4 style={{ color: COLORS.navy, margin: '0 0 0.75rem', fontSize: '0.95rem' }}>Post a Reply</h4>
           <textarea

@@ -316,7 +316,7 @@ export default function DataVisualization() {
   const CustomTooltip = ({ active, payload, label }) => {
     if (active && payload && payload.length) {
       return (
-        <div style={{ background: 'white', padding: '0.5rem 0.75rem', border: '1px solid #d1d5db', borderRadius: '0.25rem', fontSize: '0.8rem' }}>
+        <div style={{ background: 'var(--bg-card)', padding: '0.5rem 0.75rem', border: '1px solid var(--border-light)', borderRadius: '0.25rem', fontSize: '0.8rem' }}>
           <p style={{ margin: 0, fontWeight: '600' }}>{label}</p>
           {payload.map((p, i) => (
             <p key={i} style={{ margin: '0.2rem 0 0', color: p.color }}>M = {p.value.toFixed(2)}</p>
@@ -368,7 +368,7 @@ export default function DataVisualization() {
   }
 
   return (
-    <div style={{ minHeight: '100vh', background: '#f3f4f6' }}>
+    <div style={{ minHeight: '100vh', background: 'var(--bg-page)' }}>
       {/* Header */}
       <div style={{ background: COLORS.navy, color: 'white', padding: '1rem 2rem', boxShadow: '0 2px 4px rgba(0,0,0,0.1)' }}>
         <div style={{ maxWidth: '1200px', margin: '0 auto', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -397,28 +397,28 @@ export default function DataVisualization() {
       </div>
 
       {/* Filters */}
-      <div style={{ background: 'white', borderBottom: '2px solid #e5e7eb', padding: '1rem 2rem' }}>
+      <div style={{ background: 'var(--bg-card)', borderBottom: '2px solid var(--border)', padding: '1rem 2rem' }}>
         <div style={{ maxWidth: '1200px', margin: '0 auto', display: 'flex', gap: '1rem', flexWrap: 'wrap', alignItems: 'center' }}>
           {/* Collaborative selector - hidden for agency admins (they only have one) */}
           {isSuperAdmin && (
             <div style={{ flex: '1 1 250px' }}>
-              <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: '500', marginBottom: '0.25rem', color: '#374151' }}>Collaborative</label>
-              <select value={selectedCollaborative || ''} onChange={(e) => setSelectedCollaborative(e.target.value)} style={{ width: '100%', padding: '0.5rem', border: '1px solid #d1d5db', borderRadius: '0.375rem', fontSize: '0.875rem' }}>
+              <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: '500', marginBottom: '0.25rem', color: 'var(--text-secondary)' }}>Collaborative</label>
+              <select value={selectedCollaborative || ''} onChange={(e) => setSelectedCollaborative(e.target.value)} style={{ width: '100%', padding: '0.5rem', border: '1px solid var(--border-light)', borderRadius: '0.375rem', fontSize: '0.875rem' }}>
                 {collaboratives.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
               </select>
             </div>
           )}
           <div style={{ flex: '1 1 200px' }}>
-            <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: '500', marginBottom: '0.25rem', color: '#374151' }}>Timepoint</label>
-            <select value={selectedTimepoint} onChange={(e) => setSelectedTimepoint(e.target.value)} style={{ width: '100%', padding: '0.5rem', border: '1px solid #d1d5db', borderRadius: '0.375rem', fontSize: '0.875rem' }}>
+            <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: '500', marginBottom: '0.25rem', color: 'var(--text-secondary)' }}>Timepoint</label>
+            <select value={selectedTimepoint} onChange={(e) => setSelectedTimepoint(e.target.value)} style={{ width: '100%', padding: '0.5rem', border: '1px solid var(--border-light)', borderRadius: '0.375rem', fontSize: '0.875rem' }}>
               {timepoints.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
             </select>
           </div>
           {/* Team selector - hidden for agency admins (they only see their team) */}
           {isSuperAdmin && (
             <div style={{ flex: '1 1 200px' }}>
-              <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: '500', marginBottom: '0.25rem', color: '#374151' }}>Team</label>
-              <select value={selectedTeam} onChange={(e) => setSelectedTeam(e.target.value)} style={{ width: '100%', padding: '0.5rem', border: '1px solid #d1d5db', borderRadius: '0.375rem', fontSize: '0.875rem' }}>
+              <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: '500', marginBottom: '0.25rem', color: 'var(--text-secondary)' }}>Team</label>
+              <select value={selectedTeam} onChange={(e) => setSelectedTeam(e.target.value)} style={{ width: '100%', padding: '0.5rem', border: '1px solid var(--border-light)', borderRadius: '0.375rem', fontSize: '0.875rem' }}>
                 <option value="all">All Teams</option>
                 {teams.map(t => <option key={t.id} value={t.id}>{t.agency_name}</option>)}
               </select>
@@ -435,7 +435,7 @@ export default function DataVisualization() {
             <h2 style={{ margin: 0, color: COLORS.navy, fontSize: '1.5rem' }}>
               {selectedCollaborativeName} {selectedTeam !== 'all' && ` - ${selectedTeamName}`} <span style={{ fontWeight: 'normal', fontSize: '1.1rem' }}>(N={data.totalResponses})</span>
             </h2>
-            <div style={{ color: '#6b7280', fontSize: '0.9rem' }}>{getCurrentDate()}</div>
+            <div style={{ color: 'var(--text-muted)', fontSize: '0.9rem' }}>{getCurrentDate()}</div>
           </div>
 
           {/* K-anonymity guard for demographic breakdowns */}
@@ -470,7 +470,7 @@ export default function DataVisualization() {
           ) : (
             <div style={{ ...cardStyle, marginBottom: '1rem', textAlign: 'center', padding: '1.5rem' }}>
               <div style={cardHeaderStyle}>Demographics</div>
-              <p style={{ color: '#6b7280', fontSize: '0.9rem', margin: '0.5rem 0 0' }}>
+              <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', margin: '0.5rem 0 0' }}>
                 Demographic breakdowns are hidden when fewer than {K_ANONYMITY_THRESHOLD} responses are available to protect respondent privacy.
                 Current responses: {data.totalResponses}
               </p>
@@ -488,7 +488,7 @@ export default function DataVisualization() {
                   data={data.demographics.exposurePercentiles}
                   colors={[COLORS.green, COLORS.blue, COLORS.amber, COLORS.red]}
                 />
-                <div style={{ marginTop: '1rem', textAlign: 'center', fontSize: '0.85rem', padding: '0.75rem', background: '#f8fafc', borderRadius: '0.25rem', border: '1px solid #e2e8f0' }}>
+                <div style={{ marginTop: '1rem', textAlign: 'center', fontSize: '0.85rem', padding: '0.75rem', background: 'var(--bg-card-alt)', borderRadius: '0.25rem', border: '1px solid #e2e8f0' }}>
                   <div>Mean: <strong style={{ fontSize: '1.1rem', color: COLORS.navy }}>{data.demographics.exposureMean}</strong></div>
                   <div>SD: <strong>{data.demographics.exposureSD}</strong></div>
                 </div>
@@ -513,7 +513,7 @@ export default function DataVisualization() {
                         <Bar dataKey="value" fill={COLORS.navy} radius={[4, 4, 0, 0]} />
                       </BarChart>
                     </ResponsiveContainer>
-                    <div style={{ textAlign: 'center', fontSize: '0.8rem', color: '#374151' }}>
+                    <div style={{ textAlign: 'center', fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
                       M={data.stss.total.mean.toFixed(2)}, SD={data.stss.total.sd.toFixed(2)}
                     </div>
                   </div>
@@ -537,7 +537,7 @@ export default function DataVisualization() {
                         <Bar dataKey="value" fill={COLORS.teal} radius={[4, 4, 0, 0]} />
                       </BarChart>
                     </ResponsiveContainer>
-                    <div style={{ display: 'flex', justifyContent: 'space-around', fontSize: '0.7rem', color: '#374151', marginTop: '0.25rem' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-around', fontSize: '0.7rem', color: 'var(--text-secondary)', marginTop: '0.25rem' }}>
                       <span>M={data.stss.intrusion.mean.toFixed(1)}</span>
                       <span>M={data.stss.avoidance.mean.toFixed(1)}</span>
                       <span>M={data.stss.negCognitions.mean.toFixed(1)}</span>
@@ -668,7 +668,7 @@ export default function DataVisualization() {
                   </span>
                 ))}
               </div>
-              <div style={{ fontSize: '0.75rem', fontStyle: 'italic', color: '#6b7280', marginTop: '0.25rem' }}>
+              <div style={{ fontSize: '0.75rem', fontStyle: 'italic', color: 'var(--text-muted)', marginTop: '0.25rem' }}>
                 Higher scores indicate more STS-informed organizational practices (range 0-{STSIOA_TOTAL_MAX}).
               </div>
             </div>
@@ -864,13 +864,13 @@ function STSIOAOfficeVisual({ responses, teamName, timepoint }) {
 
       {/* Header info */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem', flexWrap: 'wrap', gap: '0.5rem' }}>
-        <div style={{ fontSize: '0.85rem', color: '#374151' }}>
+        <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
           <strong>{teamName}</strong> — {TIMEPOINT_DISPLAY[timepoint] || timepoint}
-          <span style={{ color: '#9ca3af', marginLeft: '0.75rem', fontSize: '0.75rem' }}>
+          <span style={{ color: 'var(--text-faint)', marginLeft: '0.75rem', fontSize: '0.75rem' }}>
             n = {responses.length} respondent{responses.length !== 1 ? 's' : ''}
           </span>
         </div>
-        <div style={{ fontSize: '0.6rem', color: '#9ca3af', fontStyle: 'italic' }}>
+        <div style={{ fontSize: '0.6rem', color: 'var(--text-faint)', fontStyle: 'italic' }}>
           © Sprang, G., & Ross, L. Contact sprang@uky.edu for permission
         </div>
       </div>
@@ -878,19 +878,19 @@ function STSIOAOfficeVisual({ responses, teamName, timepoint }) {
       {/* Color Legend */}
       <div style={{
         display: 'flex', gap: '0.75rem', flexWrap: 'wrap', marginBottom: '1rem',
-        padding: '0.5rem 0.75rem', background: '#f9fafb', borderRadius: '6px',
-        border: '1px solid #e5e7eb'
+        padding: '0.5rem 0.75rem', background: 'var(--bg-card-alt)', borderRadius: '6px',
+        border: '1px solid var(--border)'
       }}>
-        <span style={{ fontSize: '0.7rem', fontWeight: '600', color: '#374151', marginRight: '0.25rem' }}>KEY:</span>
+        <span style={{ fontSize: '0.7rem', fontWeight: '600', color: 'var(--text-secondary)', marginRight: '0.25rem' }}>KEY:</span>
         {SCORE_COLORS.map(c => (
           <div key={c.label} style={{ display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
             <div style={{ width: 14, height: 14, background: c.bg, borderRadius: '2px', border: '1px solid rgba(0,0,0,0.1)' }} />
-            <span style={{ fontSize: '0.65rem', color: '#374151' }}>{c.label} ({c.min}–{c.max})</span>
+            <span style={{ fontSize: '0.65rem', color: 'var(--text-secondary)' }}>{c.label} ({c.min}–{c.max})</span>
           </div>
         ))}
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
           <div style={{ width: 14, height: 14, background: NO_DATA_COLOR.bg, borderRadius: '2px', border: '1px solid rgba(0,0,0,0.1)' }} />
-          <span style={{ fontSize: '0.65rem', color: '#374151' }}>No Data</span>
+          <span style={{ fontSize: '0.65rem', color: 'var(--text-secondary)' }}>No Data</span>
         </div>
       </div>
 
@@ -921,8 +921,8 @@ function STSIOAOfficeVisual({ responses, teamName, timepoint }) {
           position: 'fixed',
           left: Math.min(hoverPos.x, window.innerWidth - 320),
           top: hoverPos.y,
-          background: 'white',
-          border: '1px solid #d1d5db',
+          background: 'var(--bg-card)',
+          border: '1px solid var(--border-light)',
           borderRadius: '8px',
           padding: '0.75rem',
           boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
@@ -934,7 +934,7 @@ function STSIOAOfficeVisual({ responses, teamName, timepoint }) {
           <div style={{ fontWeight: '700', color: COLORS.navy, marginBottom: '0.3rem' }}>
             Item {hoveredItem.toUpperCase()}
           </div>
-          <div style={{ color: '#374151', lineHeight: '1.4', marginBottom: '0.5rem' }}>
+          <div style={{ color: 'var(--text-secondary)', lineHeight: '1.4', marginBottom: '0.5rem' }}>
             {hoveredQ.text}
           </div>
           <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
@@ -952,7 +952,7 @@ function STSIOAOfficeVisual({ responses, teamName, timepoint }) {
               marginTop: '0.4rem', display: 'flex', alignItems: 'center', gap: '0.3rem'
             }}>
               <div style={{ width: 10, height: 10, background: hoveredColor.bg, borderRadius: '2px' }} />
-              <span style={{ fontSize: '0.7rem', color: '#6b7280' }}>{hoveredColor.label}</span>
+              <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>{hoveredColor.label}</span>
             </div>
           )}
         </div>

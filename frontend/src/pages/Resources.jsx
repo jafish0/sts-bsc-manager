@@ -24,7 +24,7 @@ function getTypeBadge(type) {
     youtube: { bg: '#fee2e2', color: '#991b1b', label: 'Video' },
     link: { bg: '#e0f2fe', color: '#0369a1', label: 'Link' }
   }
-  const b = badges[type] || { bg: '#f3f4f6', color: '#6b7280', label: type }
+  const b = badges[type] || { bg: '#f3f4f6', color: 'var(--text-muted)', label: type }
   return (
     <span style={{
       background: b.bg, color: b.color, padding: '0.15rem 0.5rem',
@@ -87,7 +87,7 @@ export default function Resources() {
   }
 
   return (
-    <div style={{ minHeight: '100vh', background: '#f3f4f6' }}>
+    <div style={{ minHeight: '100vh', background: 'var(--bg-page)' }}>
       {/* Header */}
       <div style={{
         background: `linear-gradient(135deg, ${NAVY} 0%, ${TEAL} 100%)`,
@@ -111,7 +111,7 @@ export default function Resources() {
           <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
             {isSuperAdmin && (
               <button onClick={() => setShowAddModal(true)} style={{
-                background: 'white', color: NAVY, padding: '0.6rem 1.25rem',
+                background: 'var(--bg-card)', color: NAVY, padding: '0.6rem 1.25rem',
                 borderRadius: '8px', border: 'none', fontWeight: '600',
                 cursor: 'pointer', fontSize: '0.9rem'
               }}>+ Add Resource</button>
@@ -128,8 +128,8 @@ export default function Resources() {
       <div style={{ maxWidth: '1200px', margin: '0 auto', padding: '1.5rem 2rem' }}>
         {/* Back button */}
         <button onClick={() => navigate('/admin')} style={{
-          background: 'white', color: '#6b7280', padding: '0.5rem 1rem',
-          borderRadius: '8px', border: '1px solid #e5e7eb', fontWeight: '600',
+          background: 'var(--bg-card)', color: 'var(--text-muted)', padding: '0.5rem 1rem',
+          borderRadius: '8px', border: '1px solid var(--border)', fontWeight: '600',
           cursor: 'pointer', marginBottom: '1.5rem', fontSize: '0.9rem'
         }}>← Back to Dashboard</button>
 
@@ -172,11 +172,11 @@ export default function Resources() {
 
         {/* Resources */}
         {loading ? (
-          <div style={{ textAlign: 'center', padding: '3rem', color: '#6b7280' }}>Loading resources...</div>
+          <div style={{ textAlign: 'center', padding: '3rem', color: 'var(--text-muted)' }}>Loading resources...</div>
         ) : filteredResources.length === 0 ? (
           <div style={{
-            textAlign: 'center', padding: '3rem', color: '#6b7280',
-            background: 'white', borderRadius: '12px', border: '1px solid #e5e7eb'
+            textAlign: 'center', padding: '3rem', color: 'var(--text-muted)',
+            background: 'var(--bg-card)', borderRadius: '12px', border: '1px solid var(--border)'
           }}>
             <div style={{ fontSize: '2.5rem', marginBottom: '0.5rem', opacity: 0.3 }}>&#128218;</div>
             <p style={{ fontWeight: '600', marginBottom: '0.25rem' }}>No resources in this domain yet</p>
@@ -186,8 +186,8 @@ export default function Resources() {
           <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
             {filteredResources.map(resource => (
               <div key={resource.id} style={{
-                background: 'white', borderRadius: '12px', padding: '1.25rem',
-                border: '1px solid #e5e7eb', boxShadow: '0 1px 3px rgba(0,0,0,0.05)'
+                background: 'var(--bg-card)', borderRadius: '12px', padding: '1.25rem',
+                border: '1px solid var(--border)', boxShadow: '0 1px 3px rgba(0,0,0,0.05)'
               }}>
                 {/* YouTube Embed */}
                 {resource.resource_type === 'youtube' && getYoutubeId(resource.youtube_url) && (
@@ -216,7 +216,7 @@ export default function Resources() {
                       </h3>
                     </div>
                     {resource.description && (
-                      <p style={{ color: '#6b7280', fontSize: '0.9rem', margin: '0.35rem 0 0', lineHeight: '1.5' }}>
+                      <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', margin: '0.35rem 0 0', lineHeight: '1.5' }}>
                         {resource.description}
                       </p>
                     )}
@@ -226,7 +226,7 @@ export default function Resources() {
                           const opt = DOMAIN_OPTIONS.find(o => o.value === d)
                           return opt ? (
                             <span key={d} style={{
-                              background: '#f3f4f6', color: '#6b7280', padding: '0.1rem 0.4rem',
+                              background: 'var(--bg-page)', color: 'var(--text-muted)', padding: '0.1rem 0.4rem',
                               borderRadius: '4px', fontSize: '0.7rem'
                             }}>{opt.label.replace(/Domain \d — /, '')}</span>
                           ) : null

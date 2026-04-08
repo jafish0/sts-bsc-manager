@@ -81,7 +81,7 @@ export default function TeamReport() {
   const ReportTooltip = ({ active, payload, label }) => {
     if (active && payload && payload.length) {
       return (
-        <div style={{ background: 'white', padding: '0.5rem 0.75rem', border: '1px solid #d1d5db', borderRadius: '0.25rem', fontSize: '0.8rem' }}>
+        <div style={{ background: 'var(--bg-card)', padding: '0.5rem 0.75rem', border: '1px solid var(--border-light)', borderRadius: '0.25rem', fontSize: '0.8rem' }}>
           <p style={{ margin: 0, fontWeight: '600' }}>{label}</p>
           {payload.map((p, i) => (
             <p key={i} style={{ margin: '0.2rem 0 0', color: p.color }}>
@@ -99,7 +99,7 @@ export default function TeamReport() {
       <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}>
         <div style={{ textAlign: 'center' }}>
           <div style={{ fontSize: '1.5rem', color: COLORS.navy, marginBottom: '0.5rem' }}>Loading Team Report...</div>
-          <div style={{ color: '#6b7280' }}>Fetching data across all timepoints</div>
+          <div style={{ color: 'var(--text-muted)' }}>Fetching data across all timepoints</div>
         </div>
       </div>
     )
@@ -130,7 +130,7 @@ export default function TeamReport() {
   const timepointsWithData = TIMEPOINT_ORDER.filter(tp => tpData[tp] && tpData[tp].n > 0)
 
   return (
-    <div style={{ minHeight: '100vh', background: '#f3f4f6' }}>
+    <div style={{ minHeight: '100vh', background: 'var(--bg-page)' }}>
       {/* Header */}
       <div style={{ background: COLORS.navy, color: 'white', padding: '1rem 2rem', boxShadow: '0 2px 4px rgba(0,0,0,0.1)' }}>
         <div style={{ maxWidth: '1200px', margin: '0 auto', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -173,7 +173,7 @@ export default function TeamReport() {
         {timepointsWithData.length === 0 ? (
           <div style={{ ...cardStyle, textAlign: 'center', padding: '3rem' }}>
             <h2 style={{ color: COLORS.navy }}>No Data Available</h2>
-            <p style={{ color: '#6b7280' }}>No assessment responses have been submitted for this team yet.</p>
+            <p style={{ color: 'var(--text-muted)' }}>No assessment responses have been submitted for this team yet.</p>
           </div>
         ) : (
           <>
@@ -182,7 +182,7 @@ export default function TeamReport() {
               <div style={cardHeaderStyle}>Completion Status</div>
               <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
                 <thead>
-                  <tr style={{ borderBottom: '2px solid #e5e7eb' }}>
+                  <tr style={{ borderBottom: '2px solid var(--border)' }}>
                     <th style={{ textAlign: 'left', padding: '0.5rem' }}>Timepoint</th>
                     <th style={{ textAlign: 'center', padding: '0.5rem' }}>Responses</th>
                     <th style={{ textAlign: 'center', padding: '0.5rem' }}>Demographics</th>
@@ -195,13 +195,13 @@ export default function TeamReport() {
                   {TIMEPOINT_ORDER.map(tp => {
                     const d = tpData[tp]
                     if (!d) return (
-                      <tr key={tp} style={{ borderBottom: '1px solid #e5e7eb' }}>
+                      <tr key={tp} style={{ borderBottom: '1px solid var(--border)' }}>
                         <td style={{ padding: '0.5rem', fontWeight: '500' }}>{TIMEPOINT_LABELS[tp]}</td>
-                        <td colSpan={5} style={{ textAlign: 'center', padding: '0.5rem', color: '#9ca3af' }}>No team code</td>
+                        <td colSpan={5} style={{ textAlign: 'center', padding: '0.5rem', color: 'var(--text-faint)' }}>No team code</td>
                       </tr>
                     )
                     return (
-                      <tr key={tp} style={{ borderBottom: '1px solid #e5e7eb' }}>
+                      <tr key={tp} style={{ borderBottom: '1px solid var(--border)' }}>
                         <td style={{ padding: '0.5rem', fontWeight: '500' }}>{TIMEPOINT_LABELS[tp]}</td>
                         <td style={{ textAlign: 'center', padding: '0.5rem' }}>{d.completion.responses}</td>
                         <td style={{ textAlign: 'center', padding: '0.5rem' }}>{d.completion.demographics}</td>
@@ -223,7 +223,7 @@ export default function TeamReport() {
                 return (
                   <div style={{ ...cardStyle, marginBottom: '1.5rem', textAlign: 'center', padding: '1.5rem' }}>
                     <div style={cardHeaderStyle}>Demographics ({TIMEPOINT_LABELS[timepointsWithData[0]]})</div>
-                    <p style={{ color: '#6b7280', fontSize: '0.9rem', margin: '0.5rem 0 0' }}>
+                    <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', margin: '0.5rem 0 0' }}>
                       Demographic details are hidden when fewer than {K_ANONYMITY_THRESHOLD} responses are available to protect respondent privacy (n={baselineDemos.n}).
                     </p>
                   </div>
@@ -287,7 +287,7 @@ export default function TeamReport() {
                 {/* Data Table */}
                 <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem', marginTop: '1rem' }}>
                   <thead>
-                    <tr style={{ borderBottom: '2px solid #e5e7eb', background: '#f9fafb' }}>
+                    <tr style={{ borderBottom: '2px solid var(--border)', background: 'var(--bg-card-alt)' }}>
                       <th style={{ textAlign: 'left', padding: '0.4rem 0.5rem' }}>Timepoint</th>
                       <th style={{ textAlign: 'center', padding: '0.4rem 0.5rem' }}>n</th>
                       <th style={{ textAlign: 'center', padding: '0.4rem 0.5rem' }}>Total M (SD)</th>
@@ -302,7 +302,7 @@ export default function TeamReport() {
                       const d = tpData[tp]?.stss
                       if (!d) return null
                       return (
-                        <tr key={tp} style={{ borderBottom: '1px solid #e5e7eb' }}>
+                        <tr key={tp} style={{ borderBottom: '1px solid var(--border)' }}>
                           <td style={{ padding: '0.4rem 0.5rem', fontWeight: '500' }}>{TIMEPOINT_LABELS[tp]}</td>
                           <td style={{ textAlign: 'center', padding: '0.4rem 0.5rem' }}>{d.n}</td>
                           <td style={{ textAlign: 'center', padding: '0.4rem 0.5rem' }}>{formatMSD(d.total)}</td>
@@ -340,7 +340,7 @@ export default function TeamReport() {
                 {/* Data Table */}
                 <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem', marginTop: '1rem' }}>
                   <thead>
-                    <tr style={{ borderBottom: '2px solid #e5e7eb', background: '#f9fafb' }}>
+                    <tr style={{ borderBottom: '2px solid var(--border)', background: 'var(--bg-card-alt)' }}>
                       <th style={{ textAlign: 'left', padding: '0.4rem 0.5rem' }}>Timepoint</th>
                       <th style={{ textAlign: 'center', padding: '0.4rem 0.5rem' }}>n</th>
                       <th style={{ textAlign: 'center', padding: '0.4rem 0.5rem' }}>CS M (SD)</th>
@@ -353,7 +353,7 @@ export default function TeamReport() {
                       const d = tpData[tp]?.proqol
                       if (!d) return null
                       return (
-                        <tr key={tp} style={{ borderBottom: '1px solid #e5e7eb' }}>
+                        <tr key={tp} style={{ borderBottom: '1px solid var(--border)' }}>
                           <td style={{ padding: '0.4rem 0.5rem', fontWeight: '500' }}>{TIMEPOINT_LABELS[tp]}</td>
                           <td style={{ textAlign: 'center', padding: '0.4rem 0.5rem' }}>{d.n}</td>
                           <td style={{ textAlign: 'center', padding: '0.4rem 0.5rem' }}>{formatMSD(d.cs)}</td>
@@ -412,7 +412,7 @@ export default function TeamReport() {
                 {/* Data Table */}
                 <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.75rem', marginTop: '1rem' }}>
                   <thead>
-                    <tr style={{ borderBottom: '2px solid #e5e7eb', background: '#f9fafb' }}>
+                    <tr style={{ borderBottom: '2px solid var(--border)', background: 'var(--bg-card-alt)' }}>
                       <th style={{ textAlign: 'left', padding: '0.4rem 0.5rem' }}>Timepoint</th>
                       <th style={{ textAlign: 'center', padding: '0.4rem 0.5rem' }}>n</th>
                       <th style={{ textAlign: 'center', padding: '0.4rem 0.5rem' }}>Total</th>
@@ -429,7 +429,7 @@ export default function TeamReport() {
                       const d = tpData[tp]?.stsioa
                       if (!d) return null
                       return (
-                        <tr key={tp} style={{ borderBottom: '1px solid #e5e7eb' }}>
+                        <tr key={tp} style={{ borderBottom: '1px solid var(--border)' }}>
                           <td style={{ padding: '0.4rem 0.5rem', fontWeight: '500' }}>{TIMEPOINT_LABELS[tp]}</td>
                           <td style={{ textAlign: 'center', padding: '0.4rem 0.5rem' }}>{d.n}</td>
                           <td style={{ textAlign: 'center', padding: '0.4rem 0.5rem' }}>{formatMSD(d.total)}</td>
@@ -460,7 +460,7 @@ export default function TeamReport() {
                   </button>
                 </div>
                 {smartieGoals.map(goal => (
-                  <div key={goal.id} style={{ marginBottom: '1rem', padding: '1rem', background: '#f9fafb', borderRadius: '8px', borderLeft: `3px solid ${goal.status === 'completed' ? COLORS.green : goal.status === 'archived' ? '#9ca3af' : COLORS.teal}` }}>
+                  <div key={goal.id} style={{ marginBottom: '1rem', padding: '1rem', background: 'var(--bg-card-alt)', borderRadius: '8px', borderLeft: `3px solid ${goal.status === 'completed' ? COLORS.green : goal.status === 'archived' ? '#9ca3af' : COLORS.teal}` }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
                       <strong style={{ color: COLORS.navy, fontSize: '0.95rem' }}>{goal.goal_title}</strong>
                       <span style={{
@@ -471,8 +471,8 @@ export default function TeamReport() {
                         {goal.status.charAt(0).toUpperCase() + goal.status.slice(1)}
                       </span>
                     </div>
-                    {goal.stsioa_domain && <div style={{ fontSize: '0.75rem', color: '#6b7280', marginBottom: '0.25rem' }}>Domain: {goal.stsioa_domain}</div>}
-                    {goal.strategic && <div style={{ fontSize: '0.8rem', color: '#374151' }}><strong>Strategic:</strong> {goal.strategic}</div>}
+                    {goal.stsioa_domain && <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: '0.25rem' }}>Domain: {goal.stsioa_domain}</div>}
+                    {goal.strategic && <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}><strong>Strategic:</strong> {goal.strategic}</div>}
                     {goal.progress_notes && (
                       <div style={{ marginTop: '0.5rem', padding: '0.5rem', background: '#fffbeb', borderRadius: '4px', fontSize: '0.8rem' }}>
                         <strong style={{ color: '#92400e' }}>Progress:</strong> {goal.progress_notes}
@@ -487,7 +487,7 @@ export default function TeamReport() {
             {smartieGoals.length === 0 && (
               <div style={{ ...cardStyle, marginBottom: '1.5rem', textAlign: 'center', padding: '2rem' }}>
                 <div style={cardHeaderStyle}>SMARTIE Goals</div>
-                <p style={{ color: '#6b7280', marginBottom: '1rem' }}>No SMARTIE goals have been created for this team yet.</p>
+                <p style={{ color: 'var(--text-muted)', marginBottom: '1rem' }}>No SMARTIE goals have been created for this team yet.</p>
                 <button
                   onClick={() => navigate(`/admin/smartie-goals/${teamId}`)}
                   style={{ padding: '0.5rem 1.5rem', background: COLORS.teal, color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: '600' }}
@@ -505,7 +505,7 @@ export default function TeamReport() {
                   const review = reviews[tp]
                   if (!review) return null
                   return (
-                    <div key={tp} style={{ marginBottom: '1.5rem', paddingBottom: '1.5rem', borderBottom: '1px solid #e5e7eb' }}>
+                    <div key={tp} style={{ marginBottom: '1.5rem', paddingBottom: '1.5rem', borderBottom: '1px solid var(--border)' }}>
                       <h3 style={{ color: COLORS.navy, marginBottom: '0.75rem', fontSize: '1rem' }}>
                         {TIMEPOINT_LABELS[tp]}
                         {review.released_to_agency && <span style={{ fontSize: '0.75rem', color: COLORS.green, marginLeft: '0.5rem' }}>Published</span>}
@@ -514,25 +514,25 @@ export default function TeamReport() {
                       {review.overall_comments && (
                         <div style={{ marginBottom: '0.75rem' }}>
                           <strong style={{ fontSize: '0.85rem' }}>Overall Comments:</strong>
-                          <p style={{ margin: '0.25rem 0', fontSize: '0.85rem', color: '#374151' }}>{review.overall_comments}</p>
+                          <p style={{ margin: '0.25rem 0', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>{review.overall_comments}</p>
                         </div>
                       )}
                       {review.strengths && (
                         <div style={{ marginBottom: '0.75rem' }}>
                           <strong style={{ fontSize: '0.85rem', color: COLORS.green }}>Strengths:</strong>
-                          <p style={{ margin: '0.25rem 0', fontSize: '0.85rem', color: '#374151' }}>{review.strengths}</p>
+                          <p style={{ margin: '0.25rem 0', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>{review.strengths}</p>
                         </div>
                       )}
                       {review.areas_for_improvement && (
                         <div style={{ marginBottom: '0.75rem' }}>
                           <strong style={{ fontSize: '0.85rem', color: COLORS.amber }}>Areas for Improvement:</strong>
-                          <p style={{ margin: '0.25rem 0', fontSize: '0.85rem', color: '#374151' }}>{review.areas_for_improvement}</p>
+                          <p style={{ margin: '0.25rem 0', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>{review.areas_for_improvement}</p>
                         </div>
                       )}
                       {review.recommended_actions && (
                         <div style={{ marginBottom: '0.75rem' }}>
                           <strong style={{ fontSize: '0.85rem', color: COLORS.teal }}>Recommended Actions:</strong>
-                          <p style={{ margin: '0.25rem 0', fontSize: '0.85rem', color: '#374151' }}>{review.recommended_actions}</p>
+                          <p style={{ margin: '0.25rem 0', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>{review.recommended_actions}</p>
                         </div>
                       )}
                     </div>

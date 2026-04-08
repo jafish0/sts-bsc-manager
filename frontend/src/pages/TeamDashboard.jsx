@@ -278,10 +278,10 @@ export default function TeamDashboard() {
 
   if (!team) {
     return (
-      <div style={{ minHeight: '100vh', background: '#f3f4f6', padding: '2rem' }}>
+      <div style={{ minHeight: '100vh', background: 'var(--bg-page)', padding: '2rem' }}>
         <div style={{ maxWidth: '600px', margin: '4rem auto', textAlign: 'center' }}>
           <h2 style={{ color: COLORS.navy }}>No Team Assigned</h2>
-          <p style={{ color: '#6b7280' }}>Your account is not linked to a team yet. Please contact CTAC for assistance.</p>
+          <p style={{ color: 'var(--text-muted)' }}>Your account is not linked to a team yet. Please contact CTAC for assistance.</p>
           <button onClick={handleSignOut} style={{ marginTop: '1rem', padding: '0.5rem 1rem', background: COLORS.teal, color: 'white', border: 'none', borderRadius: '0.375rem', cursor: 'pointer' }}>
             Sign Out
           </button>
@@ -300,7 +300,7 @@ export default function TeamDashboard() {
   const progressPct = totalCount > 0 ? Math.round((completedCount / totalCount) * 100) : 0
 
   return (
-    <div style={{ minHeight: '100vh', background: '#f3f4f6' }}>
+    <div style={{ minHeight: '100vh', background: 'var(--bg-page)' }}>
       {/* Hero Header */}
       <div style={{
         background: `linear-gradient(135deg, ${COLORS.navy} 0%, ${COLORS.teal} 100%)`,
@@ -365,7 +365,7 @@ export default function TeamDashboard() {
                   <button
                     onClick={handleSaveTeamInfo}
                     disabled={saving}
-                    style={{ padding: '0.4rem 1rem', background: 'white', color: COLORS.navy, border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: '600', fontSize: '0.85rem' }}
+                    style={{ padding: '0.4rem 1rem', background: 'var(--bg-card)', color: COLORS.navy, border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: '600', fontSize: '0.85rem' }}
                   >
                     {saving ? 'Saving...' : 'Save'}
                   </button>
@@ -401,7 +401,7 @@ export default function TeamDashboard() {
         {/* Phase Timeline Banner */}
         {phaseInfo && (
           <div style={{
-            background: 'white',
+            background: 'var(--bg-card)',
             borderRadius: '0.75rem',
             border: `3px solid ${COLORS.teal}`,
             borderLeft: `6px solid ${COLORS.teal}`,
@@ -411,7 +411,7 @@ export default function TeamDashboard() {
           }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '1rem' }}>
               <div>
-                <div style={{ fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.1em', color: '#6b7280', fontWeight: '600', marginBottom: '0.25rem' }}>
+                <div style={{ fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.1em', color: 'var(--text-muted)', fontWeight: '600', marginBottom: '0.25rem' }}>
                   Current Phase
                 </div>
                 <h2 style={{ margin: 0, color: COLORS.navy, fontSize: '1.5rem' }}>
@@ -426,13 +426,13 @@ export default function TeamDashboard() {
                   padding: '0.75rem 1rem',
                   textAlign: 'right'
                 }}>
-                  <div style={{ fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: '0.05em', color: '#6b7280', fontWeight: '600' }}>
+                  <div style={{ fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-muted)', fontWeight: '600' }}>
                     Next Event
                   </div>
                   <div style={{ color: COLORS.navy, fontWeight: '600', fontSize: '0.95rem' }}>
                     {phaseInfo.nextEvent.title}
                   </div>
-                  <div style={{ color: '#6b7280', fontSize: '0.8rem' }}>
+                  <div style={{ color: 'var(--text-muted)', fontSize: '0.8rem' }}>
                     {new Date(phaseInfo.nextEvent.event_date + 'T00:00:00').toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
                     {phaseInfo.nextEvent.start_time && ` — ${formatTime(phaseInfo.nextEvent.start_time)} ${phaseInfo.nextEvent.timezone === 'America/New_York' ? 'ET' : ''}`}
                     {phaseInfo.daysUntilNext !== null && (
@@ -508,7 +508,7 @@ export default function TeamDashboard() {
               borderRadius: '0.5rem',
               padding: '0.75rem 1rem',
               fontSize: '0.875rem',
-              color: '#374151',
+              color: 'var(--text-secondary)',
               lineHeight: '1.5',
               borderLeft: `3px solid ${COLORS.teal}`
             }}>
@@ -520,7 +520,7 @@ export default function TeamDashboard() {
         {/* Checklist Section */}
         {phaseInfo && currentPhaseItems.length > 0 && (
           <div style={{
-            background: 'white',
+            background: 'var(--bg-card)',
             borderRadius: '0.75rem',
             padding: '1.5rem',
             marginBottom: '1.5rem',
@@ -643,7 +643,7 @@ export default function TeamDashboard() {
         {/* Recommended Next Steps */}
         {recommendations && recommendations.weakest.length > 0 && (
           <div style={{
-            background: 'white',
+            background: 'var(--bg-card)',
             borderRadius: '0.75rem',
             padding: '1.5rem',
             marginBottom: '1.5rem',
@@ -654,11 +654,11 @@ export default function TeamDashboard() {
               <h3 style={{ margin: 0, color: COLORS.navy, fontSize: '1.1rem' }}>
                 Recommended Next Steps
               </h3>
-              <span style={{ fontSize: '0.75rem', color: '#9ca3af' }}>
+              <span style={{ fontSize: '0.75rem', color: 'var(--text-faint)' }}>
                 Based on STSI-OA scores (n={recommendations.n})
               </span>
             </div>
-            <p style={{ fontSize: '0.85rem', color: '#6b7280', margin: '0 0 1rem', lineHeight: '1.5' }}>
+            <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', margin: '0 0 1rem', lineHeight: '1.5' }}>
               These domains scored lowest on your team's organizational assessment. Strengthening them can improve your STS-informed practices.
             </p>
 
@@ -671,7 +671,7 @@ export default function TeamDashboard() {
 
                 return (
                   <div key={domain.key} style={{
-                    background: '#f9fafb',
+                    background: 'var(--bg-card-alt)',
                     borderRadius: '0.5rem',
                     padding: '1rem',
                     borderLeft: `4px solid ${pctColor}`
@@ -698,14 +698,14 @@ export default function TeamDashboard() {
                       }} />
                     </div>
 
-                    <div style={{ fontSize: '0.8rem', color: '#374151', marginBottom: '0.5rem' }}>
+                    <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginBottom: '0.5rem' }}>
                       Mean: {domain.mean.toFixed(1)} / {domain.max}
                     </div>
 
                     {/* Resources */}
                     {resources.length > 0 && (
                       <div style={{ marginBottom: '0.75rem' }}>
-                        <div style={{ fontSize: '0.75rem', fontWeight: '600', color: '#6b7280', marginBottom: '0.25rem' }}>Related Resources:</div>
+                        <div style={{ fontSize: '0.75rem', fontWeight: '600', color: 'var(--text-muted)', marginBottom: '0.25rem' }}>Related Resources:</div>
                         {resources.map(r => (
                           <div
                             key={r.id}
@@ -839,7 +839,7 @@ function ActionCard({ icon, title, description, borderColor, onClick }) {
       onClick={onClick}
       style={{
         padding: '2rem',
-        background: 'white',
+        background: 'var(--bg-card)',
         border: '2px solid #d1d5db',
         borderRadius: '0.75rem',
         cursor: 'pointer',
@@ -861,7 +861,7 @@ function ActionCard({ icon, title, description, borderColor, onClick }) {
       <div style={{ color: COLORS.navy, fontSize: '1.25rem', fontWeight: '600', marginBottom: '0.5rem' }}>
         {title}
       </div>
-      <div style={{ color: '#6b7280', fontSize: '0.875rem' }}>
+      <div style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>
         {description}
       </div>
     </button>

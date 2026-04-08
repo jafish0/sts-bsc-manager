@@ -82,7 +82,7 @@ export default function ChangeFramework() {
   }
 
   return (
-    <div style={{ minHeight: '100vh', background: '#f3f4f6' }}>
+    <div style={{ minHeight: '100vh', background: 'var(--bg-page)' }}>
       {/* Header */}
       <div style={{
         background: `linear-gradient(135deg, ${COLORS.navy} 0%, ${COLORS.teal} 100%)`,
@@ -109,8 +109,8 @@ export default function ChangeFramework() {
       <div style={{ maxWidth: '1200px', margin: '0 auto', padding: '1.5rem 2rem' }}>
         {/* Back button */}
         <button onClick={() => navigate('/admin')} style={{
-          background: 'white', color: '#6b7280', padding: '0.5rem 1rem',
-          borderRadius: '8px', border: '1px solid #e5e7eb', fontWeight: '600',
+          background: 'var(--bg-card)', color: 'var(--text-muted)', padding: '0.5rem 1rem',
+          borderRadius: '8px', border: '1px solid var(--border)', fontWeight: '600',
           cursor: 'pointer', marginBottom: '1.5rem', fontSize: '0.9rem'
         }}>← Back to Dashboard</button>
 
@@ -150,12 +150,12 @@ export default function ChangeFramework() {
         </div>
 
         {loading ? (
-          <div style={{ textAlign: 'center', padding: '3rem', color: '#6b7280' }}>Loading framework...</div>
+          <div style={{ textAlign: 'center', padding: '3rem', color: 'var(--text-muted)' }}>Loading framework...</div>
         ) : (
-          <div style={{ background: 'white', borderRadius: '0.75rem', padding: '1.5rem', boxShadow: '0 1px 3px rgba(0,0,0,0.1)' }}>
+          <div style={{ background: 'var(--bg-card)', borderRadius: '0.75rem', padding: '1.5rem', boxShadow: '0 1px 3px rgba(0,0,0,0.1)' }}>
             {/* Domain Header */}
             <div style={{ marginBottom: '1.25rem', borderBottom: `3px solid ${COLORS.teal}`, paddingBottom: '0.75rem' }}>
-              <div style={{ fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: '0.1em', color: '#6b7280', fontWeight: '600' }}>
+              <div style={{ fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: '0.1em', color: 'var(--text-muted)', fontWeight: '600' }}>
                 Primary Driver
               </div>
               <h2 style={{ margin: '0.25rem 0 0', color: COLORS.navy, fontSize: '1.25rem' }}>
@@ -163,7 +163,7 @@ export default function ChangeFramework() {
               </h2>
             </div>
 
-            <div style={{ fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: '0.1em', color: '#6b7280', fontWeight: '600', marginBottom: '0.75rem' }}>
+            <div style={{ fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: '0.1em', color: 'var(--text-muted)', fontWeight: '600', marginBottom: '0.75rem' }}>
               Secondary Drivers
             </div>
 
@@ -203,19 +203,19 @@ export default function ChangeFramework() {
                         borderRadius: '4px', padding: '0.4rem 0.8rem', cursor: 'pointer', fontSize: '0.8rem', fontWeight: '600'
                       }}>Save</button>
                       <button onClick={() => setEditingId(null)} style={{
-                        background: '#e5e7eb', color: '#374151', border: 'none',
+                        background: '#e5e7eb', color: 'var(--text-secondary)', border: 'none',
                         borderRadius: '4px', padding: '0.4rem 0.8rem', cursor: 'pointer', fontSize: '0.8rem'
                       }}>Cancel</button>
                     </div>
                   ) : (
                     <>
-                      <span style={{ flex: 1, color: '#1f2937', fontSize: '0.9rem', lineHeight: '1.4' }}>
+                      <span style={{ flex: 1, color: 'var(--text-primary)', fontSize: '0.9rem', lineHeight: '1.4' }}>
                         {driver.driver_text}
                       </span>
                       {isSuperAdmin && (
                         <div style={{ display: 'flex', gap: '0.25rem' }}>
                           <button onClick={() => { setEditingId(driver.id); setEditText(driver.driver_text) }} style={{
-                            background: 'none', border: 'none', color: '#9ca3af', cursor: 'pointer', fontSize: '0.75rem', padding: '0.2rem 0.4rem'
+                            background: 'none', border: 'none', color: 'var(--text-faint)', cursor: 'pointer', fontSize: '0.75rem', padding: '0.2rem 0.4rem'
                           }}>Edit</button>
                           <button onClick={() => handleDeleteDriver(driver.id)} style={{
                             background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', fontSize: '0.75rem', padding: '0.2rem 0.4rem'
@@ -228,7 +228,7 @@ export default function ChangeFramework() {
               ))}
 
               {filteredDrivers.length === 0 && (
-                <div style={{ padding: '2rem', textAlign: 'center', color: '#9ca3af' }}>
+                <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-faint)' }}>
                   No secondary drivers for this domain yet.
                 </div>
               )}
@@ -256,7 +256,7 @@ export default function ChangeFramework() {
                       borderRadius: '6px', padding: '0.5rem 1rem', cursor: 'pointer', fontWeight: '600', fontSize: '0.85rem'
                     }}>Add</button>
                     <button onClick={() => { setAddingNew(false); setNewText('') }} style={{
-                      background: '#e5e7eb', color: '#374151', border: 'none',
+                      background: '#e5e7eb', color: 'var(--text-secondary)', border: 'none',
                       borderRadius: '6px', padding: '0.5rem 1rem', cursor: 'pointer', fontSize: '0.85rem'
                     }}>Cancel</button>
                   </div>

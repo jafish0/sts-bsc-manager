@@ -68,7 +68,7 @@ export default function SetPassword() {
   const inputStyle = {
     width: '100%',
     padding: '0.75rem',
-    border: '2px solid #e5e7eb',
+    border: '2px solid var(--border)',
     borderRadius: '8px',
     fontSize: '1rem',
     boxSizing: 'border-box',
@@ -77,7 +77,7 @@ export default function SetPassword() {
 
   if (checking) {
     return (
-      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh', background: '#f3f4f6' }}>
+      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh', background: 'var(--bg-page)' }}>
         <div style={{ textAlign: 'center', color: NAVY, fontSize: '1.1rem' }}>Verifying your link...</div>
       </div>
     )
@@ -85,10 +85,10 @@ export default function SetPassword() {
 
   if (!sessionReady) {
     return (
-      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh', background: '#f3f4f6' }}>
+      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh', background: 'var(--bg-page)' }}>
         <div style={{ maxWidth: '400px', textAlign: 'center', padding: '2rem' }}>
           <h2 style={{ color: NAVY }}>Invalid or Expired Link</h2>
-          <p style={{ color: '#6b7280' }}>
+          <p style={{ color: 'var(--text-muted)' }}>
             This link may have expired or already been used. Please request a new invite or use the "Forgot Password" option on the login page.
           </p>
           <button
@@ -114,7 +114,7 @@ export default function SetPassword() {
   return (
     <div style={{
       minHeight: '100vh',
-      background: '#f3f4f6',
+      background: 'var(--bg-page)',
       display: 'flex',
       flexDirection: 'column',
       alignItems: 'center',
@@ -138,7 +138,7 @@ export default function SetPassword() {
         <h2 style={{ color: NAVY, margin: '0 0 0.25rem', fontSize: '1.5rem' }}>
           Set Your Password
         </h2>
-        <p style={{ color: '#6b7280', fontSize: '0.9rem', marginBottom: '1.5rem' }}>
+        <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', marginBottom: '1.5rem' }}>
           Welcome to the STS-BSC Manager! Create a password to access your team dashboard.
         </p>
 
@@ -154,14 +154,14 @@ export default function SetPassword() {
             <p style={{ color: '#065f46', fontWeight: '600', margin: '0 0 0.25rem' }}>
               Password set successfully!
             </p>
-            <p style={{ color: '#6b7280', fontSize: '0.85rem', margin: 0 }}>
+            <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', margin: 0 }}>
               Redirecting to your dashboard...
             </p>
           </div>
         ) : (
           <form onSubmit={handleSubmit}>
             <div style={{ marginBottom: '1.25rem' }}>
-              <label style={{ display: 'block', color: '#374151', fontSize: '0.9rem', fontWeight: '600', marginBottom: '0.5rem' }}>
+              <label style={{ display: 'block', color: 'var(--text-secondary)', fontSize: '0.9rem', fontWeight: '600', marginBottom: '0.5rem' }}>
                 New Password
               </label>
               <input
@@ -178,7 +178,7 @@ export default function SetPassword() {
             </div>
 
             <div style={{ marginBottom: '1.5rem' }}>
-              <label style={{ display: 'block', color: '#374151', fontSize: '0.9rem', fontWeight: '600', marginBottom: '0.5rem' }}>
+              <label style={{ display: 'block', color: 'var(--text-secondary)', fontSize: '0.9rem', fontWeight: '600', marginBottom: '0.5rem' }}>
                 Confirm Password
               </label>
               <input

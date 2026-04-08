@@ -158,7 +158,7 @@ export default function TeamMembers() {
   const teamMembers = members.filter(m => m.role === 'team_member')
 
   return (
-    <div style={{ minHeight: '100vh', background: '#f3f4f6' }}>
+    <div style={{ minHeight: '100vh', background: 'var(--bg-page)' }}>
       {/* Header */}
       <div style={{ background: COLORS.navy, color: 'white', padding: '1rem 2rem', boxShadow: '0 2px 4px rgba(0,0,0,0.1)' }}>
         <div style={{ maxWidth: '1200px', margin: '0 auto', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -194,21 +194,21 @@ export default function TeamMembers() {
         <div style={{ display: 'flex', gap: '1rem', marginBottom: '1.5rem', flexWrap: 'wrap' }}>
           <div style={{ ...cardStyle, flex: '1', minWidth: '150px', textAlign: 'center' }}>
             <div style={{ fontSize: '2rem', fontWeight: '700', color: COLORS.navy }}>{members.length}</div>
-            <div style={{ fontSize: '0.85rem', color: '#6b7280' }}>Total Members</div>
+            <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>Total Members</div>
           </div>
           <div style={{ ...cardStyle, flex: '1', minWidth: '150px', textAlign: 'center' }}>
             <div style={{ fontSize: '2rem', fontWeight: '700', color: COLORS.teal }}>{leaders.length}</div>
-            <div style={{ fontSize: '0.85rem', color: '#6b7280' }}>Team Leaders</div>
+            <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>Team Leaders</div>
           </div>
           <div style={{ ...cardStyle, flex: '1', minWidth: '150px', textAlign: 'center' }}>
             <div style={{ fontSize: '2rem', fontWeight: '700', color: '#0369a1' }}>{teamMembers.length}</div>
-            <div style={{ fontSize: '0.85rem', color: '#6b7280' }}>Team Members</div>
+            <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>Team Members</div>
           </div>
           <div style={{ ...cardStyle, flex: '1', minWidth: '150px', textAlign: 'center' }}>
             <div style={{ fontSize: '2rem', fontWeight: '700', color: '#d97706' }}>
               {members.filter(m => m.is_senior_leader).length}
             </div>
-            <div style={{ fontSize: '0.85rem', color: '#6b7280' }}>Senior Leaders</div>
+            <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>Senior Leaders</div>
           </div>
         </div>
 
@@ -241,7 +241,7 @@ export default function TeamMembers() {
           <div style={{ ...cardStyle, textAlign: 'center', padding: '3rem' }}>
             <div style={{ fontSize: '2.5rem', marginBottom: '1rem' }}>🧑‍🤝‍🧑</div>
             <h2 style={{ color: COLORS.navy, marginBottom: '0.5rem' }}>No Team Members Yet</h2>
-            <p style={{ color: '#6b7280', marginBottom: '1.5rem' }}>
+            <p style={{ color: 'var(--text-muted)', marginBottom: '1.5rem' }}>
               Get started by inviting team members to join the platform.
             </p>
             {canManage && (
@@ -352,12 +352,12 @@ export default function TeamMembers() {
           </span>
 
           {member.agency_role && (
-            <div style={{ fontSize: '0.85rem', color: '#374151', marginBottom: '0.2rem' }}>
+            <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '0.2rem' }}>
               {member.agency_role}
             </div>
           )}
 
-          <div style={{ fontSize: '0.8rem', color: '#9ca3af' }}>
+          <div style={{ fontSize: '0.8rem', color: 'var(--text-faint)' }}>
             {member.email}
           </div>
 
@@ -396,11 +396,11 @@ export default function TeamMembers() {
                 title="Remove from team"
                 style={{
                   background: 'none',
-                  border: '1px solid #e5e7eb',
+                  border: '1px solid var(--border)',
                   borderRadius: '6px',
                   padding: '0.35rem 0.6rem',
                   cursor: 'pointer',
-                  color: '#9ca3af',
+                  color: 'var(--text-faint)',
                   fontSize: '0.75rem',
                   transition: 'all 0.2s'
                 }}

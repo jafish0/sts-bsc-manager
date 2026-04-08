@@ -72,7 +72,7 @@ export default function StaffDirectory() {
   }
 
   return (
-    <div style={{ minHeight: '100vh', background: '#f3f4f6' }}>
+    <div style={{ minHeight: '100vh', background: 'var(--bg-page)' }}>
       {/* Header */}
       <div style={{
         background: `linear-gradient(135deg, ${COLORS.navy} 0%, ${COLORS.teal} 100%)`,
@@ -95,7 +95,7 @@ export default function StaffDirectory() {
           </div>
           {isSuperAdmin && (
             <button onClick={() => { setEditingStaff(null); setShowModal(true) }} style={{
-              background: 'white', color: COLORS.navy, padding: '0.6rem 1.25rem',
+              background: 'var(--bg-card)', color: COLORS.navy, padding: '0.6rem 1.25rem',
               borderRadius: '8px', border: 'none', fontWeight: '600',
               cursor: 'pointer', fontSize: '0.9rem'
             }}>+ Add Staff Member</button>
@@ -107,8 +107,8 @@ export default function StaffDirectory() {
         {/* Back + Filter row */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', flexWrap: 'wrap', gap: '0.75rem' }}>
           <button onClick={() => navigate('/admin')} style={{
-            background: 'white', color: '#6b7280', padding: '0.5rem 1rem',
-            borderRadius: '8px', border: '1px solid #e5e7eb', fontWeight: '600',
+            background: 'var(--bg-card)', color: 'var(--text-muted)', padding: '0.5rem 1rem',
+            borderRadius: '8px', border: '1px solid var(--border)', fontWeight: '600',
             cursor: 'pointer', fontSize: '0.9rem'
           }}>← Back to Dashboard</button>
 
@@ -118,7 +118,7 @@ export default function StaffDirectory() {
               onChange={(e) => setFilterCollabId(e.target.value)}
               style={{
                 padding: '0.5rem 0.75rem', border: '2px solid #e5e7eb',
-                borderRadius: '8px', fontSize: '0.9rem', color: '#374151'
+                borderRadius: '8px', fontSize: '0.9rem', color: 'var(--text-secondary)'
               }}
             >
               <option value="">All Collaboratives</option>
@@ -130,9 +130,9 @@ export default function StaffDirectory() {
         </div>
 
         {loading ? (
-          <div style={{ textAlign: 'center', padding: '3rem', color: '#6b7280' }}>Loading staff directory...</div>
+          <div style={{ textAlign: 'center', padding: '3rem', color: 'var(--text-muted)' }}>Loading staff directory...</div>
         ) : filteredStaff.length === 0 ? (
-          <div style={{ textAlign: 'center', padding: '3rem', color: '#6b7280' }}>No staff members found.</div>
+          <div style={{ textAlign: 'center', padding: '3rem', color: 'var(--text-muted)' }}>No staff members found.</div>
         ) : (
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(350px, 1fr))', gap: '1.5rem' }}>
             {filteredStaff.map(s => {
@@ -142,7 +142,7 @@ export default function StaffDirectory() {
 
               return (
                 <div key={s.id} style={{
-                  background: 'white', borderRadius: '0.75rem',
+                  background: 'var(--bg-card)', borderRadius: '0.75rem',
                   padding: '1.5rem', boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
                   border: '1px solid #f3f4f6',
                   display: 'flex', flexDirection: 'column'
@@ -170,13 +170,13 @@ export default function StaffDirectory() {
                   </div>
 
                   {s.organization && (
-                    <div style={{ color: '#6b7280', fontSize: '0.8rem', marginBottom: '0.5rem' }}>
+                    <div style={{ color: 'var(--text-muted)', fontSize: '0.8rem', marginBottom: '0.5rem' }}>
                       {s.organization}
                     </div>
                   )}
 
                   {s.bio && (
-                    <div style={{ color: '#374151', fontSize: '0.85rem', lineHeight: '1.5', marginBottom: '0.5rem', flex: 1 }}>
+                    <div style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', lineHeight: '1.5', marginBottom: '0.5rem', flex: 1 }}>
                       {displayBio}
                       {bioLong && (
                         <button onClick={() => toggleBio(s.id)} style={{
@@ -195,7 +195,7 @@ export default function StaffDirectory() {
                       }}>{s.email}</a>
                     )}
                     {s.phone && (
-                      <span style={{ color: '#6b7280', fontSize: '0.8rem' }}>{s.phone}</span>
+                      <span style={{ color: 'var(--text-muted)', fontSize: '0.8rem' }}>{s.phone}</span>
                     )}
                   </div>
 
@@ -211,7 +211,7 @@ export default function StaffDirectory() {
                       </span>
                       <div style={{ display: 'flex', gap: '0.5rem' }}>
                         <button onClick={() => { setEditingStaff(s); setShowModal(true) }} style={{
-                          background: 'none', border: 'none', color: '#9ca3af',
+                          background: 'none', border: 'none', color: 'var(--text-faint)',
                           cursor: 'pointer', fontSize: '0.75rem'
                         }}>Edit</button>
                         <button onClick={() => handleDelete(s)} style={{
