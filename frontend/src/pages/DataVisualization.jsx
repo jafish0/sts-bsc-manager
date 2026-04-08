@@ -10,6 +10,7 @@ import {
   STSIOA_DOMAIN_MAX, STSIOA_TOTAL_MAX, STSS_SUBSCALES, COLORS, PIE_COLORS,
   TIMEPOINTS, computeSTSSSubscale, stddev, cardStyle, cardHeaderStyle, subtitleStyle
 } from '../utils/constants'
+import { STSIOA_DOMAINS } from '../config/stsioa'
 import { exportDataVizExcel } from '../utils/exportExcel'
 
 export default function DataVisualization() {
@@ -286,7 +287,8 @@ export default function DataVisualization() {
         stss: avgSTSS,
         proqol: avgProQOL,
         stsioa: avgSTSIOA,
-        stsioaByJobRole: stsioaJobRoleStats
+        stsioaByJobRole: stsioaJobRoleStats,
+        stsioaRawResponses: stsioaResponses
       })
     } catch (error) {
       console.error('Error loading data:', error)
@@ -655,6 +657,15 @@ export default function DataVisualization() {
               </div>
             </div>
           )}
+
+          {/* STSI-OA Office Visual */}
+          {data.stsioaRawResponses && data.stsioaRawResponses.length > 0 && (
+            <STSIOAOfficeVisual
+              responses={data.stsioaRawResponses}
+              teamName={selectedTeamName}
+              timepoint={selectedTimepoint}
+            />
+          )}
         </div>
       )}
 
@@ -668,6 +679,266 @@ export default function DataVisualization() {
       {!data && !loading && (
         <div style={{ textAlign: 'center', padding: '4rem', color: '#666' }}>
           <div style={{ fontSize: '1.25rem' }}>Select a collaborative to view data</div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// --- STSI-OA Office Visual Component ---
+
+const SCORE_COLORS = [
+  { min: 4.0, max: 5.0, bg: '#00B050', text: '#000', label: 'Tested — Ready for Spread' },
+  { min: 3.0, max: 3.99, bg: '#FFC000', text: '#000', label: 'Being Tested' },
+  { min: 2.0, max: 2.99, bg: '#F59E0B', text: '#000', label: 'In Planning Stage' },
+  { min: 1.0, max: 1.99, bg: '#EF4444', text: '#fff', label: 'Needs Attention' }
+]
+const NO_DATA_COLOR = { bg: '#E5E7EB', text: '#6b7280', label: 'No Data' }
+
+function getScoreColor(mean) {
+  if (mean === null) return NO_DATA_COLOR
+  for (const c of SCORE_COLORS) {
+    if (mean >= c.min && mean <= c.max) return c
+  }
+  return NO_DATA_COLOR
+}
+
+// Short labels matching the PowerPoint style
+const SHORT_LABELS = {
+  '1a': 'Basic knowledge about STS',
+  '1b': 'Monitoring STS impact on professional well-being',
+  '1c': 'Maintaining positive focus on org.\'s core mission',
+  '1d': 'Instill Hope',
+  '1e': 'Specific skills that enhance professional competency',
+  '1f': 'Strong peer support among all staff',
+  '1g': 'Healthy coping strategies',
+  '2a': 'Strategies or techniques to reduce risk',
+  '2b': 'Not sharing graphic details of trauma stories unnecessarily',
+  '2c': 'Safety survey assessing psychological safety perceptions',
+  '2d': 'Safety survey assessing physical safety perceptions',
+  '2e': 'Manage risk & protect workers from dangerous situations',
+  '2f': 'Training on managing potentially dangerous situations',
+  '2g': 'Defined protocol for responding to critical incidents',
+  '3a': 'Defined practices addressing psychological safety',
+  '3b': 'Defined practices addressing physical safety',
+  '3c': 'Defined procedures to promote resilience building',
+  '3d': 'Strategic plan addresses staff resiliency',
+  '3e': 'Strategic plan addresses staff safety',
+  '3f': 'Risk management policy for high STS levels',
+  '4a': 'Leadership actively encourages self-care',
+  '4b': 'Leadership models good self-care',
+  '4c': 'Staff input to leaders on STS policy improvement',
+  '4d': 'Supervisors promote safety & resilience to STS',
+  '4e': 'Supervisors refer those w/ high disturbance',
+  '4f': 'Consistent supervision discussing effect of work',
+  '4g': 'Additional supervision during high-risk times',
+  '4h': 'Intentionally manage caseloads w/ trauma dose in mind',
+  '4i': 'Leadership responds to STS as occupational hazard',
+  '5a': 'Formal trainings on enhancing psychological safety',
+  '5b': 'Formal trainings on enhancing physical safety',
+  '5c': 'Formal trainings on enhancing resilience to STS',
+  '5d': 'Activities (besides trainings) promoting resilience',
+  '5e': 'Discuss STS during new employee orientation',
+  '5f': 'Regular team & peer support opportunities',
+  '5g': 'Release time for resilience/STS trainings',
+  '6a': 'Assess STS level in the workplace',
+  '6b': 'Monitor workforce trends signifying lack of safety',
+  '6c': 'Respond to evaluation/feedback to build safety & resilience',
+  '6d': 'Seek staff feedback on psychosocial trends'
+}
+
+function computeItemMeans(responses) {
+  const items = {}
+  STSIOA_DOMAINS.forEach(domain => {
+    domain.questions.forEach(q => {
+      const key = `item_${q.id}`
+      const values = responses.map(r => r[key]).filter(v => v != null && v > 0)
+      items[q.id] = values.length > 0
+        ? { mean: values.reduce((a, b) => a + b, 0) / values.length, count: values.length }
+        : { mean: null, count: 0 }
+    })
+  })
+  return items
+}
+
+const TIMEPOINT_DISPLAY = {
+  baseline: 'Baseline',
+  endline: 'Endline',
+  followup_6mo: '6-Month Follow-up',
+  followup_12mo: '12-Month Follow-up'
+}
+
+function STSIOAOfficeVisual({ responses, teamName, timepoint }) {
+  const [hoveredItem, setHoveredItem] = useState(null)
+  const [hoverPos, setHoverPos] = useState({ x: 0, y: 0 })
+
+  const itemMeans = computeItemMeans(responses)
+
+  const handleMouseEnter = (e, itemId) => {
+    const rect = e.currentTarget.getBoundingClientRect()
+    setHoverPos({ x: rect.right + 8, y: rect.top })
+    setHoveredItem(itemId)
+  }
+
+  const renderItem = (q) => {
+    const data = itemMeans[q.id]
+    const color = getScoreColor(data.mean)
+    const label = SHORT_LABELS[q.id] || q.text
+    return (
+      <div
+        key={q.id}
+        style={{
+          background: color.bg,
+          color: color.text,
+          padding: '0.3rem 0.5rem',
+          fontSize: '0.68rem',
+          lineHeight: '1.3',
+          borderBottom: '1px solid rgba(255,255,255,0.4)',
+          cursor: 'default',
+          position: 'relative',
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          minHeight: '28px'
+        }}
+        onMouseEnter={(e) => handleMouseEnter(e, q.id)}
+        onMouseLeave={() => setHoveredItem(null)}
+      >
+        <span style={{ flex: 1 }}>{label} ({q.id})</span>
+        {data.mean !== null && (
+          <span style={{ fontWeight: '700', marginLeft: '0.5rem', whiteSpace: 'nowrap', fontSize: '0.65rem' }}>
+            {data.mean.toFixed(1)}
+          </span>
+        )}
+      </div>
+    )
+  }
+
+  const renderDomain = (domainId, title, gridArea) => {
+    const domain = STSIOA_DOMAINS.find(d => d.id === domainId)
+    if (!domain) return null
+    return (
+      <div style={{ gridArea, display: 'flex', flexDirection: 'column' }}>
+        <div style={{
+          background: COLORS.navy, color: 'white',
+          padding: '0.4rem 0.6rem', fontSize: '0.75rem', fontWeight: '700',
+          textAlign: 'center', borderRadius: '4px 4px 0 0'
+        }}>
+          {domainId}. {title}
+        </div>
+        <div style={{
+          border: `2px solid ${COLORS.navy}`, borderTop: 'none',
+          borderRadius: '0 0 4px 4px', flex: 1,
+          display: 'flex', flexDirection: 'column'
+        }}>
+          {domain.questions.map(q => renderItem(q))}
+        </div>
+      </div>
+    )
+  }
+
+  // Find hovered item info for tooltip
+  const hoveredData = hoveredItem ? itemMeans[hoveredItem] : null
+  const hoveredQ = hoveredItem ? STSIOA_DOMAINS.flatMap(d => d.questions).find(q => q.id === hoveredItem) : null
+  const hoveredColor = hoveredData ? getScoreColor(hoveredData.mean) : null
+
+  return (
+    <div style={{ ...cardStyle, marginBottom: '1rem', position: 'relative' }}>
+      <div style={cardHeaderStyle}>STSI-OA Organizational Assessment — Office Visual</div>
+
+      {/* Header info */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem', flexWrap: 'wrap', gap: '0.5rem' }}>
+        <div style={{ fontSize: '0.85rem', color: '#374151' }}>
+          <strong>{teamName}</strong> — {TIMEPOINT_DISPLAY[timepoint] || timepoint}
+          <span style={{ color: '#9ca3af', marginLeft: '0.75rem', fontSize: '0.75rem' }}>
+            n = {responses.length} respondent{responses.length !== 1 ? 's' : ''}
+          </span>
+        </div>
+        <div style={{ fontSize: '0.6rem', color: '#9ca3af', fontStyle: 'italic' }}>
+          © Sprang, G., & Ross, L. Contact sprang@uky.edu for permission
+        </div>
+      </div>
+
+      {/* Color Legend */}
+      <div style={{
+        display: 'flex', gap: '0.75rem', flexWrap: 'wrap', marginBottom: '1rem',
+        padding: '0.5rem 0.75rem', background: '#f9fafb', borderRadius: '6px',
+        border: '1px solid #e5e7eb'
+      }}>
+        <span style={{ fontSize: '0.7rem', fontWeight: '600', color: '#374151', marginRight: '0.25rem' }}>KEY:</span>
+        {SCORE_COLORS.map(c => (
+          <div key={c.label} style={{ display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+            <div style={{ width: 14, height: 14, background: c.bg, borderRadius: '2px', border: '1px solid rgba(0,0,0,0.1)' }} />
+            <span style={{ fontSize: '0.65rem', color: '#374151' }}>{c.label} ({c.min}–{c.max})</span>
+          </div>
+        ))}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+          <div style={{ width: 14, height: 14, background: NO_DATA_COLOR.bg, borderRadius: '2px', border: '1px solid rgba(0,0,0,0.1)' }} />
+          <span style={{ fontSize: '0.65rem', color: '#374151' }}>No Data</span>
+        </div>
+      </div>
+
+      {/* Office Layout Grid */}
+      <div style={{
+        display: 'grid',
+        gridTemplateColumns: '1fr 1.3fr 0.8fr',
+        gridTemplateRows: 'auto auto auto',
+        gridTemplateAreas: `
+          "d1 d4 d6"
+          "d2 d5 d6"
+          "d3 d5 d6"
+        `,
+        gap: '6px',
+        minWidth: '700px'
+      }}>
+        {renderDomain(1, 'Resilience Building Activities', 'd1')}
+        {renderDomain(2, 'Staff Safety', 'd2')}
+        {renderDomain(3, 'STS-Informed Policies', 'd3')}
+        {renderDomain(4, 'Leader Practices', 'd4')}
+        {renderDomain(5, 'Routine Practices', 'd5')}
+        {renderDomain(6, 'Monitoring & Evaluation', 'd6')}
+      </div>
+
+      {/* Tooltip */}
+      {hoveredItem && hoveredData && hoveredQ && (
+        <div style={{
+          position: 'fixed',
+          left: Math.min(hoverPos.x, window.innerWidth - 320),
+          top: hoverPos.y,
+          background: 'white',
+          border: '1px solid #d1d5db',
+          borderRadius: '8px',
+          padding: '0.75rem',
+          boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+          zIndex: 1000,
+          maxWidth: '300px',
+          fontSize: '0.8rem',
+          pointerEvents: 'none'
+        }}>
+          <div style={{ fontWeight: '700', color: COLORS.navy, marginBottom: '0.3rem' }}>
+            Item {hoveredItem.toUpperCase()}
+          </div>
+          <div style={{ color: '#374151', lineHeight: '1.4', marginBottom: '0.5rem' }}>
+            {hoveredQ.text}
+          </div>
+          <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
+            <div>
+              <span style={{ fontWeight: '600' }}>M = </span>
+              {hoveredData.mean !== null ? hoveredData.mean.toFixed(2) : 'N/A'}
+            </div>
+            <div>
+              <span style={{ fontWeight: '600' }}>n = </span>
+              {hoveredData.count}
+            </div>
+          </div>
+          {hoveredColor && (
+            <div style={{
+              marginTop: '0.4rem', display: 'flex', alignItems: 'center', gap: '0.3rem'
+            }}>
+              <div style={{ width: 10, height: 10, background: hoveredColor.bg, borderRadius: '2px' }} />
+              <span style={{ fontSize: '0.7rem', color: '#6b7280' }}>{hoveredColor.label}</span>
+            </div>
+          )}
         </div>
       )}
     </div>
