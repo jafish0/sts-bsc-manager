@@ -15,7 +15,6 @@ Deno.serve(async (req) => {
   try {
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!
     const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
-    const anonKey = Deno.env.get('SUPABASE_ANON_KEY')!
 
     // Verify caller is authenticated and is a super_admin
     const authHeader = req.headers.get('Authorization')
@@ -26,12 +25,14 @@ Deno.serve(async (req) => {
       })
     }
 
-    // Create anon client to verify caller's identity
-    const anonClient = createClient(supabaseUrl, anonKey, {
-      global: { headers: { Authorization: authHeader } },
-    })
+    // Extract the JWT token from the Authorization header
+    const token = authHeader.replace('Bearer ', '')
 
-    const { data: { user: caller }, error: authError } = await anonClient.auth.getUser()
+    // Create service role client (bypasses RLS)
+    const adminClient = createClient(supabaseUrl, serviceRoleKey)
+
+    // Verify caller using the admin client with their token
+    const { data: { user: caller }, error: authError } = await adminClient.auth.getUser(token)
     if (authError || !caller) {
       return new Response(JSON.stringify({ error: 'Invalid authentication' }), {
         status: 401,
@@ -39,8 +40,8 @@ Deno.serve(async (req) => {
       })
     }
 
-    // Check caller's role
-    const { data: callerProfile, error: profileError } = await anonClient
+    // Check caller's role using admin client to bypass RLS
+    const { data: callerProfile, error: profileError } = await adminClient
       .from('user_profiles')
       .select('role')
       .eq('id', caller.id)
@@ -62,9 +63,6 @@ Deno.serve(async (req) => {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       })
     }
-
-    // Create service role client for admin operations
-    const adminClient = createClient(supabaseUrl, serviceRoleKey)
 
     // Check if user already exists
     const { data: existingUsers } = await adminClient.auth.admin.listUsers()
