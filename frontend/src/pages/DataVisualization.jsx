@@ -796,7 +796,8 @@ function STSIOAOfficeVisual({ responses, teamName, timepoint }) {
     setHoveredItem(itemId)
   }
 
-  const renderItem = (q) => {
+  // Render a single item as a colored cell block
+  const renderCell = (q, style = {}) => {
     const data = itemMeans[q.id]
     const color = getScoreColor(data.mean)
     const label = SHORT_LABELS[q.id] || q.text
@@ -806,57 +807,56 @@ function STSIOAOfficeVisual({ responses, teamName, timepoint }) {
         style={{
           background: color.bg,
           color: color.text,
-          padding: '0.3rem 0.5rem',
-          fontSize: '0.68rem',
-          lineHeight: '1.3',
-          borderBottom: '1px solid rgba(255,255,255,0.4)',
+          padding: '0.35rem 0.4rem',
+          fontSize: '0.62rem',
+          lineHeight: '1.25',
+          border: '1px solid rgba(0,0,0,0.15)',
           cursor: 'default',
-          position: 'relative',
           display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          minHeight: '28px'
+          flexDirection: 'column',
+          justifyContent: 'center',
+          minHeight: '44px',
+          ...style
         }}
         onMouseEnter={(e) => handleMouseEnter(e, q.id)}
         onMouseLeave={() => setHoveredItem(null)}
       >
-        <span style={{ flex: 1 }}>{label} ({q.id})</span>
-        {data.mean !== null && (
-          <span style={{ fontWeight: '700', marginLeft: '0.5rem', whiteSpace: 'nowrap', fontSize: '0.65rem' }}>
-            {data.mean.toFixed(1)}
-          </span>
-        )}
+        <span>{label} ({q.id.toUpperCase()})</span>
       </div>
     )
   }
 
-  const renderDomain = (domainId, title, gridArea) => {
+  // Get questions by domain ID
+  const getQ = (domainId) => {
     const domain = STSIOA_DOMAINS.find(d => d.id === domainId)
-    if (!domain) return null
-    return (
-      <div style={{ gridArea, display: 'flex', flexDirection: 'column' }}>
-        <div style={{
-          background: COLORS.navy, color: 'white',
-          padding: '0.4rem 0.6rem', fontSize: '0.75rem', fontWeight: '700',
-          textAlign: 'center', borderRadius: '4px 4px 0 0'
-        }}>
-          {domainId}. {title}
-        </div>
-        <div style={{
-          border: `2px solid ${COLORS.navy}`, borderTop: 'none',
-          borderRadius: '0 0 4px 4px', flex: 1,
-          display: 'flex', flexDirection: 'column'
-        }}>
-          {domain.questions.map(q => renderItem(q))}
-        </div>
-      </div>
-    )
+    return domain ? domain.questions : []
   }
+
+  // Domain header bar
+  const domainHeader = (num, title) => (
+    <div style={{
+      background: '#FFD700', color: '#000',
+      padding: '0.3rem 0.5rem', fontSize: '0.7rem', fontWeight: '700',
+      textAlign: 'center', border: '2px solid #000',
+      whiteSpace: 'nowrap'
+    }}>
+      {num}. {title}
+    </div>
+  )
 
   // Find hovered item info for tooltip
   const hoveredData = hoveredItem ? itemMeans[hoveredItem] : null
   const hoveredQ = hoveredItem ? STSIOA_DOMAINS.flatMap(d => d.questions).find(q => q.id === hoveredItem) : null
   const hoveredColor = hoveredData ? getScoreColor(hoveredData.mean) : null
+
+  const d1 = getQ(1)
+  const d2 = getQ(2)
+  const d3 = getQ(3)
+  const d4 = getQ(4)
+  const d5 = getQ(5)
+  const d6 = getQ(6)
+
+  const bdr = '2px solid #000'
 
   return (
     <div style={{ ...cardStyle, marginBottom: '1rem', position: 'relative' }}>
@@ -894,25 +894,88 @@ function STSIOAOfficeVisual({ responses, teamName, timepoint }) {
         </div>
       </div>
 
-      {/* Office Layout Grid */}
-      <div style={{
-        display: 'grid',
-        gridTemplateColumns: '1fr 1.3fr 0.8fr',
-        gridTemplateRows: 'auto auto auto',
-        gridTemplateAreas: `
-          "d1 d4 d6"
-          "d2 d5 d6"
-          "d3 d5 d6"
-        `,
-        gap: '6px',
-        minWidth: '700px'
-      }}>
-        {renderDomain(1, 'Resilience Building Activities', 'd1')}
-        {renderDomain(2, 'Staff Safety', 'd2')}
-        {renderDomain(3, 'STS-Informed Policies', 'd3')}
-        {renderDomain(4, 'Leader Practices', 'd4')}
-        {renderDomain(5, 'Routine Practices', 'd5')}
-        {renderDomain(6, 'Monitoring & Evaluation', 'd6')}
+      {/* Building Layout — 3 column structure matching the reference "office" visual */}
+      <div style={{ overflowX: 'auto' }}>
+        <div style={{ display: 'flex', minWidth: '820px', border: bdr, background: '#fff' }}>
+
+          {/* LEFT COLUMN: Domain 1, Domain 2, Domain 3 */}
+          <div style={{ flex: '0 0 38%', borderRight: bdr, display: 'flex', flexDirection: 'column' }}>
+            {/* Domain 1 */}
+            {domainHeader(1, 'Resilience Building Activities')}
+            <div style={{ borderBottom: bdr }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr' }}>
+                {d1.slice(0, 4).map(q => renderCell(q))}
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr' }}>
+                {d1.slice(4).map(q => renderCell(q))}
+              </div>
+            </div>
+
+            {/* Domain 2 */}
+            {domainHeader(2, 'Staff Safety')}
+            <div style={{ borderBottom: bdr }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr' }}>
+                {d2.slice(0, 3).map(q => renderCell(q))}
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr' }}>
+                {renderCell(d2[3])}
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr' }}>
+                {d2.slice(4, 7).map(q => renderCell(q))}
+              </div>
+            </div>
+
+            {/* Domain 3 */}
+            {domainHeader(3, 'STS-Informed Policies')}
+            <div style={{ flex: 1 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr' }}>
+                {d3.slice(0, 4).map(q => renderCell(q))}
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr' }}>
+                {d3.slice(4).map(q => renderCell(q))}
+              </div>
+            </div>
+          </div>
+
+          {/* CENTER COLUMN: Domain 5 (top), Domain 4 (bottom) */}
+          <div style={{ flex: '0 0 40%', borderRight: bdr, display: 'flex', flexDirection: 'column' }}>
+            {/* Domain 5 */}
+            {domainHeader(5, 'Routine Practices')}
+            <div style={{ borderBottom: bdr }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr' }}>
+                {d5.slice(0, 3).map(q => renderCell(q))}
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr' }}>
+                {d5.slice(3, 6).map(q => renderCell(q))}
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr' }}>
+                {d5.slice(6).map(q => renderCell(q))}
+              </div>
+            </div>
+
+            {/* Domain 4 */}
+            {domainHeader(4, 'Leader Practices')}
+            <div style={{ flex: 1 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr' }}>
+                {d4.slice(0, 2).map(q => renderCell(q))}
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr' }}>
+                {d4.slice(2, 6).map(q => renderCell(q))}
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr' }}>
+                {d4.slice(6, 9).map(q => renderCell(q))}
+              </div>
+            </div>
+          </div>
+
+          {/* RIGHT COLUMN: Domain 6 */}
+          <div style={{ flex: '0 0 22%', display: 'flex', flexDirection: 'column' }}>
+            {domainHeader(6, 'Monitoring & Outcome Evaluation')}
+            <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
+              {d6.map(q => renderCell(q, { flex: 1 }))}
+            </div>
+          </div>
+        </div>
       </div>
 
       {/* Tooltip */}
