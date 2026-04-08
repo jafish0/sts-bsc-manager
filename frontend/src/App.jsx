@@ -19,6 +19,8 @@ import TeamReport from './pages/TeamReport'
 import SmartieGoals from './pages/SmartieGoals'
 import SetPassword from './pages/SetPassword'
 import Resources from './pages/Resources'
+import ForumThreadList from './pages/ForumThreadList'
+import ForumThread from './pages/ForumThread'
 
 // Detect invite/recovery tokens in URL hash and redirect to /set-password
 function AuthRedirectHandler() {
@@ -99,6 +101,16 @@ function App() {
           <Route path="/admin/resources" element={
             <ProtectedRoute>
               <Resources />
+            </ProtectedRoute>
+          } />
+          <Route path="/admin/forum" element={
+            <ProtectedRoute>
+              <ForumThreadList />
+            </ProtectedRoute>
+          } />
+          <Route path="/admin/forum/:threadId" element={
+            <ProtectedRoute>
+              <ForumThread />
             </ProtectedRoute>
           } />
 

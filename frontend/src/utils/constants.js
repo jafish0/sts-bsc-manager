@@ -76,6 +76,21 @@ export function stddev(arr) {
   return Math.sqrt(variance)
 }
 
+// Relative time helper
+export function timeAgo(dateString) {
+  const seconds = Math.floor((Date.now() - new Date(dateString).getTime()) / 1000)
+  if (seconds < 60) return 'just now'
+  const minutes = Math.floor(seconds / 60)
+  if (minutes < 60) return `${minutes}m ago`
+  const hours = Math.floor(minutes / 60)
+  if (hours < 24) return `${hours}h ago`
+  const days = Math.floor(hours / 24)
+  if (days < 30) return `${days}d ago`
+  const months = Math.floor(days / 30)
+  if (months < 12) return `${months}mo ago`
+  return `${Math.floor(months / 12)}y ago`
+}
+
 // Shared card styles
 export const cardStyle = { background: 'white', borderRadius: '0.5rem', padding: '1.25rem', boxShadow: '0 1px 3px rgba(0,0,0,0.1)' }
 export const cardHeaderStyle = { background: COLORS.navy, color: 'white', padding: '0.6rem 1rem', marginBottom: '1rem', fontWeight: '600', textAlign: 'center', borderRadius: '0.25rem', fontSize: '0.9rem' }

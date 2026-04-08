@@ -333,6 +333,38 @@ export default function TeamDashboard() {
               Browse guides, tools, and videos by STSI-OA domain
             </div>
           </button>
+
+          {/* Forum */}
+          <button
+            onClick={() => navigate('/admin/forum')}
+            style={{
+              padding: '2rem',
+              background: 'white',
+              border: '2px solid #d1d5db',
+              borderRadius: '0.75rem',
+              cursor: 'pointer',
+              transition: 'all 0.2s',
+              textAlign: 'left'
+            }}
+            onMouseOver={(e) => {
+              e.currentTarget.style.borderColor = COLORS.navy
+              e.currentTarget.style.transform = 'translateY(-2px)'
+              e.currentTarget.style.boxShadow = '0 4px 6px rgba(0,0,0,0.1)'
+            }}
+            onMouseOut={(e) => {
+              e.currentTarget.style.borderColor = '#d1d5db'
+              e.currentTarget.style.transform = 'translateY(0)'
+              e.currentTarget.style.boxShadow = 'none'
+            }}
+          >
+            <div style={{ fontSize: '2rem', marginBottom: '0.5rem' }}>💬</div>
+            <div style={{ color: COLORS.navy, fontSize: '1.25rem', fontWeight: '600', marginBottom: '0.5rem' }}>
+              Community Forum
+            </div>
+            <div style={{ color: '#6b7280', fontSize: '0.875rem' }}>
+              Discuss strategies and share experiences with your collaborative
+            </div>
+          </button>
         </div>
       </div>
     </div>
