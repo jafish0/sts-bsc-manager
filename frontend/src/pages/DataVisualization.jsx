@@ -13,7 +13,7 @@ import {
 } from '../utils/constants'
 import { STSIOA_DOMAINS } from '../config/stsioa'
 import { exportDataVizExcel } from '../utils/exportExcel'
-import officeFrameImg from '../assets/office-frame.png'
+import officeFrameImg from '../assets/office-frame.jpg'
 
 export default function DataVisualization() {
   const navigate = useNavigate()
@@ -786,14 +786,20 @@ const TIMEPOINT_DISPLAY = {
 }
 
 // Room regions: percentage-based bounding boxes for each domain overlay
-// Mapped to the building frame image (1920x1080)
+// Mapped to Slide1.jpg (1280x720) building frame
+// Left column rooms are between the left brick pillar and center wall
+// Center column rooms are between the center wall and right brick pillar
+// Right wing is the shelving area beyond the right brick pillar
 const ROOM_REGIONS = {
-  domain1: { left: 7.5, top: 5.5, width: 37, height: 22 },
-  domain2: { left: 7.5, top: 28.5, width: 37, height: 28 },
-  domain3: { left: 7.5, top: 57.5, width: 37, height: 36.5 },
-  domain5: { left: 45.5, top: 5.5, width: 32, height: 42 },
-  domain4: { left: 45.5, top: 48.5, width: 32, height: 45.5 },
-  domain6: { left: 80, top: 5.5, width: 16, height: 88 },
+  // Left column: 3 rooms stacked (D1 top, D2 middle, D3 bottom)
+  domain1: { left: 11.5, top: 13, width: 33, height: 14 },
+  domain2: { left: 11.5, top: 30, width: 33, height: 22 },
+  domain3: { left: 11.5, top: 55, width: 33, height: 33 },
+  // Center column: 2 rooms stacked (D5 top, D4 bottom)
+  domain5: { left: 45.5, top: 13, width: 27, height: 34 },
+  domain4: { left: 45.5, top: 50, width: 27, height: 38 },
+  // Right wing shelves (D6)
+  domain6: { left: 76, top: 13, width: 11.5, height: 75 },
 }
 
 function STSIOAOfficeVisual({ responses, teamName, timepoint }) {
@@ -937,11 +943,11 @@ function STSIOAOfficeVisual({ responses, teamName, timepoint }) {
       <div style={{ overflowX: 'auto' }}>
         <div style={{
           position: 'relative',
-          aspectRatio: '1920 / 1080',
+          aspectRatio: '1280 / 720',
           backgroundImage: `url(${officeFrameImg})`,
           backgroundSize: '100% 100%',
           backgroundRepeat: 'no-repeat',
-          backgroundColor: '#1a1a1a',
+          backgroundColor: '#e8e8e8',
           minWidth: '860px',
         }}>
 
