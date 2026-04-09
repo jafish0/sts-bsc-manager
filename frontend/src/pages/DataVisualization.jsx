@@ -13,6 +13,7 @@ import {
 } from '../utils/constants'
 import { STSIOA_DOMAINS } from '../config/stsioa'
 import { exportDataVizExcel } from '../utils/exportExcel'
+import officeFrameImg from '../assets/office-frame.png'
 
 export default function DataVisualization() {
   const navigate = useNavigate()
@@ -784,6 +785,17 @@ const TIMEPOINT_DISPLAY = {
   followup_12mo: '12-Month Follow-up'
 }
 
+// Room regions: percentage-based bounding boxes for each domain overlay
+// Mapped to the building frame image (1920x1080)
+const ROOM_REGIONS = {
+  domain1: { left: 7.5, top: 5.5, width: 37, height: 22 },
+  domain2: { left: 7.5, top: 28.5, width: 37, height: 28 },
+  domain3: { left: 7.5, top: 57.5, width: 37, height: 36.5 },
+  domain5: { left: 45.5, top: 5.5, width: 32, height: 42 },
+  domain4: { left: 45.5, top: 48.5, width: 32, height: 45.5 },
+  domain6: { left: 80, top: 5.5, width: 16, height: 88 },
+}
+
 function STSIOAOfficeVisual({ responses, teamName, timepoint }) {
   const [hoveredItem, setHoveredItem] = useState(null)
   const [hoverPos, setHoverPos] = useState({ x: 0, y: 0 })
@@ -796,7 +808,7 @@ function STSIOAOfficeVisual({ responses, teamName, timepoint }) {
     setHoveredItem(itemId)
   }
 
-  // Render a single item as a colored cell block
+  // Render a single item as a colored cell block (sized by grid)
   const renderCell = (q, style = {}) => {
     const data = itemMeans[q.id]
     const color = getScoreColor(data.mean)
@@ -807,21 +819,24 @@ function STSIOAOfficeVisual({ responses, teamName, timepoint }) {
         style={{
           background: color.bg,
           color: color.text,
-          padding: '0.35rem 0.4rem',
-          fontSize: '0.62rem',
-          lineHeight: '1.25',
-          border: '1px solid rgba(0,0,0,0.15)',
+          padding: '2px 3px',
+          fontSize: 'clamp(0.4rem, 0.55vw, 0.6rem)',
+          lineHeight: '1.2',
+          border: '1px solid rgba(0,0,0,0.2)',
           cursor: 'default',
           display: 'flex',
           flexDirection: 'column',
           justifyContent: 'center',
-          minHeight: '44px',
+          overflow: 'hidden',
+          boxSizing: 'border-box',
           ...style
         }}
         onMouseEnter={(e) => handleMouseEnter(e, q.id)}
         onMouseLeave={() => setHoveredItem(null)}
       >
-        <span>{label} ({q.id.toUpperCase()})</span>
+        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>
+          {label} ({q.id.toUpperCase()})
+        </span>
       </div>
     )
   }
@@ -832,15 +847,41 @@ function STSIOAOfficeVisual({ responses, teamName, timepoint }) {
     return domain ? domain.questions : []
   }
 
-  // Domain header bar — black with white text matching reference
+  // Domain header bar — blends with the black bars in the building frame
   const domainHeader = (num, title) => (
     <div style={{
-      background: '#000', color: '#fff',
-      padding: '0.35rem 0.5rem', fontSize: '0.7rem', fontWeight: '700',
-      textAlign: 'center',
-      whiteSpace: 'nowrap'
+      background: 'rgba(0,0,0,0.85)', color: '#fff',
+      padding: '1px 4px', fontSize: 'clamp(0.45rem, 0.6vw, 0.65rem)', fontWeight: '700',
+      textAlign: 'center', whiteSpace: 'nowrap', overflow: 'hidden',
+      textOverflow: 'ellipsis', flexShrink: 0
     }}>
       {num}. {title}
+    </div>
+  )
+
+  // Render a domain room as an absolute-positioned overlay
+  const renderDomainRoom = (domainId, title, questions, region, cellLayout) => (
+    <div style={{
+      position: 'absolute',
+      left: `${region.left}%`,
+      top: `${region.top}%`,
+      width: `${region.width}%`,
+      height: `${region.height}%`,
+      display: 'flex',
+      flexDirection: 'column',
+      overflow: 'hidden',
+    }}>
+      {domainHeader(domainId, title)}
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+        {cellLayout}
+      </div>
+    </div>
+  )
+
+  // Helper: a row of cells in a grid
+  const cellRow = (questions, cols, style = {}) => (
+    <div style={{ flex: 1, display: 'grid', gridTemplateColumns: `repeat(${cols}, 1fr)`, minHeight: 0, ...style }}>
+      {questions.map(q => renderCell(q))}
     </div>
   )
 
@@ -855,8 +896,6 @@ function STSIOAOfficeVisual({ responses, teamName, timepoint }) {
   const d4 = getQ(4)
   const d5 = getQ(5)
   const d6 = getQ(6)
-
-  const bdr = '2px solid #000'
 
   return (
     <div style={{ ...cardStyle, marginBottom: '1rem', position: 'relative' }}>
@@ -894,114 +933,57 @@ function STSIOAOfficeVisual({ responses, teamName, timepoint }) {
         </div>
       </div>
 
-      {/* Building Layout — 3 column structure with building frame */}
+      {/* Building with image background and overlaid cells */}
       <div style={{ overflowX: 'auto' }}>
-        <div style={{ minWidth: '860px', position: 'relative' }}>
+        <div style={{
+          position: 'relative',
+          aspectRatio: '1920 / 1080',
+          backgroundImage: `url(${officeFrameImg})`,
+          backgroundSize: '100% 100%',
+          backgroundRepeat: 'no-repeat',
+          backgroundColor: '#1a1a1a',
+          minWidth: '860px',
+        }}>
 
-          {/* Building frame: gray walls on left & right, roof line on top */}
-          <div style={{ display: 'flex' }}>
-            {/* Left wall */}
-            <div style={{ width: '14px', background: 'linear-gradient(to right, #8B8682, #A9A29E)', borderRadius: '2px 0 0 2px', boxShadow: 'inset -2px 0 3px rgba(0,0,0,0.2)' }} />
+          {/* Domain 1: Resilience Building Activities — top-left room */}
+          {renderDomainRoom(1, 'Resilience Building Activities', d1, ROOM_REGIONS.domain1, <>
+            {cellRow(d1.slice(0, 4), 4)}
+            {cellRow(d1.slice(4), 3)}
+          </>)}
 
-            {/* Main building interior */}
-            <div style={{ flex: 1, border: bdr, borderLeft: 'none', borderRight: 'none', background: '#fff', display: 'flex' }}>
+          {/* Domain 2: Staff Safety — middle-left room */}
+          {renderDomainRoom(2, 'Staff Safety', d2, ROOM_REGIONS.domain2, <>
+            {cellRow(d2.slice(0, 3), 3)}
+            {cellRow([d2[4]], 1)}
+            {cellRow([d2[3], d2[5], d2[6]], 3)}
+          </>)}
 
-              {/* LEFT COLUMN: Domain 1, Domain 2, Domain 3 */}
-              <div style={{ flex: '0 0 37%', borderRight: bdr, display: 'flex', flexDirection: 'column' }}>
-                {/* Domain 1 */}
-                {domainHeader(1, 'Resilience Building Activities')}
-                <div style={{ borderBottom: bdr }}>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr' }}>
-                    {d1.slice(0, 4).map(q => renderCell(q))}
-                  </div>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr' }}>
-                    {d1.slice(4).map(q => renderCell(q))}
-                  </div>
-                </div>
+          {/* Domain 3: STS-Informed Policies — bottom-left room */}
+          {renderDomainRoom(3, 'STS-Informed Policies', d3, ROOM_REGIONS.domain3, <>
+            {cellRow(d3.slice(0, 4), 4)}
+            {cellRow(d3.slice(4), 2)}
+          </>)}
 
-                {/* Domain 2 */}
-                {domainHeader(2, 'Staff Safety')}
-                <div style={{ borderBottom: bdr }}>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr' }}>
-                    {d2.slice(0, 3).map(q => renderCell(q))}
-                  </div>
-                  {/* 2e spans full width like in reference */}
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr' }}>
-                    {renderCell(d2[4])}
-                  </div>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr' }}>
-                    {[d2[3], d2[5], d2[6]].map(q => renderCell(q))}
-                  </div>
-                </div>
+          {/* Domain 5: Routine Practices — top-center room */}
+          {renderDomainRoom(5, 'Routine Practices', d5, ROOM_REGIONS.domain5, <>
+            {cellRow(d5.slice(0, 3), 3)}
+            {cellRow(d5.slice(3, 6), 3)}
+            {cellRow(d5.slice(6), 1)}
+          </>)}
 
-                {/* Domain 3 */}
-                {domainHeader(3, 'STS-Informed Policies')}
-                <div style={{ flex: 1 }}>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr' }}>
-                    {d3.slice(0, 4).map(q => renderCell(q))}
-                  </div>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr' }}>
-                    {d3.slice(4).map(q => renderCell(q))}
-                  </div>
-                </div>
-              </div>
+          {/* Domain 4: Leader Practices — bottom-center room */}
+          {renderDomainRoom(4, 'Leader Practices', d4, ROOM_REGIONS.domain4, <>
+            {cellRow(d4.slice(0, 2), 2)}
+            {cellRow(d4.slice(2, 6), 4)}
+            {cellRow(d4.slice(6, 9), 3)}
+          </>)}
 
-              {/* CENTER COLUMN: Domain 5 (top), Domain 4 (bottom) */}
-              <div style={{ flex: '0 0 40%', borderRight: bdr, display: 'flex', flexDirection: 'column' }}>
-                {/* Domain 5 */}
-                {domainHeader(5, 'Routine Practices')}
-                <div style={{ borderBottom: bdr }}>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr' }}>
-                    {d5.slice(0, 3).map(q => renderCell(q))}
-                  </div>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr' }}>
-                    {d5.slice(3, 6).map(q => renderCell(q))}
-                  </div>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr' }}>
-                    {d5.slice(6).map(q => renderCell(q))}
-                  </div>
-                </div>
-
-                {/* Domain 4 */}
-                {domainHeader(4, 'Leader Practices')}
-                <div style={{ flex: 1 }}>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr' }}>
-                    {d4.slice(0, 2).map(q => renderCell(q))}
-                  </div>
-                  {/* 4c+4d spanning row */}
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr' }}>
-                    {d4.slice(2, 6).map(q => renderCell(q))}
-                  </div>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr' }}>
-                    {d4.slice(6, 9).map(q => renderCell(q))}
-                  </div>
-                </div>
-              </div>
-
-              {/* RIGHT COLUMN: Domain 6 */}
-              <div style={{ flex: '0 0 23%', display: 'flex', flexDirection: 'column' }}>
-                {domainHeader(6, 'Monitoring & Outcome Evaluation')}
-                <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
-                  {d6.map(q => renderCell(q, { flex: 1 }))}
-                </div>
-              </div>
+          {/* Domain 6: Monitoring & Outcome Evaluation — right wing shelves */}
+          {renderDomainRoom(6, 'Monitoring & Outcome Evaluation', d6, ROOM_REGIONS.domain6,
+            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+              {d6.map(q => renderCell(q, { flex: 1 }))}
             </div>
-
-            {/* Right wall with roof/gutter detail */}
-            <div style={{ width: '14px', display: 'flex', flexDirection: 'column' }}>
-              {/* Roof peak */}
-              <div style={{
-                width: 0, height: 0,
-                borderLeft: '7px solid transparent',
-                borderRight: '7px solid transparent',
-                borderBottom: '12px solid #8B8682'
-              }} />
-              {/* Wall */}
-              <div style={{ flex: 1, background: 'linear-gradient(to left, #8B8682, #A9A29E)', boxShadow: 'inset 2px 0 3px rgba(0,0,0,0.2)' }} />
-              {/* Downspout lines */}
-              <div style={{ height: '40px', background: 'repeating-linear-gradient(0deg, #8B8682 0px, #8B8682 8px, #A9A29E 8px, #A9A29E 10px)', borderRadius: '0 0 2px 0' }} />
-            </div>
-          </div>
+          )}
         </div>
       </div>
 
