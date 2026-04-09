@@ -728,6 +728,22 @@ export default function CollaborativeDetail() {
                         Goals
                       </button>
                       <button
+                        onClick={() => navigate(`/admin/pdsa/${team.id}`)}
+                        style={{
+                          background: '#0E1F56',
+                          color: 'white',
+                          border: 'none',
+                          padding: '0.5rem 1rem',
+                          borderRadius: '6px',
+                          cursor: 'pointer',
+                          fontSize: '0.85rem',
+                          fontWeight: '600',
+                          whiteSpace: 'nowrap'
+                        }}
+                      >
+                        PDSA
+                      </button>
+                      <button
                         onClick={() => navigate(`/admin/team-report/${team.id}`)}
                         style={{
                           background: '#00A79D',

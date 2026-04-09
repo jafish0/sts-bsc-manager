@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../utils/supabase'
 import { useAuth } from '../contexts/AuthContext'
-import { COLORS, cardStyle, cardHeaderStyle, STSIOA_DOMAIN_MAX, DOMAIN_OPTIONS } from '../utils/constants'
+import { COLORS, cardStyle, cardHeaderStyle } from '../utils/constants'
 import { calculatePhase, PHASES, getPhaseGuidance, phaseToChecklistKey } from '../utils/phaseCalculator'
 import { detectChecklistCompletion } from '../utils/checklistAutoDetect'
 
@@ -25,8 +25,8 @@ export default function TeamDashboard() {
   const [checklistItems, setChecklistItems] = useState([])
   const [checklistLoading, setChecklistLoading] = useState(false)
 
-  // Recommendations state
-  const [recommendations, setRecommendations] = useState(null)
+  // PDSA count state
+  const [pdsaCount, setPdsaCount] = useState(0)
 
   useEffect(() => {
     if (profile?.team_id) {
@@ -74,8 +74,13 @@ export default function TeamDashboard() {
         loadChecklist(teamData.id, phase)
       }
 
-      // Load recommendations based on latest STSIOA scores
-      loadRecommendations(teamData.id)
+      // Count active PDSA cycles
+      const { count: pdsaActiveCount } = await supabase
+        .from('pdsa_cycles')
+        .select('id', { count: 'exact', head: true })
+        .eq('team_id', profile.team_id)
+        .in('status', ['plan', 'do', 'study', 'act'])
+      setPdsaCount(pdsaActiveCount || 0)
     } catch (err) {
       console.error('Error loading team:', err)
     } finally {
@@ -112,92 +117,6 @@ export default function TeamDashboard() {
     }
   }
 
-  const loadRecommendations = async (teamId) => {
-    try {
-      // Get the team's team_codes to find latest STSIOA data
-      const { data: codes } = await supabase
-        .from('team_codes')
-        .select('id, timepoint')
-        .eq('team_id', teamId)
-
-      if (!codes || codes.length === 0) return
-
-      // Check timepoints from most recent to oldest, find one with STSIOA data
-      const order = ['followup_12mo', 'followup_6mo', 'endline', 'baseline']
-      let stsioaResponses = null
-      let usedTimepoint = null
-
-      for (const tp of order) {
-        const code = codes.find(c => c.timepoint === tp)
-        if (!code) continue
-        const { data: arIds } = await supabase
-          .from('assessment_responses')
-          .select('id')
-          .eq('team_code_id', code.id)
-        if (!arIds || arIds.length === 0) continue
-
-        const { data: responses } = await supabase
-          .from('stsioa_responses')
-          .select('domain_1_score, domain_2_score, domain_3_score, domain_4_score, domain_5_score, domain_6_score')
-          .in('assessment_response_id', arIds.map(a => a.id))
-
-        if (responses && responses.length > 0) {
-          stsioaResponses = responses
-          usedTimepoint = tp
-          break
-        }
-      }
-
-      if (!stsioaResponses || stsioaResponses.length === 0) return
-
-      // Calculate mean scores per domain
-      const domainKeys = ['resilience', 'safety', 'policies', 'leadership', 'routine', 'evaluation']
-      const domainScores = domainKeys.map((key, i) => {
-        const colName = `domain_${i + 1}_score`
-        const scores = stsioaResponses.map(r => r[colName] || 0)
-        const mean = scores.reduce((a, b) => a + b, 0) / scores.length
-        const max = STSIOA_DOMAIN_MAX[key]
-        return { key, mean, max, pct: (mean / max) * 100 }
-      })
-
-      // Sort by percentage (weakest first), take bottom 2
-      const sorted = [...domainScores].sort((a, b) => a.pct - b.pct)
-      const weakest = sorted.slice(0, 2)
-
-      // Load resources matching the weak domains
-      const { data: resources } = await supabase
-        .from('resources')
-        .select('id, title, domains, resource_type')
-        .order('created_at', { ascending: false })
-
-      // Filter resources that match weak domains
-      const matchedResources = {}
-      weakest.forEach(d => {
-        matchedResources[d.key] = (resources || [])
-          .filter(r => r.domains && r.domains.includes(d.key))
-          .slice(0, 3)
-      })
-
-      // Check existing SMARTIE goals for these domains
-      const { data: existingGoals } = await supabase
-        .from('smartie_goals')
-        .select('stsioa_domain, status')
-        .eq('team_id', teamId)
-        .eq('status', 'active')
-
-      const activeGoalDomains = (existingGoals || []).map(g => g.stsioa_domain)
-
-      setRecommendations({
-        weakest,
-        matchedResources,
-        activeGoalDomains,
-        n: stsioaResponses.length,
-        timepoint: usedTimepoint
-      })
-    } catch (err) {
-      console.error('Error loading recommendations:', err)
-    }
-  }
 
   const handleToggleChecklist = async (item) => {
     if (item.is_auto) return // auto items are read-only
@@ -640,120 +559,6 @@ export default function TeamDashboard() {
           </div>
         )}
 
-        {/* Recommended Next Steps */}
-        {recommendations && recommendations.weakest.length > 0 && (
-          <div style={{
-            background: 'var(--bg-card)',
-            borderRadius: '0.75rem',
-            padding: '1.5rem',
-            marginBottom: '1.5rem',
-            boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
-            border: `2px solid ${COLORS.teal}20`
-          }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
-              <h3 style={{ margin: 0, color: COLORS.navy, fontSize: '1.1rem' }}>
-                Recommended Next Steps
-              </h3>
-              <span style={{ fontSize: '0.75rem', color: 'var(--text-faint)' }}>
-                Based on STSI-OA scores (n={recommendations.n})
-              </span>
-            </div>
-            <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', margin: '0 0 1rem', lineHeight: '1.5' }}>
-              These domains scored lowest on your team's organizational assessment. Strengthening them can improve your STS-informed practices.
-            </p>
-
-            <div style={{ display: 'grid', gridTemplateColumns: recommendations.weakest.length > 1 ? '1fr 1fr' : '1fr', gap: '1rem' }}>
-              {recommendations.weakest.map(domain => {
-                const domainLabel = DOMAIN_OPTIONS.find(d => d.value === domain.key)?.label || domain.key
-                const resources = recommendations.matchedResources[domain.key] || []
-                const hasActiveGoal = recommendations.activeGoalDomains.includes(domain.key)
-                const pctColor = domain.pct < 40 ? COLORS.red : domain.pct < 60 ? '#F59E0B' : COLORS.teal
-
-                return (
-                  <div key={domain.key} style={{
-                    background: 'var(--bg-card-alt)',
-                    borderRadius: '0.5rem',
-                    padding: '1rem',
-                    borderLeft: `4px solid ${pctColor}`
-                  }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
-                      <strong style={{ color: COLORS.navy, fontSize: '0.9rem' }}>{domainLabel}</strong>
-                      <span style={{
-                        fontSize: '0.8rem',
-                        fontWeight: '700',
-                        color: pctColor
-                      }}>
-                        {domain.pct.toFixed(0)}%
-                      </span>
-                    </div>
-
-                    {/* Score bar */}
-                    <div style={{ background: '#e5e7eb', borderRadius: '999px', height: '6px', marginBottom: '0.75rem', overflow: 'hidden' }}>
-                      <div style={{
-                        height: '100%',
-                        borderRadius: '999px',
-                        background: pctColor,
-                        width: `${domain.pct}%`,
-                        transition: 'width 0.4s ease'
-                      }} />
-                    </div>
-
-                    <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginBottom: '0.5rem' }}>
-                      Mean: {domain.mean.toFixed(1)} / {domain.max}
-                    </div>
-
-                    {/* Resources */}
-                    {resources.length > 0 && (
-                      <div style={{ marginBottom: '0.75rem' }}>
-                        <div style={{ fontSize: '0.75rem', fontWeight: '600', color: 'var(--text-muted)', marginBottom: '0.25rem' }}>Related Resources:</div>
-                        {resources.map(r => (
-                          <div
-                            key={r.id}
-                            onClick={() => navigate('/admin/resources')}
-                            style={{
-                              fontSize: '0.8rem',
-                              color: COLORS.teal,
-                              cursor: 'pointer',
-                              padding: '0.15rem 0',
-                              textDecoration: 'underline'
-                            }}
-                          >
-                            {r.title}
-                          </div>
-                        ))}
-                      </div>
-                    )}
-
-                    {/* SMARTIE Goal CTA */}
-                    {hasActiveGoal ? (
-                      <div style={{ fontSize: '0.75rem', color: COLORS.teal, fontWeight: '600' }}>
-                        Active goal set for this domain
-                      </div>
-                    ) : (
-                      <button
-                        onClick={() => navigate(`/admin/smartie-goals/${team.id}?domain=${domain.key}`)}
-                        style={{
-                          width: '100%',
-                          padding: '0.5rem',
-                          background: COLORS.navy,
-                          color: 'white',
-                          border: 'none',
-                          borderRadius: '0.375rem',
-                          cursor: 'pointer',
-                          fontSize: '0.8rem',
-                          fontWeight: '600'
-                        }}
-                      >
-                        Set a SMARTIE Goal
-                      </button>
-                    )}
-                  </div>
-                )
-              })}
-            </div>
-          </div>
-        )}
-
         {/* Action Cards */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '1.5rem', marginBottom: '2rem' }}>
           {/* Team Report */}
@@ -765,13 +570,40 @@ export default function TeamDashboard() {
             onClick={() => navigate(`/admin/team-report/${team.id}`)}
           />
 
+          {/* Recommendations */}
+          <ActionCard
+            icon="📋"
+            title="Recommendations"
+            description="See strengths, areas for growth, and suggested next steps based on your assessment results"
+            borderColor={COLORS.navy}
+            onClick={() => navigate(`/admin/recommendations/${team.id}`)}
+          />
+
           {/* SMARTIE Goals */}
           <ActionCard
             icon="🎯"
             title={<>SMARTIE Goals{goalCount > 0 && <span style={{ fontSize: '0.85rem', fontWeight: '400', color: COLORS.teal, marginLeft: '0.5rem' }}>({goalCount} active)</span>}</>}
             description="Set and track your team's improvement goals"
-            borderColor={COLORS.navy}
+            borderColor={COLORS.teal}
             onClick={() => navigate(`/admin/smartie-goals/${team.id}`)}
+          />
+
+          {/* PDSA Cycles */}
+          <ActionCard
+            icon="🔄"
+            title={<>PDSA Cycles{pdsaCount > 0 && <span style={{ fontSize: '0.85rem', fontWeight: '400', color: COLORS.teal, marginLeft: '0.5rem' }}>({pdsaCount} active)</span>}</>}
+            description="Run Plan-Do-Study-Act improvement cycles for your team"
+            borderColor={COLORS.navy}
+            onClick={() => navigate(`/admin/pdsa/${team.id}`)}
+          />
+
+          {/* Strategy Ideas */}
+          <ActionCard
+            icon="💡"
+            title="Strategy Ideas"
+            description="Browse improvement strategies from previous collaboratives by domain"
+            borderColor={COLORS.teal}
+            onClick={() => navigate('/admin/strategies')}
           />
 
           {/* Data Visualization */}

@@ -25,6 +25,9 @@ import ForumThread from './pages/ForumThread'
 import ChangeFramework from './pages/ChangeFramework'
 import StaffDirectory from './pages/StaffDirectory'
 import TeamMembers from './pages/TeamMembers'
+import PdsaCycles from './pages/PdsaCycles'
+import Strategies from './pages/Strategies'
+import DataRecommendations from './pages/DataRecommendations'
 
 // Detect invite/recovery tokens in URL hash and redirect to /set-password
 function AuthRedirectHandler() {
@@ -131,6 +134,21 @@ function App() {
           <Route path="/admin/team/:teamId/members" element={
             <ProtectedRoute>
               <TeamMembers />
+            </ProtectedRoute>
+          } />
+          <Route path="/admin/pdsa/:teamId" element={
+            <ProtectedRoute>
+              <PdsaCycles />
+            </ProtectedRoute>
+          } />
+          <Route path="/admin/strategies" element={
+            <ProtectedRoute>
+              <Strategies />
+            </ProtectedRoute>
+          } />
+          <Route path="/admin/recommendations/:teamId" element={
+            <ProtectedRoute>
+              <DataRecommendations />
             </ProtectedRoute>
           } />
 

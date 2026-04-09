@@ -1,6 +1,6 @@
 # STS-BSC Manager — Complete Project Documentation
 
-**Last Updated:** April 8, 2026
+**Last Updated:** April 9, 2026
 **Repository:** https://github.com/jafish0/sts-bsc-manager
 **Live URL:** https://sts-bsc-manager.vercel.app/
 **Supabase Project:** jhnquklmwoubpbbmnrjf
@@ -33,7 +33,7 @@ The STS-BSC Manager is a web application built for the **Center on Trauma and Ch
 | PDF Export | jspdf + jspdf-autotable |
 | Excel Export | xlsx (SheetJS) |
 | Hosting | Vercel (auto-deploy from GitHub main branch) |
-| Styling | Inline styles (no CSS framework) |
+| Styling | Inline styles + CSS custom properties (no CSS framework). Dark mode via `[data-theme="dark"]` |
 
 ### Brand Colors
 - **Navy:** `#0E1F56` — Headers, primary UI
@@ -95,6 +95,8 @@ Each team gets 4 unique codes (one per timepoint: Baseline, Endline, 6-Month, 12
 
 **Session Management:** Uses `sessionStorage` to pass `teamCodeId` and `assessmentResponseId` between pages. Cleared on completion.
 
+**localStorage Auto-Save:** All assessment pages (Demographics, STSS, ProQOL, STSIOA) save answers to `localStorage` with `sts_` prefix. Restores on mount so users can resume after browser close. `AssessmentComplete` clears all 7 keys. Demographics checks for existing `sts_assessmentResponseId` to avoid duplicate DB records.
+
 ---
 
 ### 2. Authentication & User Management
@@ -134,6 +136,8 @@ Each team gets 4 unique codes (one per timepoint: Baseline, Endline, 6-Month, 12
 - Charts for demographics, STSS, ProQOL, and STSI-OA
 - Filter by collaborative, timepoint, and team
 - Uses Recharts (bar charts, pie charts)
+- K-anonymity threshold (n < 5) suppresses demographic breakdowns with privacy notice
+- STSI-OA Office Visual with building frame image overlay
 - Export to Excel (multi-sheet workbook)
 
 #### Team Reports (`/admin/team-report/:teamId`)
@@ -172,7 +176,7 @@ Global library of guides, tools, and videos organized by the 6 STSI-OA domains.
 - Multi-domain assignment (a resource can appear under multiple domain tabs)
 - Super admins: upload new resources, delete existing ones
 - All users: browse and download
-- 73 resources pre-loaded from CTAC's Basecamp exports
+- 79 resources loaded from CTAC's Basecamp exports (72 original + 7 added 2026-04-09 from Basecamp 2026 zip)
 
 ---
 
@@ -250,14 +254,56 @@ Team roster management page for agency admins and super admins.
 
 ### 12. STSI-OA Office Visual (DataVisualization)
 
-Color-coded organizational assessment visual at the bottom of the Data Visualization page.
+Color-coded organizational assessment visual at the bottom of the Data Visualization page, designed to resemble a building/office matching CTAC's reference PowerPoint layout.
 
 **Features:**
-- CSS Grid layout matching PowerPoint spatial arrangement (6 domains as office sections)
+- Building frame background image (`office-frame.jpg`) with color-coded assessment cells overlaid using absolute positioning
+- Percentage-based `ROOM_REGIONS` coordinate map for 6 domain rooms
 - Per-item mean score calculation (excluding N/A responses)
 - Score-to-color mapping: 4-5=green, 3-4=yellow, 2-3=orange, 1-2=red, no data=gray
+- Responsive font sizing via `clamp()` CSS function
 - Hover tooltips with full item text, mean, count, color category
 - Color key legend
+- Domain cell layouts: D1(4+3), D2(3+1+3), D3(4+2), D5(3+3+1), D4(2+4+3), D6(4 vertical)
+
+**Status:** Working but awaiting new 2560×1440 building frame image for better room spacing.
+
+---
+
+### 13. K-Anonymity Privacy Threshold
+
+Prevents re-identification of small groups in demographic breakdowns.
+
+**Features:**
+- `K_ANONYMITY_THRESHOLD = 5` constant in `constants.js`
+- DataVisualization suppresses demographic breakdowns (gender, age, job role pies, exposure, STSIOA by job role) when n < 5
+- TeamReport suppresses demographics summary when n < 5
+- Privacy notice explaining why data is hidden when threshold not met
+
+---
+
+### 14. Dark Mode
+
+System-wide dark mode toggle with persistent preference.
+
+**Features:**
+- `ThemeContext` with `localStorage` persistence (`sts_theme` key)
+- CSS custom properties in `index.css` (`:root` for light, `[data-theme="dark"]` for dark)
+- `ThemeToggle` floating button (bottom-right) added via `ProtectedRoute`
+- All 13 admin pages converted to use CSS variables for colors
+
+---
+
+### 15. Smart Recommendations (TeamDashboard)
+
+Surfaces targeted resources based on a team's weakest STSI-OA domains.
+
+**Features:**
+- Computes STSI-OA domain scores for latest timepoint
+- Identifies 2 weakest domains
+- Shows matched resources from DB for those domains
+- "Set a SMARTIE Goal" button links to SmartieGoals with `?domain=` param for pre-fill
+- `SmartieGoalForm` accepts `initialDomain` prop
 
 ---
 
@@ -439,7 +485,8 @@ sts-bsc-manager/
 │       ├── assets/
 │       │   ├── CTAC_white.png
 │       │   ├── UKCTAC_logoasuite_web__primary_tagline_color.png
-│       │   └── UK_Lockup-286.png
+│       │   ├── UK_Lockup-286.png
+│       │   └── office-frame.jpg         — STSI-OA building frame background
 │       ├── components/
 │       │   ├── ProtectedRoute.jsx
 │       │   ├── AddTeamModal.jsx
@@ -448,14 +495,16 @@ sts-bsc-manager/
 │       │   ├── InviteTeamLeaderModal.jsx
 │       │   ├── InviteTeamMemberModal.jsx
 │       │   ├── AddResourceModal.jsx
-│       │   └── SmartieGoalForm.jsx
+│       │   ├── SmartieGoalForm.jsx
+│       │   └── ThemeToggle.jsx          — Floating dark mode toggle button
 │       ├── config/
 │       │   ├── demographics.js
 │       │   ├── stss.js
 │       │   ├── proqol.js
 │       │   └── stsioa.js
 │       ├── contexts/
-│       │   └── AuthContext.jsx
+│       │   ├── AuthContext.jsx
+│       │   └── ThemeContext.jsx          — Dark mode toggle with localStorage persistence
 │       ├── pages/
 │       │   ├── TeamCodeEntry.jsx
 │       │   ├── Demographics.jsx

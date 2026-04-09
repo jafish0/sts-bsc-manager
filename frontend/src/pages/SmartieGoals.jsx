@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
 import { supabase } from '../utils/supabase'
 import { useAuth } from '../contexts/AuthContext'
-import { COLORS, cardStyle, cardHeaderStyle } from '../utils/constants'
+import { COLORS, cardStyle, cardHeaderStyle, timeAgo } from '../utils/constants'
 import SmartieGoalForm from '../components/SmartieGoalForm'
 
 const DOMAIN_LABELS = {
@@ -34,6 +34,7 @@ export default function SmartieGoals() {
   const [saving, setSaving] = useState(false)
   const [expandedGoal, setExpandedGoal] = useState(null)
   const [userProfile, setUserProfile] = useState(null)
+  const [cyclesByGoal, setCyclesByGoal] = useState({})
 
   // Auto-open form if ?domain= param is present (from recommendations)
   const prefillDomain = searchParams.get('domain')
@@ -74,6 +75,21 @@ export default function SmartieGoals() {
 
       // Load goals
       await loadGoals()
+
+      // Load PDSA cycles linked to goals
+      const { data: cycles } = await supabase
+        .from('pdsa_cycles')
+        .select('id, title, status, cycle_number, smartie_goal_id, created_at')
+        .eq('team_id', teamId)
+        .not('smartie_goal_id', 'is', null)
+        .order('cycle_number', { ascending: true })
+
+      const grouped = {}
+      ;(cycles || []).forEach(c => {
+        if (!grouped[c.smartie_goal_id]) grouped[c.smartie_goal_id] = []
+        grouped[c.smartie_goal_id].push(c)
+      })
+      setCyclesByGoal(grouped)
     } catch (err) {
       console.error('Error loading data:', err)
     } finally {
@@ -371,6 +387,100 @@ export default function SmartieGoals() {
                 Completed on {new Date(goal.completed_at).toLocaleDateString()}
               </div>
             )}
+
+            {/* PDSA Cycles */}
+            {(() => {
+              const goalCycles = cyclesByGoal[goal.id] || []
+              const PDSA_STATUS = {
+                plan: { bg: '#dbeafe', text: '#1e40af' },
+                do: { bg: '#fef3c7', text: '#92400e' },
+                study: { bg: '#ede9fe', text: '#5b21b6' },
+                act: { bg: '#ccfbf1', text: '#0f766e' },
+                completed: { bg: '#dcfce7', text: '#166534' },
+                abandoned: { bg: '#f3f4f6', text: '#6b7280' }
+              }
+              return (
+                <div style={{ marginTop: '1rem' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
+                    <strong style={{ fontSize: '0.85rem', color: COLORS.navy }}>
+                      🔄 PDSA Cycles {goalCycles.length > 0 && <span style={{ fontSize: '0.75rem', color: COLORS.teal }}>({goalCycles.length})</span>}
+                    </strong>
+                    {canEdit && (
+                      <button
+                        onClick={() => navigate(`/admin/pdsa/${teamId}?goalId=${goal.id}&domain=${goal.stsioa_domain || ''}`)}
+                        style={{
+                          background: 'none',
+                          border: `1px solid ${COLORS.teal}`,
+                          color: COLORS.teal,
+                          padding: '0.2rem 0.6rem',
+                          borderRadius: '4px',
+                          cursor: 'pointer',
+                          fontSize: '0.75rem',
+                          fontWeight: '600'
+                        }}
+                      >
+                        + Start a PDSA for this Goal
+                      </button>
+                    )}
+                  </div>
+                  {goalCycles.length > 0 ? (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                      {goalCycles.map(c => {
+                        const st = PDSA_STATUS[c.status] || PDSA_STATUS.plan
+                        return (
+                          <div
+                            key={c.id}
+                            onClick={() => navigate(`/admin/pdsa/${teamId}`)}
+                            style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '0.5rem',
+                              padding: '0.35rem 0.5rem',
+                              background: 'var(--bg-card-alt)',
+                              borderRadius: '4px',
+                              cursor: 'pointer',
+                              fontSize: '0.8rem'
+                            }}
+                          >
+                            <span style={{ color: 'var(--text-faint)', fontWeight: '600' }}>#{c.cycle_number}</span>
+                            <span style={{ color: 'var(--text-secondary)', flex: 1 }}>{c.title}</span>
+                            <span style={{
+                              padding: '0.1rem 0.35rem',
+                              borderRadius: '9999px',
+                              fontSize: '0.65rem',
+                              fontWeight: '600',
+                              background: st.bg,
+                              color: st.text,
+                              textTransform: 'capitalize'
+                            }}>
+                              {c.status}
+                            </span>
+                          </div>
+                        )
+                      })}
+                      <button
+                        onClick={() => navigate(`/admin/pdsa/${teamId}`)}
+                        style={{
+                          background: 'none',
+                          border: 'none',
+                          color: COLORS.teal,
+                          cursor: 'pointer',
+                          fontSize: '0.75rem',
+                          fontWeight: '600',
+                          textDecoration: 'underline',
+                          padding: '0.2rem 0',
+                          textAlign: 'left'
+                        }}
+                      >
+                        View All Cycles →
+                      </button>
+                    </div>
+                  ) : (
+                    <p style={{ margin: 0, fontSize: '0.8rem', color: 'var(--text-faint)' }}>No PDSA cycles yet</p>
+                  )}
+                </div>
+              )
+            })()}
 
             {/* Action Buttons */}
             {canEdit && (
