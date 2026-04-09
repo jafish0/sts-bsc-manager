@@ -561,7 +561,7 @@ export default function TeamDashboard() {
 
         {/* Action Cards */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '1.5rem', marginBottom: '2rem' }}>
-          {/* Team Report */}
+          {/* Row 1: Data */}
           <ActionCard
             icon="📊"
             title="Assessment Results"
@@ -569,62 +569,45 @@ export default function TeamDashboard() {
             borderColor={COLORS.teal}
             onClick={() => navigate(`/admin/team-report/${team.id}`)}
           />
-
-          {/* Recommendations */}
-          <ActionCard
-            icon="📋"
-            title="Recommendations"
-            description="See strengths, areas for growth, and suggested next steps based on your assessment results"
-            borderColor={COLORS.navy}
-            onClick={() => navigate(`/admin/recommendations/${team.id}`)}
-          />
-
-          {/* SMARTIE Goals */}
-          <ActionCard
-            icon="🎯"
-            title={<>SMARTIE Goals{goalCount > 0 && <span style={{ fontSize: '0.85rem', fontWeight: '400', color: COLORS.teal, marginLeft: '0.5rem' }}>({goalCount} active)</span>}</>}
-            description="Set and track your team's improvement goals"
-            borderColor={COLORS.teal}
-            onClick={() => navigate(`/admin/smartie-goals/${team.id}`)}
-          />
-
-          {/* PDSA Cycles */}
-          <ActionCard
-            icon="🔄"
-            title={<>PDSA Cycles{pdsaCount > 0 && <span style={{ fontSize: '0.85rem', fontWeight: '400', color: COLORS.teal, marginLeft: '0.5rem' }}>({pdsaCount} active)</span>}</>}
-            description="Run Plan-Do-Study-Act improvement cycles for your team"
-            borderColor={COLORS.navy}
-            onClick={() => navigate(`/admin/pdsa/${team.id}`)}
-          />
-
-          {/* Strategy Ideas */}
-          <ActionCard
-            icon="💡"
-            title="Strategy Ideas"
-            description="Browse improvement strategies from previous collaboratives by domain"
-            borderColor={COLORS.teal}
-            onClick={() => navigate('/admin/strategies')}
-          />
-
-          {/* Data Visualization */}
           <ActionCard
             icon="📈"
             title="Data Visualization"
             description="View detailed charts and graphs of assessment results"
-            borderColor={COLORS.teal}
+            borderColor={COLORS.navy}
             onClick={() => navigate('/admin/data-visualization')}
           />
-
-          {/* Change Framework */}
           <ActionCard
-            icon="🏗️"
-            title="Change Framework"
-            description="View the collaborative improvement framework by STSI-OA domain"
-            borderColor={COLORS.navy}
-            onClick={() => navigate('/admin/change-framework')}
+            icon="📋"
+            title="Recommendations"
+            description="See strengths, areas for growth, and suggested next steps based on your assessment results"
+            borderColor={COLORS.teal}
+            onClick={() => navigate(`/admin/recommendations/${team.id}`)}
           />
 
-          {/* Resources */}
+          {/* Row 2: Improvement */}
+          <ActionCard
+            icon="🎯"
+            title={<>SMARTIE Goals{goalCount > 0 && <span style={{ fontSize: '0.85rem', fontWeight: '400', color: COLORS.teal, marginLeft: '0.5rem' }}>({goalCount} active)</span>}</>}
+            description="Set and track your team's improvement goals"
+            borderColor={COLORS.navy}
+            onClick={() => navigate(`/admin/smartie-goals/${team.id}`)}
+          />
+          <ActionCard
+            icon="🔄"
+            title={<>PDSA Cycles{pdsaCount > 0 && <span style={{ fontSize: '0.85rem', fontWeight: '400', color: COLORS.teal, marginLeft: '0.5rem' }}>({pdsaCount} active)</span>}</>}
+            description="Run Plan-Do-Study-Act improvement cycles for your team"
+            borderColor={COLORS.teal}
+            onClick={() => navigate(`/admin/pdsa/${team.id}`)}
+          />
+          <ActionCard
+            icon="💡"
+            title="Strategy Ideas"
+            description="Browse improvement strategies from previous collaboratives by domain"
+            borderColor={COLORS.navy}
+            onClick={() => navigate('/admin/strategies')}
+          />
+
+          {/* Row 3: Resources & Community */}
           <ActionCard
             icon="📚"
             title="Resources"
@@ -632,32 +615,35 @@ export default function TeamDashboard() {
             borderColor={COLORS.teal}
             onClick={() => navigate('/admin/resources')}
           />
-
-          {/* Forum */}
+          <ActionCard
+            icon="🏗️"
+            title="Change Framework"
+            description="View the collaborative improvement framework by STSI-OA domain"
+            borderColor={COLORS.navy}
+            onClick={() => navigate('/admin/change-framework')}
+          />
           <ActionCard
             icon="💬"
             title="Community Forum"
             description="Discuss strategies and share experiences with your collaborative"
-            borderColor={COLORS.navy}
+            borderColor={COLORS.teal}
             onClick={() => navigate('/admin/forum')}
           />
 
-          {/* Project Staff */}
+          {/* Row 4: Team & Staff */}
+          <ActionCard
+            icon="🧑‍🤝‍🧑"
+            title="Team"
+            description="View and manage team members, roles, and access"
+            borderColor={COLORS.navy}
+            onClick={() => navigate(`/admin/team/${team.id}/members`)}
+          />
           <ActionCard
             icon="👥"
             title="Project Staff"
             description="Meet the BSC faculty and support team"
             borderColor={COLORS.teal}
             onClick={() => navigate('/admin/staff')}
-          />
-
-          {/* Team Members */}
-          <ActionCard
-            icon="🧑‍🤝‍🧑"
-            title="Team"
-            description="View your team members and roles"
-            borderColor={COLORS.navy}
-            onClick={() => navigate(`/admin/team/${team.id}/members`)}
           />
         </div>
       </div>
