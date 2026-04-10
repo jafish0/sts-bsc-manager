@@ -3,6 +3,8 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { supabase } from '../utils/supabase'
 import AddTeamModal from '../components/AddTeamModal'
 import InviteTeamLeaderModal from '../components/InviteTeamLeaderModal'
+import AttendanceReport from '../components/AttendanceReport'
+import EvaluationReport from '../components/EvaluationReport'
 import ctacLogo from '../assets/CTAC_white.png'
 
 const EVENT_TYPES = [
@@ -40,6 +42,14 @@ export default function CollaborativeDetail() {
     event_type: 'learning_session', title: '', event_date: '',
     start_time: '', end_time: '', location: 'Virtual'
   })
+
+  // Session link & report state
+  const [sessionLinks, setSessionLinks] = useState({})
+  const [attendanceCounts, setAttendanceCounts] = useState({})
+  const [evalCounts, setEvalCounts] = useState({})
+  const [viewAttendance, setViewAttendance] = useState(null)
+  const [viewEvaluation, setViewEvaluation] = useState(null)
+  const [linkCopied, setLinkCopied] = useState(null)
 
   useEffect(() => {
     fetchCollaborative()
@@ -135,6 +145,83 @@ export default function CollaborativeDetail() {
       .eq('collaborative_id', id)
       .order('event_date')
     setEvents(data || [])
+
+    // Load session links for learning sessions
+    const { data: links } = await supabase
+      .from('session_links')
+      .select('*')
+      .eq('collaborative_id', id)
+    const linkMap = {}
+    ;(links || []).forEach(l => { linkMap[l.bsc_event_id] = l })
+    setSessionLinks(linkMap)
+
+    // Load attendance counts
+    const { data: attData } = await supabase
+      .from('session_attendance')
+      .select('bsc_event_id')
+      .eq('collaborative_id', id)
+    const attCounts = {}
+    ;(attData || []).forEach(a => { attCounts[a.bsc_event_id] = (attCounts[a.bsc_event_id] || 0) + 1 })
+    setAttendanceCounts(attCounts)
+
+    // Load eval counts
+    const { data: evalData } = await supabase
+      .from('session_evaluations')
+      .select('bsc_event_id')
+      .eq('collaborative_id', id)
+    const eCounts = {}
+    ;(evalData || []).forEach(e => { eCounts[e.bsc_event_id] = (eCounts[e.bsc_event_id] || 0) + 1 })
+    setEvalCounts(eCounts)
+  }
+
+  const generateSessionLink = async (evt) => {
+    const token = Array.from(crypto.getRandomValues(new Uint8Array(6)))
+      .map(b => b.toString(36).padStart(2, '0')).join('').slice(0, 8)
+    // Expire at 4:00 PM EST on event date
+    const expiresAt = new Date(`${evt.event_date}T21:00:00.000Z`) // 4PM EST = 9PM UTC
+
+    const { data, error } = await supabase
+      .from('session_links')
+      .insert({
+        bsc_event_id: evt.id,
+        collaborative_id: id,
+        token,
+        expires_at: expiresAt.toISOString()
+      })
+      .select()
+      .single()
+
+    if (error) { alert('Error: ' + error.message); return }
+    setSessionLinks(prev => ({ ...prev, [evt.id]: data }))
+  }
+
+  const closeSession = async (evt) => {
+    if (!window.confirm('Close this session? All unsigned-out attendees will be marked as session-closed.')) return
+    const link = sessionLinks[evt.id]
+    if (!link) return
+
+    // Deactivate link
+    await supabase.from('session_links').update({ is_active: false }).eq('id', link.id)
+
+    // Bulk sign-out attendees without sign-out time
+    await supabase
+      .from('session_attendance')
+      .update({ signed_out_at: new Date().toISOString(), sign_out_method: 'session_closed' })
+      .eq('bsc_event_id', evt.id)
+      .is('signed_out_at', null)
+
+    setSessionLinks(prev => ({ ...prev, [evt.id]: { ...prev[evt.id], is_active: false } }))
+  }
+
+  const copySessionLink = async (token) => {
+    const url = `https://sts-bsc-manager.vercel.app/session/${token}`
+    try {
+      await navigator.clipboard.writeText(url)
+      setLinkCopied(token)
+      setTimeout(() => setLinkCopied(null), 2000)
+    } catch (err) {
+      alert('Failed to copy link')
+    }
   }
 
   const handleAddEvent = async () => {
@@ -625,31 +712,105 @@ export default function CollaborativeDetail() {
             </div>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-              {events.map(evt => (
-                <div key={evt.id} style={{
-                  display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-                  padding: '0.75rem 1rem', background: '#f9fafb', borderRadius: '8px',
-                  border: '1px solid #f3f4f6'
-                }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-                    <span style={{
-                      fontSize: '0.65rem', fontWeight: '700', textTransform: 'uppercase',
-                      background: evt.event_type === 'learning_session' ? '#dbeafe' : '#f3f4f6',
-                      color: evt.event_type === 'learning_session' ? '#1e40af' : '#6b7280',
-                      padding: '0.15rem 0.5rem', borderRadius: '4px'
-                    }}>{EVENT_TYPES.find(t => t.value === evt.event_type)?.label || evt.event_type}</span>
-                    <span style={{ fontWeight: '600', color: '#0E1F56', fontSize: '0.9rem' }}>{evt.title}</span>
-                    <span style={{ color: '#6b7280', fontSize: '0.85rem' }}>
-                      {new Date(evt.event_date + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
-                      {evt.start_time && ` at ${evt.start_time.slice(0,5)}`}
-                    </span>
-                    {evt.location && <span style={{ color: '#9ca3af', fontSize: '0.8rem' }}>({evt.location})</span>}
+              {events.map(evt => {
+                const link = sessionLinks[evt.id]
+                const isLS = evt.event_type === 'learning_session'
+                const attCount = attendanceCounts[evt.id] || 0
+                const evCount = evalCounts[evt.id] || 0
+                const isExpired = link && new Date(link.expires_at) < new Date()
+                const linkActive = link && link.is_active && !isExpired
+
+                return (
+                  <div key={evt.id} style={{
+                    padding: '0.75rem 1rem', background: '#f9fafb', borderRadius: '8px',
+                    border: '1px solid #f3f4f6'
+                  }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
+                        <span style={{
+                          fontSize: '0.65rem', fontWeight: '700', textTransform: 'uppercase',
+                          background: isLS ? '#dbeafe' : '#f3f4f6',
+                          color: isLS ? '#1e40af' : '#6b7280',
+                          padding: '0.15rem 0.5rem', borderRadius: '4px'
+                        }}>{EVENT_TYPES.find(t => t.value === evt.event_type)?.label || evt.event_type}</span>
+                        <span style={{ fontWeight: '600', color: '#0E1F56', fontSize: '0.9rem' }}>{evt.title}</span>
+                        <span style={{ color: '#6b7280', fontSize: '0.85rem' }}>
+                          {new Date(evt.event_date + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                          {evt.start_time && ` at ${evt.start_time.slice(0,5)}`}
+                        </span>
+                        {evt.location && <span style={{ color: '#9ca3af', fontSize: '0.8rem' }}>({evt.location})</span>}
+                        {isLS && attCount > 0 && (
+                          <span style={{ background: '#d1fae5', color: '#166534', padding: '0.1rem 0.4rem', borderRadius: '4px', fontSize: '0.7rem', fontWeight: '600' }}>
+                            {attCount} attended
+                          </span>
+                        )}
+                        {isLS && evCount > 0 && (
+                          <span style={{ background: '#EFF6FF', color: '#1E40AF', padding: '0.1rem 0.4rem', borderRadius: '4px', fontSize: '0.7rem', fontWeight: '600' }}>
+                            {evCount} evals
+                          </span>
+                        )}
+                      </div>
+                      <button onClick={() => handleDeleteEvent(evt.id)} style={{
+                        background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', fontSize: '0.8rem'
+                      }}>Delete</button>
+                    </div>
+
+                    {/* Session management controls for learning sessions */}
+                    {isLS && (
+                      <div style={{ marginTop: '0.5rem', display: 'flex', gap: '0.4rem', flexWrap: 'wrap', alignItems: 'center' }}>
+                        {!link ? (
+                          <button onClick={() => generateSessionLink(evt)} style={{
+                            padding: '0.25rem 0.6rem', background: '#00A79D', color: 'white',
+                            border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '0.75rem', fontWeight: '600'
+                          }}>Generate Sign-In Link</button>
+                        ) : (
+                          <>
+                            {/* Link status */}
+                            <span style={{
+                              fontSize: '0.7rem', fontWeight: '600',
+                              color: linkActive ? '#166534' : '#991B1B',
+                              background: linkActive ? '#d1fae5' : '#FEE2E2',
+                              padding: '0.15rem 0.4rem', borderRadius: '4px'
+                            }}>
+                              {linkActive ? 'Link Active' : isExpired ? 'Expired' : 'Closed'}
+                            </span>
+
+                            {/* Copy link */}
+                            <button onClick={() => copySessionLink(link.token)} style={{
+                              padding: '0.25rem 0.6rem', background: '#e0f2fe', color: '#0369a1',
+                              border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '0.7rem', fontWeight: '600'
+                            }}>
+                              {linkCopied === link.token ? 'Copied!' : 'Copy Link'}
+                            </button>
+
+                            {/* Close session */}
+                            {linkActive && (
+                              <button onClick={() => closeSession(evt)} style={{
+                                padding: '0.25rem 0.6rem', background: '#FEE2E2', color: '#991B1B',
+                                border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '0.7rem', fontWeight: '600'
+                              }}>Close Session</button>
+                            )}
+                          </>
+                        )}
+
+                        {/* View reports */}
+                        {attCount > 0 && (
+                          <button onClick={() => setViewAttendance(evt)} style={{
+                            padding: '0.25rem 0.6rem', background: '#0E1F56', color: 'white',
+                            border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '0.7rem', fontWeight: '600'
+                          }}>Attendance</button>
+                        )}
+                        {evCount > 0 && (
+                          <button onClick={() => setViewEvaluation(evt)} style={{
+                            padding: '0.25rem 0.6rem', background: '#0E1F56', color: 'white',
+                            border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '0.7rem', fontWeight: '600'
+                          }}>Evaluations</button>
+                        )}
+                      </div>
+                    )}
                   </div>
-                  <button onClick={() => handleDeleteEvent(evt.id)} style={{
-                    background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', fontSize: '0.8rem'
-                  }}>Delete</button>
-                </div>
-              ))}
+                )
+              })}
             </div>
           )}
         </div>
@@ -868,6 +1029,48 @@ export default function CollaborativeDetail() {
           )}
         </div>
       </div>
+
+      {/* Attendance Report Modal */}
+      {viewAttendance && (
+        <div style={{
+          position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+          background: 'rgba(0,0,0,0.5)', zIndex: 1000,
+          display: 'flex', justifyContent: 'center', alignItems: 'center', padding: '1rem'
+        }} onClick={() => setViewAttendance(null)}>
+          <div style={{
+            background: 'white', borderRadius: '0.75rem', padding: '1.5rem',
+            maxWidth: '1000px', width: '100%', maxHeight: '85vh', overflowY: 'auto'
+          }} onClick={e => e.stopPropagation()}>
+            <AttendanceReport
+              eventId={viewAttendance.id}
+              eventTitle={viewAttendance.title}
+              eventDate={viewAttendance.event_date}
+              collaborativeName={collaborative?.name}
+              onClose={() => setViewAttendance(null)}
+            />
+          </div>
+        </div>
+      )}
+
+      {/* Evaluation Report Modal */}
+      {viewEvaluation && (
+        <div style={{
+          position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+          background: 'rgba(0,0,0,0.5)', zIndex: 1000,
+          display: 'flex', justifyContent: 'center', alignItems: 'center', padding: '1rem'
+        }} onClick={() => setViewEvaluation(null)}>
+          <div style={{
+            background: 'white', borderRadius: '0.75rem', padding: '1.5rem',
+            maxWidth: '900px', width: '100%', maxHeight: '85vh', overflowY: 'auto'
+          }} onClick={e => e.stopPropagation()}>
+            <EvaluationReport
+              eventId={viewEvaluation.id}
+              eventTitle={viewEvaluation.title}
+              onClose={() => setViewEvaluation(null)}
+            />
+          </div>
+        </div>
+      )}
 
       {/* Add Team Modal */}
       {showAddTeamModal && (

@@ -31,6 +31,9 @@ import DataRecommendations from './pages/DataRecommendations'
 import StsPat from './pages/StsPat'
 import StsPatOverview from './pages/StsPatOverview'
 import SupervisorSelfRating from './pages/SupervisorSelfRating'
+import SessionSignIn from './pages/SessionSignIn'
+import SessionEvaluation from './pages/SessionEvaluation'
+import SessionSignOut from './pages/SessionSignOut'
 
 // Detect invite/recovery tokens in URL hash and redirect to /set-password
 function AuthRedirectHandler() {
@@ -70,7 +73,12 @@ function App() {
           <Route path="/proqol" element={<ProQOL />} />
           <Route path="/stsioa" element={<STSIOA />} />
           <Route path="/complete" element={<AssessmentComplete />} />
-          
+
+          {/* Public Session Routes */}
+          <Route path="/session/:token" element={<SessionSignIn />} />
+          <Route path="/session/:token/eval" element={<SessionEvaluation />} />
+          <Route path="/session/:token/signout" element={<SessionSignOut />} />
+
           {/* Auth Routes */}
           <Route path="/login" element={<Login />} />
           <Route path="/set-password" element={<SetPassword />} />

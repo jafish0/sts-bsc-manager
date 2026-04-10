@@ -5,6 +5,7 @@ import { useAuth } from '../contexts/AuthContext'
 import { COLORS, cardStyle, cardHeaderStyle } from '../utils/constants'
 import { calculatePhase, PHASES, getPhaseGuidance, phaseToChecklistKey } from '../utils/phaseCalculator'
 import { detectChecklistCompletion } from '../utils/checklistAutoDetect'
+import AttendanceReport from '../components/AttendanceReport'
 
 export default function TeamDashboard() {
   const navigate = useNavigate()
@@ -31,6 +32,8 @@ export default function TeamDashboard() {
   const [pendingGoals, setPendingGoals] = useState(0)
   const [pendingCycles, setPendingCycles] = useState(0)
   const [lastSelfRatingDate, setLastSelfRatingDate] = useState(null)
+  const [sessionAttendance, setSessionAttendance] = useState([])
+  const [viewAttendanceEvent, setViewAttendanceEvent] = useState(null)
 
   useEffect(() => {
     if (profile?.team_id) {
@@ -121,6 +124,32 @@ export default function TeamDashboard() {
         .limit(1)
         .single()
       setLastSelfRatingDate(latestSelfRating?.completed_at || null)
+
+      // Load session attendance for this team's collaborative
+      if (teamData.collaboratives?.id) {
+        const { data: lsEvents } = await supabase
+          .from('bsc_events')
+          .select('id, title, event_date')
+          .eq('collaborative_id', teamData.collaboratives.id)
+          .eq('event_type', 'learning_session')
+          .order('event_date', { ascending: false })
+
+        if (lsEvents && lsEvents.length > 0) {
+          // Get attendance counts for team members
+          const { data: attData } = await supabase
+            .from('session_attendance')
+            .select('bsc_event_id')
+            .eq('team_id', profile.team_id)
+
+          const attCounts = {}
+          ;(attData || []).forEach(a => { attCounts[a.bsc_event_id] = (attCounts[a.bsc_event_id] || 0) + 1 })
+
+          setSessionAttendance(lsEvents.map(e => ({
+            ...e,
+            teamAttendees: attCounts[e.id] || 0
+          })))
+        }
+      }
     } catch (err) {
       console.error('Error loading team:', err)
     } finally {
@@ -701,6 +730,76 @@ export default function TeamDashboard() {
             onClick={() => navigate('/admin/staff')}
           />
         </div>
+
+        {/* Session Attendance Section */}
+        {sessionAttendance.length > 0 && (
+          <div style={{
+            background: 'var(--bg-card)',
+            borderRadius: '0.75rem',
+            padding: '1.5rem',
+            boxShadow: '0 1px 3px rgba(0,0,0,0.1)'
+          }}>
+            <h3 style={{ margin: '0 0 1rem', color: COLORS.navy, fontSize: '1.1rem' }}>
+              Session Attendance
+            </h3>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+              {sessionAttendance.map(s => (
+                <div key={s.id} style={{
+                  display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                  padding: '0.6rem 0.75rem', borderRadius: '0.5rem',
+                  background: '#f9fafb', border: '1px solid #e5e7eb'
+                }}>
+                  <div>
+                    <span style={{ fontWeight: '600', color: COLORS.navy, fontSize: '0.9rem' }}>{s.title}</span>
+                    <span style={{ color: '#6b7280', fontSize: '0.85rem', marginLeft: '0.75rem' }}>
+                      {new Date(s.event_date + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                    </span>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <span style={{
+                      fontSize: '0.8rem', fontWeight: '600',
+                      color: s.teamAttendees > 0 ? '#166534' : '#6b7280'
+                    }}>
+                      {s.teamAttendees} team member{s.teamAttendees !== 1 ? 's' : ''}
+                    </span>
+                    {s.teamAttendees > 0 && (
+                      <button
+                        onClick={() => setViewAttendanceEvent(s)}
+                        style={{
+                          padding: '0.2rem 0.5rem', background: COLORS.navy, color: 'white',
+                          border: 'none', borderRadius: '4px', cursor: 'pointer',
+                          fontSize: '0.7rem', fontWeight: '600'
+                        }}
+                      >View</button>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Attendance Report Modal */}
+        {viewAttendanceEvent && (
+          <div style={{
+            position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+            background: 'rgba(0,0,0,0.5)', zIndex: 1000,
+            display: 'flex', justifyContent: 'center', alignItems: 'center', padding: '1rem'
+          }} onClick={() => setViewAttendanceEvent(null)}>
+            <div style={{
+              background: 'var(--bg-card)', borderRadius: '0.75rem', padding: '1.5rem',
+              maxWidth: '1000px', width: '100%', maxHeight: '85vh', overflowY: 'auto'
+            }} onClick={e => e.stopPropagation()}>
+              <AttendanceReport
+                eventId={viewAttendanceEvent.id}
+                eventTitle={viewAttendanceEvent.title}
+                eventDate={viewAttendanceEvent.event_date}
+                teamFilter={team?.id}
+                onClose={() => setViewAttendanceEvent(null)}
+              />
+            </div>
+          </div>
+        )}
       </div>
     </div>
   )
