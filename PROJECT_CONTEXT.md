@@ -270,7 +270,101 @@ Color-coded organizational assessment visual at the bottom of the Data Visualiza
 
 ---
 
-### 13. K-Anonymity Privacy Threshold
+### 13. Supervisor Self-Rating Tool (`/admin/supervisor-self-rating`)
+
+Private self-assessment for supervisors to rate their STS-informed leadership competencies.
+
+**Architecture:**
+- Strict user-only RLS: `auth.uid() = user_id` — no admin access to individual scores
+- Aggregate stats only via SECURITY DEFINER function `get_self_rating_completion_stats()`
+
+**4 Competency Areas (20 rated items + 5 discussion prompts):**
+1. STS Knowledge & Support (5 rated)
+2. Self-Assessment & Management (3 rated + 2 discussion)
+3. Emotional Safety & Sharing (7 rated)
+4. Resilience & Compassion (5 rated + 3 discussion)
+
+**Features:**
+- 4 tabs: Welcome, Self-Rating, My Results, Resources
+- 3-point developmental scale: Beginning (1), Developing (2), Accomplished (3)
+- Auto-save with 300ms debounce via upsert on `(user_id, competency_key, item_key)` unique constraint
+- Radar chart showing competency scores
+- Growth-over-time LineChart comparing historical snapshots
+- PDF export with competency bars, detailed tables, growth opportunities
+- Guidance/strategies/resources per competency in accordion sections
+
+**DB Tables:** `supervisor_self_ratings`, `supervisor_self_rating_responses`
+
+---
+
+### 14. Session Attendance & Evaluation System
+
+Public-facing system for BSC Learning Session sign-in, evaluation, and reporting.
+
+**Public Flow:**
+```
+/session/:token → Sign In → /session/:token/eval → Evaluation → /session/:token/signout → Sign Out
+```
+
+**Session Links:**
+- Generated per BSC event via CollaborativeDetail
+- Random 8-char alphanumeric tokens (crypto.getRandomValues)
+- Expire at 4PM EST (9PM UTC) on event date
+- Can be deactivated early ("Close Session")
+
+**Sign-In (SessionSignIn.jsx):**
+- Form: name, email, role (team_member, agency_admin, senior_leader, other)
+- Auto-match by email in user_profiles (case-insensitive)
+- Creates `unmatched_attendees` if no match, with domain-based team suggestion
+- Stores `attendance_${token}` in sessionStorage
+
+**Evaluation (SessionEvaluation.jsx):**
+- Structurally anonymous: session_evaluations has NO FK to users or attendance
+- 6 Likert items (1-5, required), 3 open text (2 required, 1 optional), NPS 0-10 (optional)
+- Links only to bsc_event_id + collaborative_id
+
+**Sign-Out (SessionSignOut.jsx):**
+- Updates session_attendance.signed_out_at
+- Clears sessionStorage
+
+**Reports (admin-facing):**
+- AttendanceReport component: summary stats, table with duration calc, PDF/Excel export, teamFilter prop
+- EvaluationReport component: mean/SD per item, horizontal BarCharts, NPS distribution, open text responses
+- Both accessible from CollaborativeDetail and TeamDashboard
+
+**Unmatched Attendees (AdminDashboard):**
+- Shows pending unmatched attendees with suggested teams
+- Dismiss button for resolved cases
+
+**DB Tables:** `session_links`, `session_attendance`, `session_evaluations`, `unmatched_attendees`
+
+---
+
+### 15. PDSA Cycles (`/admin/pdsa/:teamId`)
+
+Plan-Do-Study-Act improvement cycles linked to teams.
+
+---
+
+### 16. Data Recommendations (`/admin/recommendations/:teamId`)
+
+Data-driven recommendations based on team assessment results.
+
+---
+
+### 17. Strategy Ideas (`/admin/strategies`)
+
+Strategy library for improvement work.
+
+---
+
+### 18. STS-PAT (`/admin/sts-pat/:teamId` & `/admin/sts-pat-overview`)
+
+STS Program Assessment Tool for evaluating organizational STS programs.
+
+---
+
+### 20. K-Anonymity Privacy Threshold
 
 Prevents re-identification of small groups in demographic breakdowns.
 
@@ -282,7 +376,7 @@ Prevents re-identification of small groups in demographic breakdowns.
 
 ---
 
-### 14. Dark Mode
+### 21. Dark Mode
 
 System-wide dark mode toggle with persistent preference.
 
@@ -294,7 +388,7 @@ System-wide dark mode toggle with persistent preference.
 
 ---
 
-### 15. Smart Recommendations (TeamDashboard)
+### 22. Smart Recommendations (TeamDashboard)
 
 Surfaces targeted resources based on a team's weakest STSI-OA domains.
 
@@ -445,6 +539,69 @@ checklist_items
 └── created_at
 ```
 
+### Supervisor Self-Rating Tables
+
+```
+supervisor_self_ratings
+├── id (uuid, PK)
+├── user_id (uuid, FK → auth.users) — RLS: auth.uid() = user_id ONLY
+├── competency_key (text)
+├── score (numeric)
+├── max_score (numeric)
+├── rated_at (timestamptz)
+└── created_at, updated_at
+
+supervisor_self_rating_responses
+├── id (uuid, PK)
+├── user_id (uuid, FK → auth.users) — RLS: auth.uid() = user_id ONLY
+├── competency_key (text)
+├── item_key (text)
+├── rating (integer 1-3)
+├── UNIQUE(user_id, competency_key, item_key)
+└── created_at, updated_at
+```
+
+### Session Attendance & Evaluation Tables
+
+```
+session_links
+├── id (uuid, PK)
+├── bsc_event_id (FK → bsc_events)
+├── collaborative_id (FK → collaboratives)
+├── token (text, unique) — 8-char alphanumeric
+├── is_active (boolean)
+├── expires_at (timestamptz) — 4PM EST on event date
+└── created_at
+
+session_attendance
+├── id (uuid, PK)
+├── bsc_event_id (FK → bsc_events)
+├── collaborative_id (FK → collaboratives)
+├── user_profile_id (FK → user_profiles, nullable)
+├── attendee_name, attendee_email, attendee_role
+├── team_id (FK → teams, nullable)
+├── signed_in_at, signed_out_at
+└── created_at
+
+session_evaluations (structurally anonymous — NO FK to users or attendance)
+├── id (uuid, PK)
+├── bsc_event_id (FK → bsc_events)
+├── collaborative_id (FK → collaboratives)
+├── content_relevance, presenter_effectiveness, group_discussion_quality
+├── actionable_takeaways, overall_satisfaction, learning_objectives_met (integer 1-5)
+├── most_valuable, improvements, additional_comments (text)
+├── recommend_score (integer 0-10, NPS)
+└── submitted_at
+
+unmatched_attendees
+├── id (uuid, PK)
+├── session_attendance_id (FK → session_attendance)
+├── attendee_name, attendee_email
+├── suggested_team_id (FK → teams, nullable)
+├── status (pending/matched/dismissed)
+└── created_at
+```
+
 ### Database Functions & Triggers
 
 | Function | Purpose |
@@ -454,6 +611,7 @@ checklist_items
 | `user_team_id()` | SECURITY DEFINER — returns the team_id for the current user (bypasses RLS) |
 | `update_thread_reply_stats()` | Trigger on forum_posts INSERT/DELETE — updates reply_count and last_reply_at |
 | `forum_set_updated_at()` | Trigger on forum table UPDATE — sets updated_at and is_edited flag |
+| `get_self_rating_completion_stats()` | SECURITY DEFINER — returns aggregate self-rating completion counts (no individual data) |
 
 ### RLS Policy Summary
 
@@ -464,6 +622,11 @@ checklist_items
 - **Resources:** Authenticated read, super_admin write
 - **Forum threads:** Users see their collaborative's threads, super_admins see all
 - **Forum posts:** Scoped through parent thread's collaborative
+- **Supervisor self-ratings:** Strict user-only (`auth.uid() = user_id`) — no admin bypass
+- **Session links:** Public read (for token validation), authenticated write
+- **Session attendance:** Public insert (anonymous sign-in), authenticated read
+- **Session evaluations:** Public insert (anonymous), authenticated read
+- **Unmatched attendees:** Super admin read/update
 
 ---
 
@@ -496,12 +659,16 @@ sts-bsc-manager/
 │       │   ├── InviteTeamMemberModal.jsx
 │       │   ├── AddResourceModal.jsx
 │       │   ├── SmartieGoalForm.jsx
-│       │   └── ThemeToggle.jsx          — Floating dark mode toggle button
+│       │   ├── ThemeToggle.jsx          — Floating dark mode toggle button
+│       │   ├── AttendanceReport.jsx     — Session attendance report with PDF/Excel export
+│       │   └── EvaluationReport.jsx     — Session evaluation report with charts
 │       ├── config/
 │       │   ├── demographics.js
 │       │   ├── stss.js
 │       │   ├── proqol.js
-│       │   └── stsioa.js
+│       │   ├── stsioa.js
+│       │   ├── supervisorSelfRating.js  — Self-rating competencies, items, resources
+│       │   └── evaluationQuestions.js   — Session evaluation Likert + open text config
 │       ├── contexts/
 │       │   ├── AuthContext.jsx
 │       │   └── ThemeContext.jsx          — Dark mode toggle with localStorage persistence
@@ -527,7 +694,16 @@ sts-bsc-manager/
 │       │   ├── ForumThread.jsx
 │       │   ├── ChangeFramework.jsx
 │       │   ├── StaffDirectory.jsx
-│       │   └── TeamMembers.jsx
+│       │   ├── TeamMembers.jsx
+│       │   ├── PdsaCycles.jsx
+│       │   ├── Strategies.jsx
+│       │   ├── DataRecommendations.jsx
+│       │   ├── StsPat.jsx
+│       │   ├── StsPatOverview.jsx
+│       │   ├── SupervisorSelfRating.jsx — Private self-assessment (4 tabs, radar chart, PDF)
+│       │   ├── SessionSignIn.jsx        — Public session sign-in
+│       │   ├── SessionEvaluation.jsx    — Public anonymous evaluation
+│       │   └── SessionSignOut.jsx       — Public sign-out confirmation
 │       ├── styles/               — CSS files for assessment pages
 │       └── utils/
 │           ├── supabase.js
@@ -536,7 +712,8 @@ sts-bsc-manager/
 │           ├── exportExcel.js
 │           ├── exportPdf.js
 │           ├── phaseCalculator.js
-│           └── checklistAutoDetect.js
+│           ├── checklistAutoDetect.js
+│           └── exportSupervisorSelfRating.js — PDF export for self-rating
 │
 ├── supabase/
 │   ├── config.toml
@@ -575,6 +752,15 @@ sts-bsc-manager/
 | `/admin/change-framework` | ChangeFramework | Protected | Collaborative change framework by domain |
 | `/admin/staff` | StaffDirectory | Protected | BSC faculty and support staff |
 | `/admin/team/:teamId/members` | TeamMembers | Protected | Team roster with invite/manage members |
+| `/admin/pdsa/:teamId` | PdsaCycles | Protected | PDSA improvement cycles |
+| `/admin/strategies` | Strategies | Protected | Strategy ideas library |
+| `/admin/recommendations/:teamId` | DataRecommendations | Protected | Data-driven recommendations |
+| `/admin/sts-pat/:teamId` | StsPat | Protected | STS Program Assessment Tool |
+| `/admin/sts-pat-overview` | StsPatOverview | Protected | STS-PAT overview across teams |
+| `/admin/supervisor-self-rating` | SupervisorSelfRating | Protected | Private self-assessment tool |
+| `/session/:token` | SessionSignIn | Public | Learning session sign-in |
+| `/session/:token/eval` | SessionEvaluation | Public | Anonymous session evaluation |
+| `/session/:token/signout` | SessionSignOut | Public | Session sign-out |
 
 ---
 
