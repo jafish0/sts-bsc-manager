@@ -152,16 +152,20 @@ export default function StsPat() {
   async function loadData() {
     setLoading(true)
     const [teamRes, assessRes] = await Promise.all([
-      supabase.from('teams').select('id, name').eq('id', teamId).single(),
+      supabase.from('teams').select('id, team_name, agency_name').eq('id', teamId).single(),
       supabase.from('sts_pat_assessments').select('*').eq('team_id', teamId).order('created_at', { ascending: false })
     ])
-    if (teamRes.data) setTeam(teamRes.data)
+    if (teamRes.data) {
+      setTeam(teamRes.data)
+      // Pre-fill org name from team's agency name if not yet set
+      if (!orgName) setOrgName(teamRes.data.agency_name || '')
+    }
     if (assessRes.data) {
       setAssessments(assessRes.data)
       const inProgress = assessRes.data.find(a => a.status === 'in_progress')
       if (inProgress) {
         setCurrentAssessment(inProgress)
-        setOrgName(inProgress.organization_name || '')
+        setOrgName(inProgress.organization_name || teamRes.data?.agency_name || '')
         setTimepoint(inProgress.timepoint || 'baseline')
         await loadResponses(inProgress.id)
         await loadQueuedCounts(inProgress.id)
@@ -323,7 +327,7 @@ export default function StsPat() {
           <div>
             <h1 style={{ margin: 0, fontSize: '1.5rem' }}>STS Policy Analysis Tool</h1>
             <p style={{ margin: '0.25rem 0 0 0', opacity: 0.9, fontSize: '0.875rem' }}>
-              {team?.name}
+              {team?.team_name}
             </p>
           </div>
           <button onClick={() => navigate('/admin')} style={{ padding: '0.5rem 1rem', background: COLORS.teal, color: 'white', border: 'none', borderRadius: '0.375rem', cursor: 'pointer', fontWeight: '500' }}>
@@ -718,13 +722,13 @@ export default function StsPat() {
         {/* Export buttons */}
         <div style={{ display: 'flex', gap: '0.75rem', marginTop: '1.5rem', flexWrap: 'wrap' }}>
           <button
-            onClick={() => exportStsPatPdf(viewingAssessment, viewingResponses, team?.name)}
+            onClick={() => exportStsPatPdf(viewingAssessment, viewingResponses, team?.team_name)}
             style={{ padding: '0.5rem 1rem', background: COLORS.navy, color: 'white', border: 'none', borderRadius: '0.375rem', cursor: 'pointer', fontWeight: '500', fontSize: '0.85rem' }}
           >
             Download PDF Report
           </button>
           <button
-            onClick={() => exportStsPatExcel(viewingAssessment, viewingResponses, team?.name)}
+            onClick={() => exportStsPatExcel(viewingAssessment, viewingResponses, team?.team_name)}
             style={{ padding: '0.5rem 1rem', background: COLORS.teal, color: 'white', border: 'none', borderRadius: '0.375rem', cursor: 'pointer', fontWeight: '500', fontSize: '0.85rem' }}
           >
             Download Excel Report
