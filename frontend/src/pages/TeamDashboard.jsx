@@ -27,6 +27,9 @@ export default function TeamDashboard() {
 
   // PDSA count state
   const [pdsaCount, setPdsaCount] = useState(0)
+  const [patCount, setPatCount] = useState(0)
+  const [pendingGoals, setPendingGoals] = useState(0)
+  const [pendingCycles, setPendingCycles] = useState(0)
 
   useEffect(() => {
     if (profile?.team_id) {
@@ -81,6 +84,31 @@ export default function TeamDashboard() {
         .eq('team_id', profile.team_id)
         .in('status', ['plan', 'do', 'study', 'act'])
       setPdsaCount(pdsaActiveCount || 0)
+
+      // Count completed STS-PAT assessments
+      const { count: patCompletedCount } = await supabase
+        .from('sts_pat_assessments')
+        .select('id', { count: 'exact', head: true })
+        .eq('team_id', profile.team_id)
+        .eq('status', 'completed')
+      setPatCount(patCompletedCount || 0)
+
+      // Count pending queued actions from STS-PAT
+      const { count: pendingGoalCount } = await supabase
+        .from('sts_pat_queued_actions')
+        .select('id', { count: 'exact', head: true })
+        .eq('team_id', profile.team_id)
+        .eq('action_type', 'smartie_goal')
+        .eq('status', 'pending')
+      setPendingGoals(pendingGoalCount || 0)
+
+      const { count: pendingCycleCount } = await supabase
+        .from('sts_pat_queued_actions')
+        .select('id', { count: 'exact', head: true })
+        .eq('team_id', profile.team_id)
+        .eq('action_type', 'pdsa_cycle')
+        .eq('status', 'pending')
+      setPendingCycles(pendingCycleCount || 0)
     } catch (err) {
       console.error('Error loading team:', err)
     } finally {
@@ -587,14 +615,14 @@ export default function TeamDashboard() {
           {/* Row 2: Improvement */}
           <ActionCard
             icon="🎯"
-            title={<>SMARTIE Goals{goalCount > 0 && <span style={{ fontSize: '0.85rem', fontWeight: '400', color: COLORS.teal, marginLeft: '0.5rem' }}>({goalCount} active)</span>}</>}
+            title={<>SMARTIE Goals{goalCount > 0 && <span style={{ fontSize: '0.85rem', fontWeight: '400', color: COLORS.teal, marginLeft: '0.5rem' }}>({goalCount} active)</span>}{pendingGoals > 0 && <span style={{ background: '#f59e0b', color: 'white', borderRadius: '999px', padding: '0.1rem 0.4rem', fontSize: '0.7rem', marginLeft: '0.5rem' }}>{pendingGoals} new</span>}</>}
             description="Set and track your team's improvement goals"
             borderColor={COLORS.navy}
             onClick={() => navigate(`/admin/smartie-goals/${team.id}`)}
           />
           <ActionCard
             icon="🔄"
-            title={<>PDSA Cycles{pdsaCount > 0 && <span style={{ fontSize: '0.85rem', fontWeight: '400', color: COLORS.teal, marginLeft: '0.5rem' }}>({pdsaCount} active)</span>}</>}
+            title={<>PDSA Cycles{pdsaCount > 0 && <span style={{ fontSize: '0.85rem', fontWeight: '400', color: COLORS.teal, marginLeft: '0.5rem' }}>({pdsaCount} active)</span>}{pendingCycles > 0 && <span style={{ background: '#f59e0b', color: 'white', borderRadius: '999px', padding: '0.1rem 0.4rem', fontSize: '0.7rem', marginLeft: '0.5rem' }}>{pendingCycles} new</span>}</>}
             description="Run Plan-Do-Study-Act improvement cycles for your team"
             borderColor={COLORS.teal}
             onClick={() => navigate(`/admin/pdsa/${team.id}`)}
@@ -605,6 +633,13 @@ export default function TeamDashboard() {
             description="Browse improvement strategies from previous collaboratives by domain"
             borderColor={COLORS.navy}
             onClick={() => navigate('/admin/strategies')}
+          />
+          <ActionCard
+            icon="📜"
+            title={<>STS Policy Analysis{patCount > 0 && <span style={{ fontSize: '0.85rem', fontWeight: '400', color: COLORS.teal, marginLeft: '0.5rem' }}>({patCount} completed)</span>}</>}
+            description="Analyze your organization's STS-related policies using the STS-PAT tool"
+            borderColor={COLORS.navy}
+            onClick={() => navigate(`/admin/sts-pat/${team.id}`)}
           />
 
           {/* Row 3: Resources & Community */}

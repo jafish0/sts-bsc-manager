@@ -35,6 +35,9 @@ export default function SmartieGoals() {
   const [expandedGoal, setExpandedGoal] = useState(null)
   const [userProfile, setUserProfile] = useState(null)
   const [cyclesByGoal, setCyclesByGoal] = useState({})
+  const [queuedGoals, setQueuedGoals] = useState([])
+  const [showQueued, setShowQueued] = useState(false)
+  const [reviewIndex, setReviewIndex] = useState(0)
 
   // Auto-open form if ?domain= param is present (from recommendations)
   const prefillDomain = searchParams.get('domain')
@@ -90,6 +93,16 @@ export default function SmartieGoals() {
         grouped[c.smartie_goal_id].push(c)
       })
       setCyclesByGoal(grouped)
+
+      // Load pending queued actions from STS-PAT
+      const { data: queued } = await supabase
+        .from('sts_pat_queued_actions')
+        .select('*, sts_pat_assessments(completed_at)')
+        .eq('team_id', teamId)
+        .eq('action_type', 'smartie_goal')
+        .eq('status', 'pending')
+        .order('created_at')
+      setQueuedGoals(queued || [])
     } catch (err) {
       console.error('Error loading data:', err)
     } finally {
@@ -237,6 +250,63 @@ export default function SmartieGoals() {
       </div>
 
       <div style={{ maxWidth: '1200px', margin: '2rem auto', padding: '0 1rem' }}>
+        {/* STS-PAT queued actions banner */}
+        {queuedGoals.length > 0 && !showQueued && (
+          <div style={{ ...cardStyle, marginBottom: '1.5rem', borderLeft: `4px solid ${COLORS.amber}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.5rem' }}>
+            <span style={{ color: 'var(--text-primary)', fontSize: '0.9rem' }}>
+              You have <strong>{queuedGoals.length}</strong> new goal{queuedGoals.length > 1 ? 's' : ''} from your STS-PAT assessment
+            </span>
+            <div style={{ display: 'flex', gap: '0.5rem' }}>
+              <button onClick={() => { setShowQueued(true); setReviewIndex(0) }} style={{ padding: '0.4rem 0.75rem', background: COLORS.teal, color: 'white', border: 'none', borderRadius: '0.25rem', cursor: 'pointer', fontSize: '0.85rem', fontWeight: '500' }}>Review & Confirm</button>
+              <button onClick={async () => { for (const q of queuedGoals) { await supabase.from('sts_pat_queued_actions').update({ status: 'dismissed', resolved_at: new Date().toISOString() }).eq('id', q.id) } setQueuedGoals([]) }} style={{ padding: '0.4rem 0.75rem', background: 'none', border: '1px solid var(--border-light)', color: 'var(--text-muted)', borderRadius: '0.25rem', cursor: 'pointer', fontSize: '0.85rem' }}>Dismiss All</button>
+            </div>
+          </div>
+        )}
+
+        {/* STS-PAT queued action review */}
+        {showQueued && queuedGoals.length > 0 && reviewIndex < queuedGoals.length && (
+          <div style={{ ...cardStyle, marginBottom: '1.5rem', borderLeft: `4px solid ${COLORS.amber}` }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
+              <span style={{ fontWeight: '600', color: 'var(--text-primary)', fontSize: '0.9rem' }}>STS-PAT Action Item {reviewIndex + 1} of {queuedGoals.length}</span>
+              <button onClick={() => setShowQueued(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', fontSize: '0.85rem' }}>Close</button>
+            </div>
+            <p style={{ margin: '0 0 0.5rem 0', color: 'var(--text-secondary)', fontSize: '0.85rem' }}>
+              <strong>Q{queuedGoals[reviewIndex].question_number}:</strong> {queuedGoals[reviewIndex].question_text}
+            </p>
+            <p style={{ margin: '0 0 1rem 0', color: 'var(--text-muted)', fontSize: '0.8rem' }}>
+              Rating: {queuedGoals[reviewIndex].rating}/5{queuedGoals[reviewIndex].notes && ` · Notes: ${queuedGoals[reviewIndex].notes}`}
+            </p>
+            <div style={{ display: 'flex', gap: '0.5rem' }}>
+              <button
+                onClick={async () => {
+                  const q = queuedGoals[reviewIndex]
+                  setEditingGoal(null)
+                  setShowForm(true)
+                  setShowQueued(false)
+                  // Mark as confirmed
+                  await supabase.from('sts_pat_queued_actions').update({ status: 'confirmed', resolved_at: new Date().toISOString() }).eq('id', q.id)
+                  setQueuedGoals(prev => prev.filter((_, i) => i !== reviewIndex))
+                }}
+                style={{ padding: '0.4rem 0.75rem', background: COLORS.teal, color: 'white', border: 'none', borderRadius: '0.25rem', cursor: 'pointer', fontSize: '0.85rem', fontWeight: '500' }}
+              >
+                Create Goal from This
+              </button>
+              <button
+                onClick={async () => {
+                  const q = queuedGoals[reviewIndex]
+                  await supabase.from('sts_pat_queued_actions').update({ status: 'dismissed', resolved_at: new Date().toISOString() }).eq('id', q.id)
+                  const remaining = queuedGoals.filter((_, i) => i !== reviewIndex)
+                  setQueuedGoals(remaining)
+                  if (remaining.length === 0 || reviewIndex >= remaining.length) setShowQueued(false)
+                }}
+                style={{ padding: '0.4rem 0.75rem', background: 'none', border: '1px solid var(--border-light)', color: 'var(--text-muted)', borderRadius: '0.25rem', cursor: 'pointer', fontSize: '0.85rem' }}
+              >
+                Skip
+              </button>
+            </div>
+          </div>
+        )}
+
         {/* Intro text */}
         <div style={{ ...cardStyle, marginBottom: '1.5rem', borderLeft: `4px solid ${COLORS.teal}` }}>
           <p style={{ margin: 0, fontSize: '0.9rem', color: 'var(--text-secondary)', lineHeight: '1.6' }}>

@@ -8,6 +8,7 @@ import {
   TIMEPOINT_LABELS, TIMEPOINT_ORDER, cardStyle, cardHeaderStyle, subtitleStyle,
   K_ANONYMITY_THRESHOLD
 } from '../utils/constants'
+import { STS_PAT_INFO, STS_PAT_QUESTIONS } from '../config/stspat'
 import { exportTeamReportExcel } from '../utils/exportExcel'
 import { exportTeamReportPdf } from '../utils/exportPdf'
 import {
@@ -31,6 +32,7 @@ export default function TeamReport() {
   const [error, setError] = useState(null)
   const [report, setReport] = useState(null)
   const [smartieGoals, setSmartieGoals] = useState([])
+  const [patAssessments, setPatAssessments] = useState([])
 
   useEffect(() => {
     loadReport()
@@ -50,6 +52,15 @@ export default function TeamReport() {
         .eq('team_id', teamId)
         .order('created_at', { ascending: false })
       setSmartieGoals(goals || [])
+
+      // Load STS-PAT assessments
+      const { data: patData } = await supabase
+        .from('sts_pat_assessments')
+        .select('*')
+        .eq('team_id', teamId)
+        .eq('status', 'completed')
+        .order('completed_at', { ascending: true })
+      setPatAssessments(patData || [])
     } catch (err) {
       console.error('Error loading team report:', err)
       setError(err.message)
@@ -494,6 +505,100 @@ export default function TeamReport() {
                 >
                   Create Goals
                 </button>
+              </div>
+            )}
+
+            {/* STS-PAT Section */}
+            {patAssessments.length > 0 && (
+              <div style={{ ...cardStyle, marginBottom: '1.5rem' }}>
+                <div style={cardHeaderStyle}>STS Policy Analysis Tool (STS-PAT)</div>
+                {patAssessments.length === 1 ? (
+                  <div>
+                    <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: '0.75rem' }}>
+                      {patAssessments[0].timepoint && `${TIMEPOINT_LABELS[patAssessments[0].timepoint] || patAssessments[0].timepoint} · `}
+                      Completed {new Date(patAssessments[0].completed_at).toLocaleDateString()}
+                    </p>
+                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
+                      <thead>
+                        <tr style={{ borderBottom: '2px solid var(--border-light)' }}>
+                          <th style={{ textAlign: 'left', padding: '0.5rem', color: 'var(--text-secondary)' }}>Section</th>
+                          <th style={{ textAlign: 'center', padding: '0.5rem', color: 'var(--text-secondary)' }}>Score</th>
+                          <th style={{ textAlign: 'center', padding: '0.5rem', color: 'var(--text-secondary)' }}>Max</th>
+                          <th style={{ textAlign: 'center', padding: '0.5rem', color: 'var(--text-secondary)' }}>%</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {[
+                          { name: 'Part 1: Existing Policies', score: patAssessments[0].part1_score, max: 65 },
+                          { name: 'Part 2: Policy Making', score: patAssessments[0].part2_score, max: 20 },
+                          { name: 'Part 3: Implementation', score: patAssessments[0].part3_score, max: 25 },
+                          { name: 'Part 4: Outcomes', score: patAssessments[0].part4_score, max: 40 }
+                        ].map((s, i) => {
+                          const pct = Math.round((s.score / s.max) * 100)
+                          return (
+                            <tr key={i} style={{ borderBottom: '1px solid var(--border-light)' }}>
+                              <td style={{ padding: '0.5rem', color: 'var(--text-primary)' }}>{s.name}</td>
+                              <td style={{ padding: '0.5rem', textAlign: 'center', fontWeight: '600', color: pct >= 70 ? COLORS.green : pct >= 40 ? COLORS.amber : COLORS.red }}>{s.score}</td>
+                              <td style={{ padding: '0.5rem', textAlign: 'center', color: 'var(--text-muted)' }}>{s.max}</td>
+                              <td style={{ padding: '0.5rem', textAlign: 'center', fontWeight: '600', color: pct >= 70 ? COLORS.green : pct >= 40 ? COLORS.amber : COLORS.red }}>{pct}%</td>
+                            </tr>
+                          )
+                        })}
+                        <tr style={{ borderTop: '2px solid var(--border-light)', fontWeight: '700' }}>
+                          <td style={{ padding: '0.5rem', color: 'var(--text-primary)' }}>Total</td>
+                          <td style={{ padding: '0.5rem', textAlign: 'center', color: COLORS.navy }}>{patAssessments[0].total_score}</td>
+                          <td style={{ padding: '0.5rem', textAlign: 'center', color: 'var(--text-muted)' }}>150</td>
+                          <td style={{ padding: '0.5rem', textAlign: 'center', color: COLORS.navy }}>{Math.round((patAssessments[0].total_score / 150) * 100)}%</td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                ) : (
+                  <div>
+                    <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: '0.75rem' }}>
+                      Comparison across {patAssessments.length} assessments
+                    </p>
+                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
+                      <thead>
+                        <tr style={{ borderBottom: '2px solid var(--border-light)' }}>
+                          <th style={{ textAlign: 'left', padding: '0.5rem', color: 'var(--text-secondary)' }}>Section</th>
+                          {patAssessments.map(a => (
+                            <th key={a.id} style={{ textAlign: 'center', padding: '0.5rem', color: 'var(--text-secondary)' }}>
+                              {TIMEPOINT_LABELS[a.timepoint] || a.timepoint || new Date(a.completed_at).toLocaleDateString()}
+                            </th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {[
+                          { name: 'Part 1', key: 'part1_score', max: 65 },
+                          { name: 'Part 2', key: 'part2_score', max: 20 },
+                          { name: 'Part 3', key: 'part3_score', max: 25 },
+                          { name: 'Part 4', key: 'part4_score', max: 40 }
+                        ].map(s => (
+                          <tr key={s.key} style={{ borderBottom: '1px solid var(--border-light)' }}>
+                            <td style={{ padding: '0.5rem', color: 'var(--text-primary)' }}>{s.name}</td>
+                            {patAssessments.map(a => {
+                              const pct = Math.round((a[s.key] / s.max) * 100)
+                              return <td key={a.id} style={{ padding: '0.5rem', textAlign: 'center', fontWeight: '600', color: pct >= 70 ? COLORS.green : pct >= 40 ? COLORS.amber : COLORS.red }}>{a[s.key]} ({pct}%)</td>
+                            })}
+                          </tr>
+                        ))}
+                        <tr style={{ borderTop: '2px solid var(--border-light)', fontWeight: '700' }}>
+                          <td style={{ padding: '0.5rem', color: 'var(--text-primary)' }}>Total</td>
+                          {patAssessments.map(a => (
+                            <td key={a.id} style={{ padding: '0.5rem', textAlign: 'center', color: COLORS.navy }}>{a.total_score}/150 ({Math.round((a.total_score / 150) * 100)}%)</td>
+                          ))}
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+                <div style={{ marginTop: '0.75rem', textAlign: 'right' }}>
+                  <button onClick={() => navigate(`/admin/sts-pat/${teamId}`)} style={{ padding: '0.3rem 0.75rem', background: COLORS.navy, color: 'white', border: 'none', borderRadius: '0.25rem', cursor: 'pointer', fontSize: '0.8rem' }}>
+                    View Full Report
+                  </button>
+                </div>
               </div>
             )}
 

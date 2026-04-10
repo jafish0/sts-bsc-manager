@@ -312,6 +312,37 @@ export default function AdminDashboard() {
           </button>
 
           <button
+            onClick={() => navigate('/admin/sts-pat-overview')}
+            style={{
+              padding: '2rem',
+              background: 'var(--bg-card)',
+              border: '2px solid var(--border-light)',
+              borderRadius: '0.75rem',
+              cursor: 'pointer',
+              transition: 'all 0.2s',
+              textAlign: 'left'
+            }}
+            onMouseOver={(e) => {
+              e.currentTarget.style.borderColor = '#0E1F56'
+              e.currentTarget.style.transform = 'translateY(-2px)'
+              e.currentTarget.style.boxShadow = '0 4px 6px rgba(0,0,0,0.1)'
+            }}
+            onMouseOut={(e) => {
+              e.currentTarget.style.borderColor = '#d1d5db'
+              e.currentTarget.style.transform = 'translateY(0)'
+              e.currentTarget.style.boxShadow = 'none'
+            }}
+          >
+            <div style={{ fontSize: '2rem', marginBottom: '0.5rem' }}>📜</div>
+            <div style={{ color: '#0E1F56', fontSize: '1.25rem', fontWeight: '600', marginBottom: '0.5rem' }}>
+              STS-PAT Results
+            </div>
+            <div style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>
+              View policy analysis results across all teams
+            </div>
+          </button>
+
+          <button
             onClick={() => navigate('/admin/staff')}
             style={{
               padding: '2rem',

@@ -4,7 +4,7 @@ import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
-  PieChart, Pie, Cell
+  PieChart, Pie, Cell, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar
 } from 'recharts'
 import {
   STSIOA_DOMAIN_MAX, STSIOA_TOTAL_MAX, STSS_SUBSCALES, COLORS, PIE_COLORS,
@@ -26,6 +26,7 @@ export default function DataVisualization() {
   const [selectedTeam, setSelectedTeam] = useState('all')
   const [data, setData] = useState(null)
   const [timepointAutoSet, setTimepointAutoSet] = useState(false)
+  const [patData, setPatData] = useState([])
 
   const timepoints = TIMEPOINTS
 
@@ -292,6 +293,16 @@ export default function DataVisualization() {
         stsioaByJobRole: stsioaJobRoleStats,
         stsioaRawResponses: stsioaResponses
       })
+
+      // Load STS-PAT data for the filtered teams
+      const teamIds = filteredTeams.map(t => t.id)
+      const { data: patAssessments } = await supabase
+        .from('sts_pat_assessments')
+        .select('*, teams(team_name)')
+        .in('team_id', teamIds)
+        .eq('status', 'completed')
+        .order('completed_at', { ascending: false })
+      setPatData(patAssessments || [])
     } catch (error) {
       console.error('Error loading data:', error)
     } finally {
@@ -682,6 +693,46 @@ export default function DataVisualization() {
               teamName={selectedTeamName}
               timepoint={selectedTimepoint}
             />
+          )}
+
+          {/* STS-PAT Radar Chart */}
+          {patData.length > 0 && (
+            <div style={{ ...cardStyle, marginBottom: '1rem' }}>
+              <div style={cardHeaderStyle}>STS Policy Analysis Tool (STS-PAT)</div>
+              <div style={subtitleStyle}>
+                {patData.length === 1
+                  ? `${patData[0].teams?.team_name || 'Team'} · ${Math.round((patData[0].total_score / 150) * 100)}% overall`
+                  : `${patData.length} completed assessments`
+                }
+              </div>
+              <ResponsiveContainer width="100%" height={300}>
+                <RadarChart data={[
+                  { section: 'Part 1: Existing Policies', ...Object.fromEntries(patData.slice(0, 3).map((a, i) => [`score${i}`, Math.round((a.part1_score / 65) * 100)])), fullMark: 100 },
+                  { section: 'Part 2: Policy Making', ...Object.fromEntries(patData.slice(0, 3).map((a, i) => [`score${i}`, Math.round((a.part2_score / 20) * 100)])), fullMark: 100 },
+                  { section: 'Part 3: Implementation', ...Object.fromEntries(patData.slice(0, 3).map((a, i) => [`score${i}`, Math.round((a.part3_score / 25) * 100)])), fullMark: 100 },
+                  { section: 'Part 4: Outcomes', ...Object.fromEntries(patData.slice(0, 3).map((a, i) => [`score${i}`, Math.round((a.part4_score / 40) * 100)])), fullMark: 100 }
+                ]}>
+                  <PolarGrid />
+                  <PolarAngleAxis dataKey="section" tick={{ fontSize: 10, fill: 'var(--text-primary)' }} />
+                  <PolarRadiusAxis angle={90} domain={[0, 100]} tick={{ fontSize: 9 }} />
+                  {patData.slice(0, 3).map((a, i) => (
+                    <Radar
+                      key={a.id}
+                      name={a.teams?.team_name || `Assessment ${i + 1}`}
+                      dataKey={`score${i}`}
+                      stroke={[COLORS.teal, COLORS.navy, COLORS.amber][i]}
+                      fill={[COLORS.teal, COLORS.navy, COLORS.amber][i]}
+                      fillOpacity={0.15}
+                    />
+                  ))}
+                  <Legend />
+                  <Tooltip formatter={v => `${v}%`} />
+                </RadarChart>
+              </ResponsiveContainer>
+              <div style={{ fontSize: '0.75rem', fontStyle: 'italic', color: 'var(--text-muted)', marginTop: '0.25rem' }}>
+                Section scores as percentage of maximum. Higher scores indicate more STS-informed policies.
+              </div>
+            </div>
           )}
         </div>
       )}

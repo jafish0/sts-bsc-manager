@@ -42,6 +42,9 @@ export default function PdsaCycles() {
   const [userProfile, setUserProfile] = useState(null)
   const [filter, setFilter] = useState('all')
   const [linkedGoalName, setLinkedGoalName] = useState(null)
+  const [queuedCycles, setQueuedCycles] = useState([])
+  const [showQueued, setShowQueued] = useState(false)
+  const [reviewIndex, setReviewIndex] = useState(0)
 
   const prefillGoalId = searchParams.get('goalId')
   const prefillDomain = searchParams.get('domain')
@@ -94,6 +97,16 @@ export default function PdsaCycles() {
       }
 
       await loadCycles()
+
+      // Load pending queued actions from STS-PAT
+      const { data: queued } = await supabase
+        .from('sts_pat_queued_actions')
+        .select('*, sts_pat_assessments(completed_at)')
+        .eq('team_id', teamId)
+        .eq('action_type', 'pdsa_cycle')
+        .eq('status', 'pending')
+        .order('created_at')
+      setQueuedCycles(queued || [])
     } catch (err) {
       console.error('Error loading data:', err)
     } finally {
@@ -278,6 +291,61 @@ export default function PdsaCycles() {
       </div>
 
       <div style={{ maxWidth: '1200px', margin: '2rem auto', padding: '0 1rem' }}>
+        {/* STS-PAT queued actions banner */}
+        {queuedCycles.length > 0 && !showQueued && (
+          <div style={{ ...cardStyle, marginBottom: '1.5rem', borderLeft: `4px solid ${COLORS.amber}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.5rem' }}>
+            <span style={{ color: 'var(--text-primary)', fontSize: '0.9rem' }}>
+              You have <strong>{queuedCycles.length}</strong> new PDSA cycle{queuedCycles.length > 1 ? 's' : ''} from your STS-PAT assessment
+            </span>
+            <div style={{ display: 'flex', gap: '0.5rem' }}>
+              <button onClick={() => { setShowQueued(true); setReviewIndex(0) }} style={{ padding: '0.4rem 0.75rem', background: COLORS.teal, color: 'white', border: 'none', borderRadius: '0.25rem', cursor: 'pointer', fontSize: '0.85rem', fontWeight: '500' }}>Review & Confirm</button>
+              <button onClick={async () => { for (const q of queuedCycles) { await supabase.from('sts_pat_queued_actions').update({ status: 'dismissed', resolved_at: new Date().toISOString() }).eq('id', q.id) } setQueuedCycles([]) }} style={{ padding: '0.4rem 0.75rem', background: 'none', border: '1px solid var(--border-light)', color: 'var(--text-muted)', borderRadius: '0.25rem', cursor: 'pointer', fontSize: '0.85rem' }}>Dismiss All</button>
+            </div>
+          </div>
+        )}
+
+        {showQueued && queuedCycles.length > 0 && reviewIndex < queuedCycles.length && (
+          <div style={{ ...cardStyle, marginBottom: '1.5rem', borderLeft: `4px solid ${COLORS.amber}` }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
+              <span style={{ fontWeight: '600', color: 'var(--text-primary)', fontSize: '0.9rem' }}>STS-PAT Action Item {reviewIndex + 1} of {queuedCycles.length}</span>
+              <button onClick={() => setShowQueued(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', fontSize: '0.85rem' }}>Close</button>
+            </div>
+            <p style={{ margin: '0 0 0.5rem 0', color: 'var(--text-secondary)', fontSize: '0.85rem' }}>
+              <strong>Q{queuedCycles[reviewIndex].question_number}:</strong> {queuedCycles[reviewIndex].question_text}
+            </p>
+            <p style={{ margin: '0 0 1rem 0', color: 'var(--text-muted)', fontSize: '0.8rem' }}>
+              Rating: {queuedCycles[reviewIndex].rating}/5{queuedCycles[reviewIndex].notes && ` · Notes: ${queuedCycles[reviewIndex].notes}`}
+            </p>
+            <div style={{ display: 'flex', gap: '0.5rem' }}>
+              <button
+                onClick={async () => {
+                  const q = queuedCycles[reviewIndex]
+                  setEditingCycle(null)
+                  setShowForm(true)
+                  setShowQueued(false)
+                  await supabase.from('sts_pat_queued_actions').update({ status: 'confirmed', resolved_at: new Date().toISOString() }).eq('id', q.id)
+                  setQueuedCycles(prev => prev.filter((_, i) => i !== reviewIndex))
+                }}
+                style={{ padding: '0.4rem 0.75rem', background: COLORS.teal, color: 'white', border: 'none', borderRadius: '0.25rem', cursor: 'pointer', fontSize: '0.85rem', fontWeight: '500' }}
+              >
+                Create Cycle from This
+              </button>
+              <button
+                onClick={async () => {
+                  const q = queuedCycles[reviewIndex]
+                  await supabase.from('sts_pat_queued_actions').update({ status: 'dismissed', resolved_at: new Date().toISOString() }).eq('id', q.id)
+                  const remaining = queuedCycles.filter((_, i) => i !== reviewIndex)
+                  setQueuedCycles(remaining)
+                  if (remaining.length === 0 || reviewIndex >= remaining.length) setShowQueued(false)
+                }}
+                style={{ padding: '0.4rem 0.75rem', background: 'none', border: '1px solid var(--border-light)', color: 'var(--text-muted)', borderRadius: '0.25rem', cursor: 'pointer', fontSize: '0.85rem' }}
+              >
+                Skip
+              </button>
+            </div>
+          </div>
+        )}
+
         {/* Linked goal banner */}
         {prefillGoalId && linkedGoalName && showForm && (
           <div style={{

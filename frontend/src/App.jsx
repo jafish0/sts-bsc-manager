@@ -28,6 +28,8 @@ import TeamMembers from './pages/TeamMembers'
 import PdsaCycles from './pages/PdsaCycles'
 import Strategies from './pages/Strategies'
 import DataRecommendations from './pages/DataRecommendations'
+import StsPat from './pages/StsPat'
+import StsPatOverview from './pages/StsPatOverview'
 
 // Detect invite/recovery tokens in URL hash and redirect to /set-password
 function AuthRedirectHandler() {
@@ -149,6 +151,16 @@ function App() {
           <Route path="/admin/recommendations/:teamId" element={
             <ProtectedRoute>
               <DataRecommendations />
+            </ProtectedRoute>
+          } />
+          <Route path="/admin/sts-pat/:teamId" element={
+            <ProtectedRoute>
+              <StsPat />
+            </ProtectedRoute>
+          } />
+          <Route path="/admin/sts-pat-overview" element={
+            <ProtectedRoute>
+              <StsPatOverview />
             </ProtectedRoute>
           } />
 
