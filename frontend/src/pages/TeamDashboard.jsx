@@ -30,6 +30,7 @@ export default function TeamDashboard() {
   const [patCount, setPatCount] = useState(0)
   const [pendingGoals, setPendingGoals] = useState(0)
   const [pendingCycles, setPendingCycles] = useState(0)
+  const [lastSelfRatingDate, setLastSelfRatingDate] = useState(null)
 
   useEffect(() => {
     if (profile?.team_id) {
@@ -109,6 +110,17 @@ export default function TeamDashboard() {
         .eq('action_type', 'pdsa_cycle')
         .eq('status', 'pending')
       setPendingCycles(pendingCycleCount || 0)
+
+      // Self-rating: query by user_id (not team_id) — it's personal
+      const { data: latestSelfRating } = await supabase
+        .from('supervisor_self_ratings')
+        .select('completed_at')
+        .eq('user_id', user.id)
+        .eq('status', 'completed')
+        .order('completed_at', { ascending: false })
+        .limit(1)
+        .single()
+      setLastSelfRatingDate(latestSelfRating?.completed_at || null)
     } catch (err) {
       console.error('Error loading team:', err)
     } finally {
@@ -640,6 +652,14 @@ export default function TeamDashboard() {
             description="Analyze your organization's STS-related policies using the STS-PAT tool"
             borderColor={COLORS.navy}
             onClick={() => navigate(`/admin/sts-pat/${team.id}`)}
+          />
+
+          <ActionCard
+            icon="&#128203;"
+            title={<>Supervisor Self-Rating{lastSelfRatingDate && <span style={{ fontSize: '0.75rem', fontWeight: '400', color: COLORS.teal, marginLeft: '0.5rem' }}>(Last: {new Date(lastSelfRatingDate).toLocaleDateString()})</span>}</>}
+            description="Private self-assessment of your trauma-informed supervision competencies"
+            borderColor="#059669"
+            onClick={() => navigate('/admin/supervisor-self-rating')}
           />
 
           {/* Row 3: Resources & Community */}

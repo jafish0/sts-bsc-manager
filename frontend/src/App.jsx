@@ -30,6 +30,7 @@ import Strategies from './pages/Strategies'
 import DataRecommendations from './pages/DataRecommendations'
 import StsPat from './pages/StsPat'
 import StsPatOverview from './pages/StsPatOverview'
+import SupervisorSelfRating from './pages/SupervisorSelfRating'
 
 // Detect invite/recovery tokens in URL hash and redirect to /set-password
 function AuthRedirectHandler() {
@@ -161,6 +162,11 @@ function App() {
           <Route path="/admin/sts-pat-overview" element={
             <ProtectedRoute>
               <StsPatOverview />
+            </ProtectedRoute>
+          } />
+          <Route path="/admin/supervisor-self-rating" element={
+            <ProtectedRoute>
+              <SupervisorSelfRating />
             </ProtectedRoute>
           } />
 

@@ -1,3 +1,4 @@
+import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import { supabase } from '../utils/supabase'
@@ -5,6 +6,17 @@ import { supabase } from '../utils/supabase'
 export default function AdminDashboard() {
   const navigate = useNavigate()
   const { user } = useAuth()
+  const [selfRatingCount, setSelfRatingCount] = useState(0)
+
+  useEffect(() => {
+    loadSelfRatingStats()
+  }, [])
+
+  const loadSelfRatingStats = async () => {
+    const { data } = await supabase.rpc('get_self_rating_completion_stats')
+    const total = (data || []).reduce((sum, row) => sum + (row.users_completed || 0), 0)
+    setSelfRatingCount(total)
+  }
 
   const handleLogout = async () => {
     const { error } = await supabase.auth.signOut()
@@ -339,6 +351,25 @@ export default function AdminDashboard() {
             </div>
             <div style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>
               View policy analysis results across all teams
+            </div>
+          </button>
+
+          <button
+            style={{
+              padding: '2rem',
+              background: 'var(--bg-card)',
+              border: '2px solid var(--border-light)',
+              borderRadius: '0.75rem',
+              cursor: 'default',
+              textAlign: 'left'
+            }}
+          >
+            <div style={{ fontSize: '2rem', marginBottom: '0.5rem' }}>&#128203;</div>
+            <div style={{ color: '#0E1F56', fontSize: '1.25rem', fontWeight: '600', marginBottom: '0.5rem' }}>
+              Self-Rating Engagement
+            </div>
+            <div style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>
+              {selfRatingCount} team member{selfRatingCount !== 1 ? 's' : ''} completed the supervisor self-rating
             </div>
           </button>
 
