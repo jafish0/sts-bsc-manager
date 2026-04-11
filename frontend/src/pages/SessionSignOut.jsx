@@ -17,8 +17,6 @@ export default function SessionSignOut() {
 
   const completeSignOut = async () => {
     try {
-      const attendanceId = sessionStorage.getItem(`attendance_${token}`)
-
       // Get event title for display
       const { data: link } = await supabase
         .from('session_links')
@@ -28,8 +26,9 @@ export default function SessionSignOut() {
 
       setEventTitle(link?.bsc_events?.title || 'this session')
 
+      // Sign out if not already handled by evaluation submission
+      const attendanceId = sessionStorage.getItem(`attendance_${token}`)
       if (attendanceId) {
-        // Update sign-out time
         await supabase
           .from('session_attendance')
           .update({
@@ -37,8 +36,6 @@ export default function SessionSignOut() {
             sign_out_method: 'manual'
           })
           .eq('id', attendanceId)
-
-        // Clear sessionStorage
         sessionStorage.removeItem(`attendance_${token}`)
       }
     } catch (err) {

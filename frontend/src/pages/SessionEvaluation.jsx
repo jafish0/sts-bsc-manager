@@ -24,14 +24,6 @@ export default function SessionEvaluation() {
   }, [token])
 
   const validate = async () => {
-    // Check sessionStorage for attendance
-    const attendanceId = sessionStorage.getItem(`attendance_${token}`)
-    if (!attendanceId) {
-      setError('You must sign in first before completing the evaluation.')
-      setLoading(false)
-      return
-    }
-
     const { data: link } = await supabase
       .from('session_links')
       .select('*, bsc_events(id, title, event_date, collaborative_id)')
@@ -39,7 +31,7 @@ export default function SessionEvaluation() {
       .single()
 
     if (!link || !link.bsc_events) {
-      setError('Invalid session link.')
+      setError('This evaluation link is invalid or the session no longer exists.')
       setLoading(false)
       return
     }
@@ -83,6 +75,19 @@ export default function SessionEvaluation() {
 
       if (insertErr) throw insertErr
 
+      // Sign out if attendance was recorded in this browser
+      const attendanceId = sessionStorage.getItem(`attendance_${token}`)
+      if (attendanceId) {
+        await supabase
+          .from('session_attendance')
+          .update({
+            signed_out_at: new Date().toISOString(),
+            sign_out_method: 'evaluation'
+          })
+          .eq('id', attendanceId)
+        sessionStorage.removeItem(`attendance_${token}`)
+      }
+
       navigate(`/session/${token}/signout`)
     } catch (err) {
       console.error('Evaluation submit error:', err)
@@ -104,12 +109,8 @@ export default function SessionEvaluation() {
     return (
       <div style={{ minHeight: '100vh', background: '#f9fafb', display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
         <div style={{ background: 'white', borderRadius: '0.75rem', padding: '2.5rem', maxWidth: '500px', textAlign: 'center', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}>
-          <h2 style={{ color: NAVY }}>Cannot Access Evaluation</h2>
+          <h2 style={{ color: NAVY }}>Evaluation Unavailable</h2>
           <p style={{ color: '#6b7280' }}>{error}</p>
-          <button onClick={() => navigate(`/session/${token}`)}
-            style={{ padding: '0.65rem 1.5rem', background: TEAL, color: 'white', border: 'none', borderRadius: '0.5rem', cursor: 'pointer', fontWeight: '600' }}>
-            Go to Sign-In
-          </button>
         </div>
       </div>
     )

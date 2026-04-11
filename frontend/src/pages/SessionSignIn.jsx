@@ -5,13 +5,6 @@ import { supabase } from '../utils/supabase'
 const NAVY = '#0E1F56'
 const TEAL = '#00A79D'
 
-const ROLE_OPTIONS = [
-  { value: 'team_member', label: 'Team Member' },
-  { value: 'agency_admin', label: 'Team Leader / Agency Admin' },
-  { value: 'senior_leader', label: 'Senior Leader' },
-  { value: 'other', label: 'Other' }
-]
-
 export default function SessionSignIn() {
   const { token } = useParams()
   const navigate = useNavigate()
@@ -26,7 +19,7 @@ export default function SessionSignIn() {
   const [form, setForm] = useState({
     name: '',
     email: '',
-    role: 'team_member'
+    role: ''
   })
 
   useEffect(() => {
@@ -38,6 +31,16 @@ export default function SessionSignIn() {
       setSignedIn(true)
     }
   }, [token])
+
+  // Auto-redirect to login after sign-in
+  useEffect(() => {
+    if (signedIn) {
+      const timer = setTimeout(() => {
+        navigate('/login')
+      }, 4000)
+      return () => clearTimeout(timer)
+    }
+  }, [signedIn, navigate])
 
   const validateToken = async () => {
     try {
@@ -78,75 +81,21 @@ export default function SessionSignIn() {
     setSubmitting(true)
 
     try {
-      // Try to match by email in user_profiles
-      const { data: profiles } = await supabase
-        .from('user_profiles')
-        .select('id, team_id, email')
-        .ilike('email', form.email.trim())
+      // Use server-side RPC to handle sign-in (email matching, attendance, unmatched tracking)
+      const { data: attendanceId, error: rpcErr } = await supabase.rpc('sign_in_to_session', {
+        p_session_link_id: sessionLink.id,
+        p_bsc_event_id: eventInfo.id,
+        p_collaborative_id: eventInfo.collaborative_id,
+        p_attendee_name: form.name.trim(),
+        p_attendee_email: form.email.trim(),
+        p_attendee_role: form.role || null
+      })
 
-      const matched = profiles && profiles.length > 0 ? profiles[0] : null
-
-      // Insert attendance record
-      const { data: attendance, error: attErr } = await supabase
-        .from('session_attendance')
-        .insert({
-          session_link_id: sessionLink.id,
-          bsc_event_id: eventInfo.id,
-          collaborative_id: eventInfo.collaborative_id,
-          attendee_name: form.name.trim(),
-          attendee_email: form.email.trim().toLowerCase(),
-          attendee_role: form.role,
-          user_profile_id: matched?.id || null,
-          team_id: matched?.team_id || null,
-          is_matched: !!matched
-        })
-        .select()
-        .single()
-
-      if (attErr) throw attErr
-
-      // If unmatched, create unmatched_attendees record
-      if (!matched) {
-        // Try to find a suggested team by email domain
-        const domain = form.email.trim().split('@')[1]?.toLowerCase()
-        let suggestedTeamId = null
-
-        if (domain) {
-          const { data: teamProfiles } = await supabase
-            .from('user_profiles')
-            .select('team_id, email')
-            .not('team_id', 'is', null)
-
-          if (teamProfiles) {
-            // Get teams in this collaborative
-            const { data: collabTeams } = await supabase
-              .from('teams')
-              .select('id')
-              .eq('collaborative_id', eventInfo.collaborative_id)
-
-            const collabTeamIds = new Set((collabTeams || []).map(t => t.id))
-            const domainMatch = teamProfiles.find(p =>
-              p.email?.toLowerCase().endsWith(`@${domain}`) && collabTeamIds.has(p.team_id)
-            )
-            if (domainMatch) suggestedTeamId = domainMatch.team_id
-          }
-        }
-
-        await supabase
-          .from('unmatched_attendees')
-          .insert({
-            session_attendance_id: attendance.id,
-            collaborative_id: eventInfo.collaborative_id,
-            attendee_name: form.name.trim(),
-            attendee_email: form.email.trim().toLowerCase(),
-            attendee_role: form.role,
-            suggested_team_id: suggestedTeamId
-          })
-      }
+      if (rpcErr) throw rpcErr
 
       // Store attendance ID in sessionStorage
-      sessionStorage.setItem(`attendance_${token}`, attendance.id)
-      setAttendanceId(attendance.id)
+      sessionStorage.setItem(`attendance_${token}`, attendanceId)
+      setAttendanceId(attendanceId)
       setSignedIn(true)
     } catch (err) {
       console.error('Sign-in error:', err)
@@ -192,10 +141,10 @@ export default function SessionSignIn() {
             background: '#F0FDF4', border: '1px solid #BBF7D0', borderRadius: '0.5rem',
             padding: '1rem', marginBottom: '1.5rem', fontSize: '0.85rem', color: '#166534'
           }}>
-            When you're ready to leave the session, return to this page to complete the session evaluation and sign out.
+            Thank you! Your attendance has been recorded. Redirecting you to sign in...
           </div>
           <button
-            onClick={() => navigate(`/session/${token}/eval`)}
+            onClick={() => navigate('/login')}
             style={{
               display: 'block', width: '100%', padding: '0.85rem',
               background: TEAL, color: 'white', border: 'none',
@@ -203,7 +152,7 @@ export default function SessionSignIn() {
               cursor: 'pointer'
             }}
           >
-            Complete Evaluation & Sign Out
+            Go to Dashboard Sign-In
           </button>
         </div>
       </div>
@@ -261,18 +210,18 @@ export default function SessionSignIn() {
           </div>
           <div style={{ marginBottom: '1.5rem' }}>
             <label style={{ display: 'block', fontWeight: '600', color: '#374151', marginBottom: '0.35rem', fontSize: '0.9rem' }}>
-              Role
+              Role / Job Title
             </label>
-            <select
+            <input
+              type="text"
               value={form.role}
               onChange={(e) => setForm({ ...form, role: e.target.value })}
+              placeholder="e.g., Case Worker, Therapist, Supervisor"
               style={{
                 width: '100%', padding: '0.65rem', border: '1px solid #d1d5db',
                 borderRadius: '0.375rem', fontSize: '0.9rem', boxSizing: 'border-box'
               }}
-            >
-              {ROLE_OPTIONS.map(r => <option key={r.value} value={r.value}>{r.label}</option>)}
-            </select>
+            />
           </div>
           <button
             type="submit"

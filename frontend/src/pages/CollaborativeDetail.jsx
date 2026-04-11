@@ -216,12 +216,25 @@ export default function CollaborativeDetail() {
     setSessionLinks(prev => ({ ...prev, [evt.id]: { ...prev[evt.id], is_active: false } }))
   }
 
+  const [evalLinkCopied, setEvalLinkCopied] = useState(null)
+
   const copySessionLink = async (token) => {
     const url = `https://sts-bsc-manager.vercel.app/session/${token}`
     try {
       await navigator.clipboard.writeText(url)
       setLinkCopied(token)
       setTimeout(() => setLinkCopied(null), 2000)
+    } catch (err) {
+      alert('Failed to copy link')
+    }
+  }
+
+  const copyEvalLink = async (token) => {
+    const url = `https://sts-bsc-manager.vercel.app/session/${token}/eval`
+    try {
+      await navigator.clipboard.writeText(url)
+      setEvalLinkCopied(token)
+      setTimeout(() => setEvalLinkCopied(null), 2000)
     } catch (err) {
       alert('Failed to copy link')
     }
@@ -792,12 +805,20 @@ export default function CollaborativeDetail() {
                               {linkActive ? 'Link Active' : isExpired ? 'Expired' : 'Closed'}
                             </span>
 
-                            {/* Copy link */}
+                            {/* Copy sign-in link */}
                             <button onClick={() => copySessionLink(link.token)} style={{
                               padding: '0.25rem 0.6rem', background: '#e0f2fe', color: '#0369a1',
                               border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '0.7rem', fontWeight: '600'
                             }}>
-                              {linkCopied === link.token ? 'Copied!' : 'Copy Link'}
+                              {linkCopied === link.token ? 'Copied!' : 'Copy Sign-In Link'}
+                            </button>
+
+                            {/* Copy eval & sign-out link */}
+                            <button onClick={() => copyEvalLink(link.token)} style={{
+                              padding: '0.25rem 0.6rem', background: '#FEF3C7', color: '#92400E',
+                              border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '0.7rem', fontWeight: '600'
+                            }}>
+                              {evalLinkCopied === link.token ? 'Copied!' : 'Copy Eval & Sign-Out Link'}
                             </button>
 
                             {/* Close session */}
