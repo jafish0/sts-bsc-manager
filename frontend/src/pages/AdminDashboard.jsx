@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import { supabase } from '../utils/supabase'
+import { PROGRAM_TYPE_COLORS } from '../config/programConfig'
 
 export default function AdminDashboard() {
   const navigate = useNavigate()
@@ -86,17 +87,72 @@ export default function AdminDashboard() {
 
       {/* Main Content */}
       <div style={{ maxWidth: '1200px', margin: '0 auto', padding: '2rem' }}>
-        {/* Welcome Section */}
+        {/* Program Tiles */}
         <div style={{ marginBottom: '2rem' }}>
-          <h2 style={{ color: '#0E1F56', marginBottom: '0.5rem' }}>
-            Welcome back!
-          </h2>
-          <p style={{ color: 'var(--text-muted)' }}>
-            Manage your breakthrough series collaboratives and monitor assessment progress.
-          </p>
+          <h2 style={{ color: '#0E1F56', marginBottom: '1rem' }}>Programs</h2>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '1rem' }}>
+            {[
+              { key: 'sts_bsc', name: 'STS-BSC', full: 'Secondary Traumatic Stress Breakthrough Series Collaborative', active: true },
+              { key: 'tic_lc', name: 'TIC LC', full: 'Trauma-Informed Care Learning Collaborative', active: true },
+              { key: 'fourc', name: 'FourC', full: 'FourC Occupational Trauma', active: false },
+              { key: 'tipe_lc', name: 'TIPE LC', full: 'Trauma-Informed Practices for Educators LC', active: false },
+            ].map(prog => {
+              const colors = PROGRAM_TYPE_COLORS[prog.key]
+              return (
+                <button
+                  key={prog.key}
+                  onClick={prog.active ? () => navigate('/admin/collaboratives') : undefined}
+                  style={{
+                    padding: '1.5rem',
+                    background: prog.active ? 'var(--bg-card)' : '#f9fafb',
+                    border: `2px solid ${prog.active ? colors.color : '#d1d5db'}`,
+                    borderRadius: '0.75rem',
+                    cursor: prog.active ? 'pointer' : 'default',
+                    textAlign: 'left',
+                    opacity: prog.active ? 1 : 0.6,
+                    transition: 'all 0.2s',
+                    position: 'relative',
+                  }}
+                  onMouseOver={prog.active ? (e) => {
+                    e.currentTarget.style.transform = 'translateY(-2px)'
+                    e.currentTarget.style.boxShadow = '0 4px 6px rgba(0,0,0,0.1)'
+                  } : undefined}
+                  onMouseOut={prog.active ? (e) => {
+                    e.currentTarget.style.transform = 'translateY(0)'
+                    e.currentTarget.style.boxShadow = 'none'
+                  } : undefined}
+                >
+                  {!prog.active && (
+                    <span style={{
+                      position: 'absolute', top: '0.75rem', right: '0.75rem',
+                      background: '#9ca3af', color: 'white', fontSize: '0.65rem',
+                      padding: '0.15rem 0.5rem', borderRadius: '999px', fontWeight: '600'
+                    }}>
+                      Coming Soon
+                    </span>
+                  )}
+                  <span style={{
+                    display: 'inline-block',
+                    background: colors.bg, color: colors.color,
+                    padding: '0.2rem 0.6rem', borderRadius: '4px',
+                    fontSize: '0.75rem', fontWeight: '700', marginBottom: '0.5rem'
+                  }}>
+                    {colors.label}
+                  </span>
+                  <div style={{ color: '#0E1F56', fontSize: '1.1rem', fontWeight: '600', marginBottom: '0.25rem' }}>
+                    {prog.name}
+                  </div>
+                  <div style={{ color: 'var(--text-muted)', fontSize: '0.8rem', lineHeight: '1.3' }}>
+                    {prog.full}
+                  </div>
+                </button>
+              )
+            })}
+          </div>
         </div>
 
-        {/* Action Cards */}
+        {/* Admin Tools */}
+        <h2 style={{ color: '#0E1F56', marginBottom: '1rem' }}>Admin Tools</h2>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '1.5rem' }}>
           <button
             onClick={() => navigate('/admin/collaboratives')}

@@ -8,6 +8,7 @@ import {
   STSS_ITEMS,
   INSTRUCTIONS
 } from '../config/stss'
+import { getNextAssessmentPath, getProgressSteps, getStepIndex } from '../config/programAssessments'
 import '../styles/STSS.css'
 
 function STSS() {
@@ -119,7 +120,8 @@ function STSS() {
 
       if (updateError) throw updateError
 
-      navigate('/proqol')
+      const programType = localStorage.getItem('sts_programType') || 'sts_bsc'
+      navigate(getNextAssessmentPath(programType, 'stss'))
 
     } catch (err) {
       console.error('Error saving STSS:', err)
@@ -147,10 +149,16 @@ function STSS() {
     <div className="stss-container">
       <div className="stss-card">
         <div className="progress-bar">
-          <div className="progress-step complete">Demographics</div>
-          <div className="progress-step active">STSS</div>
-          <div className="progress-step">ProQOL</div>
-          <div className="progress-step">STSI-OA</div>
+          {(() => {
+            const pt = localStorage.getItem('sts_programType') || 'sts_bsc'
+            const steps = getProgressSteps(pt)
+            const idx = getStepIndex(pt, 'stss')
+            return steps.map((step, i) => (
+              <div key={step} className={`progress-step ${i < idx ? 'complete' : ''} ${i === idx ? 'active' : ''}`}>
+                {step}
+              </div>
+            ))
+          })()}
         </div>
 
         <div className="stss-header">
@@ -249,7 +257,7 @@ function STSS() {
               )}
             </div>
             <button type="submit" disabled={loading || !allQuestionsAnswered()}>
-              {loading ? 'Saving...' : 'Continue to ProQOL Assessment →'}
+              {loading ? 'Saving...' : 'Continue \u2192'}
             </button>
           </div>
         </form>

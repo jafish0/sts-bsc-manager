@@ -4,6 +4,7 @@ import { supabase } from '../utils/supabase'
 import { useAuth } from '../contexts/AuthContext'
 import { COLORS, cardStyle, cardHeaderStyle, timeAgo } from '../utils/constants'
 import { useProgramDomains } from '../hooks/useProgramDomains'
+import { getProgramBranding } from '../config/programConfig'
 import SmartieGoalForm from '../components/SmartieGoalForm'
 
 const STATUS_COLORS = {
@@ -310,7 +311,7 @@ export default function SmartieGoals() {
         {showForm && (
           <div style={{ ...cardStyle, marginBottom: '1.5rem' }}>
             <div style={cardHeaderStyle}>
-              {editingGoal ? 'Edit Goal' : 'Create New SMARTIE Goal'}
+              {editingGoal ? 'Edit Goal' : `Create New ${getProgramBranding(team?.collaboratives?.program_type).goalLabel}`}
             </div>
             <SmartieGoalForm
               goal={editingGoal}
@@ -319,6 +320,7 @@ export default function SmartieGoals() {
               saving={saving}
               initialDomain={!editingGoal ? prefillDomain : undefined}
               domains={domains}
+              programType={team?.collaboratives?.program_type}
             />
           </div>
         )}

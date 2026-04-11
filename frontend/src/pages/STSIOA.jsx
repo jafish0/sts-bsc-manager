@@ -9,6 +9,7 @@ import {
   INSTRUCTIONS,
   DEFINITIONS
 } from '../config/stsioa'
+import { getNextAssessmentPath, getProgressSteps, getStepIndex } from '../config/programAssessments'
 import '../styles/STSIOA.css'
 
 function STSIOA() {
@@ -149,8 +150,9 @@ function STSIOA() {
 
       if (updateError) throw updateError
 
-      // Navigate to completion page
-      navigate('/complete')
+      // Navigate to next step (completion page for STS-BSC)
+      const programType = localStorage.getItem('sts_programType') || 'sts_bsc'
+      navigate(getNextAssessmentPath(programType, 'stsioa'))
 
     } catch (err) {
       console.error('Error saving STSI-OA:', err)
@@ -176,10 +178,16 @@ function STSIOA() {
     <div className="stsioa-container">
       <div className="stsioa-card">
         <div className="progress-bar">
-          <div className="progress-step complete">Demographics</div>
-          <div className="progress-step complete">STSS</div>
-          <div className="progress-step complete">ProQOL</div>
-          <div className="progress-step active">STSI-OA</div>
+          {(() => {
+            const pt = localStorage.getItem('sts_programType') || 'sts_bsc'
+            const steps = getProgressSteps(pt)
+            const idx = getStepIndex(pt, 'stsioa')
+            return steps.map((step, i) => (
+              <div key={step} className={`progress-step ${i < idx ? 'complete' : ''} ${i === idx ? 'active' : ''}`}>
+                {step}
+              </div>
+            ))
+          })()}
         </div>
 
         <div className="stsioa-header">
@@ -333,7 +341,7 @@ function STSIOA() {
                 type="submit" 
                 disabled={loading || !allQuestionsAnswered()}
               >
-                {loading ? 'Saving...' : 'Complete Assessment →'}
+                {loading ? 'Saving...' : 'Complete Assessment \u2192'}
               </button>
             )}
           </div>

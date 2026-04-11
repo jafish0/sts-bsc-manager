@@ -10,6 +10,7 @@ import {
   INSTRUCTIONS,
   HELPER_NOTE
 } from '../config/proqol'
+import { getNextAssessmentPath, getProgressSteps, getStepIndex } from '../config/programAssessments'
 import '../styles/ProQOL.css'
 
 function ProQOL() {
@@ -149,7 +150,8 @@ function ProQOL() {
       if (updateError) throw updateError
 
       // Navigate to next assessment
-      navigate('/stsioa')
+      const programType = localStorage.getItem('sts_programType') || 'sts_bsc'
+      navigate(getNextAssessmentPath(programType, 'proqol'))
 
     } catch (err) {
       console.error('Error saving ProQOL:', err)
@@ -178,10 +180,16 @@ function ProQOL() {
     <div className="proqol-container">
       <div className="proqol-card">
         <div className="progress-bar">
-          <div className="progress-step complete">Demographics</div>
-          <div className="progress-step complete">STSS</div>
-          <div className="progress-step active">ProQOL</div>
-          <div className="progress-step">STSI-OA</div>
+          {(() => {
+            const pt = localStorage.getItem('sts_programType') || 'sts_bsc'
+            const steps = getProgressSteps(pt)
+            const idx = getStepIndex(pt, 'proqol')
+            return steps.map((step, i) => (
+              <div key={step} className={`progress-step ${i < idx ? 'complete' : ''} ${i === idx ? 'active' : ''}`}>
+                {step}
+              </div>
+            ))
+          })()}
         </div>
 
         <div className="proqol-header">
@@ -287,7 +295,7 @@ function ProQOL() {
               )}
             </div>
             <button type="submit" disabled={loading || !allQuestionsAnswered()}>
-              {loading ? 'Saving...' : 'Continue to STSI-OA Assessment →'}
+              {loading ? 'Saving...' : 'Continue \u2192'}
             </button>
           </div>
         </form>

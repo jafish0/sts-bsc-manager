@@ -697,11 +697,21 @@ export default function TeamDashboard() {
             />
           )}
 
+          {programBranding.hasResourceMapping && (
+            <ActionCard
+              icon="&#128506;"
+              title="Resource Mapping"
+              description="Map resources across TIC OSA domains — what you have vs. what you need"
+              borderColor="#7c3aed"
+              onClick={() => navigate('/admin/resource-mapping')}
+            />
+          )}
+
           {/* Row 3: Resources & Community */}
           <ActionCard
             icon="📚"
             title="Resources"
-            description="Browse guides, tools, and videos by domain"
+            description={`Browse guides, tools, and videos by ${programBranding.hasResourceMapping ? 'category' : 'domain'}`}
             borderColor={COLORS.teal}
             onClick={() => navigate('/admin/resources')}
           />

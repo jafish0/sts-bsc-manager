@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../utils/supabase'
+import { getProgramBranding } from '../config/programConfig'
 import '../styles/TeamCodeEntry.css'
 import ctacLogo from '../assets/UKCTAC_logoasuite_web__primary_tagline_color.png'
 import ukLogo from '../assets/UK_Lockup-286.png'
@@ -17,10 +18,10 @@ function TeamCodeEntry() {
     setError('')
 
     try {
-      // Query the team_codes table
+      // Query team_codes with team → collaborative to get program_type
       const { data, error: queryError } = await supabase
         .from('team_codes')
-        .select('*')
+        .select('*, teams!inner(collaborative_id, collaboratives!inner(program_type))')
         .eq('code', teamCode.toUpperCase())
         .eq('active', true)
         .single()
@@ -31,9 +32,12 @@ function TeamCodeEntry() {
         return
       }
 
+      const programType = data.teams?.collaboratives?.program_type || 'sts_bsc'
+
       // Valid code found - store in localStorage and navigate to demographics
       localStorage.setItem('sts_teamCodeId', data.id)
       localStorage.setItem('sts_teamCode', data.code)
+      localStorage.setItem('sts_programType', programType)
       navigate('/demographics')
 
     } catch (err) {
@@ -50,9 +54,9 @@ function TeamCodeEntry() {
           <img src={ctacLogo} alt="Center on Trauma and Children" />
         </div>
 
-        <h1>STS-BSC Assessment</h1>
+        <h1>Agency Assessment</h1>
         <p className="subtitle">
-          Secondary Traumatic Stress Breakthrough Series Collaborative
+          Center on Trauma and Children
         </p>
 
         <p className="instructions">

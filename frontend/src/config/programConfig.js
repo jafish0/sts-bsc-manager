@@ -13,6 +13,19 @@ export const PROGRAM_BRANDING = {
     hasStsPat: true,
     hasSupervisorSelfRating: true,
     hasOfficeVisual: true,
+    hasResourceMapping: false,
+    // Goal configuration
+    goalType: 'smartie',
+    goalLabel: 'SMARTIE Goal',
+    goalFields: [
+      { key: 'strategic', letter: 'S', label: 'Strategic', help: 'What do you hope you will accomplish?' },
+      { key: 'measurable', letter: 'M', label: 'Measurable', help: 'How will you know if you are successful in achieving this goal? Include numbers or defined qualities so you know whether the goal has been met.' },
+      { key: 'ambitious', letter: 'A', label: 'Ambitious', help: 'In what ways is this goal a stretch? What challenges do you anticipate?' },
+      { key: 'realistic', letter: 'R', label: 'Realistic', help: 'Where are your opportunities? How will it be possible to achieve?' },
+      { key: 'time_bound', letter: 'T', label: 'Time-Bound', help: 'What is your timeline and deadline for achieving this goal?' },
+      { key: 'inclusive', letter: 'I', label: 'Inclusive', help: 'In what ways will this goal bring people who are often excluded into processes, activities, and decision/policy-making in a way that shares power?' },
+      { key: 'equitable', letter: 'E', label: 'Equitable', help: 'In what ways will this goal address fairness or justice to address systemic injustice, inequity, or oppression?' },
+    ],
   },
   tic_lc: {
     key: 'tic_lc',
@@ -24,6 +37,16 @@ export const PROGRAM_BRANDING = {
     hasStsPat: false,
     hasSupervisorSelfRating: false,
     hasOfficeVisual: false,
+    hasResourceMapping: true,
+    goalType: 'smart',
+    goalLabel: 'S.M.A.R.T Goal',
+    goalFields: [
+      { key: 'strategic', letter: 'S', label: 'Specific', help: 'What exactly will you accomplish?' },
+      { key: 'measurable', letter: 'M', label: 'Measurable', help: 'How will you measure success?' },
+      { key: 'ambitious', letter: 'A', label: 'Achievable', help: 'Is this goal realistic and attainable?' },
+      { key: 'realistic', letter: 'R', label: 'Relevant', help: 'Why does this goal matter to your organization?' },
+      { key: 'time_bound', letter: 'T', label: 'Time-Bound', help: 'By when will this be accomplished?' },
+    ],
   },
   tipe_lc: {
     key: 'tipe_lc',
@@ -35,6 +58,10 @@ export const PROGRAM_BRANDING = {
     hasStsPat: false,
     hasSupervisorSelfRating: false,
     hasOfficeVisual: false,
+    hasResourceMapping: false,
+    goalType: 'smart',
+    goalLabel: 'S.M.A.R.T Goal',
+    goalFields: [],
   },
   fourc: {
     key: 'fourc',
@@ -43,9 +70,13 @@ export const PROGRAM_BRANDING = {
     assessmentTitle: 'FourC Assessment',
     subtitle: 'FourC Occupational Trauma Manager',
     platformName: 'BSC Manager',
-    hasStsPat: true, // confirmed needs equivalent
+    hasStsPat: true,
     hasSupervisorSelfRating: false,
     hasOfficeVisual: false,
+    hasResourceMapping: false,
+    goalType: 'smartie',
+    goalLabel: 'SMARTIE Goal',
+    goalFields: [],
   },
 }
 

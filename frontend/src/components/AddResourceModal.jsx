@@ -16,8 +16,10 @@ const TYPE_OPTIONS = [
 
 const FILE_TYPES = ['pdf', 'docx', 'doc', 'pptx']
 
-function AddResourceModal({ onClose, onSuccess, domains: propDomains }) {
-  const domainOptions = propDomains && propDomains.length > 0 ? propDomains : FALLBACK_DOMAINS
+function AddResourceModal({ onClose, onSuccess, domains: propDomains, categories }) {
+  // If categories are provided, use category mode (tags); otherwise domain mode
+  const useCategories = categories && categories.length > 0
+  const options = useCategories ? categories : (propDomains && propDomains.length > 0 ? propDomains : FALLBACK_DOMAINS)
   const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
   const [selectedDomains, setSelectedDomains] = useState([])
@@ -53,7 +55,7 @@ function AddResourceModal({ onClose, onSuccess, domains: propDomains }) {
     setError('')
 
     if (!title.trim()) { setError('Title is required'); return }
-    if (selectedDomains.length === 0) { setError('Select at least one domain'); return }
+    if (selectedDomains.length === 0) { setError(useCategories ? 'Select at least one category' : 'Select at least one domain'); return }
     if (FILE_TYPES.includes(resourceType) && !file) { setError('Please select a file'); return }
     if (resourceType === 'youtube' && !youtubeUrl.trim()) { setError('YouTube URL is required'); return }
     if (resourceType === 'link' && !linkUrl.trim()) { setError('Link URL is required'); return }
@@ -81,18 +83,27 @@ function AddResourceModal({ onClose, onSuccess, domains: propDomains }) {
         if (uploadError) throw uploadError
       }
 
+      const insertData = {
+        title: title.trim(),
+        description: description.trim() || null,
+        resource_type: resourceType,
+        file_path: filePath,
+        file_name: fileName,
+        youtube_url: resourceType === 'youtube' ? youtubeUrl.trim() : null,
+        link_url: resourceType === 'link' ? linkUrl.trim() : null,
+      }
+
+      if (useCategories) {
+        insertData.tags = selectedDomains
+        insertData.domains = []
+      } else {
+        insertData.domains = selectedDomains
+        insertData.tags = []
+      }
+
       const { error: insertError } = await supabase
         .from('resources')
-        .insert({
-          title: title.trim(),
-          description: description.trim() || null,
-          domains: selectedDomains,
-          resource_type: resourceType,
-          file_path: filePath,
-          file_name: fileName,
-          youtube_url: resourceType === 'youtube' ? youtubeUrl.trim() : null,
-          link_url: resourceType === 'link' ? linkUrl.trim() : null,
-        })
+        .insert(insertData)
 
       if (insertError) {
         if (filePath) await supabase.storage.from('resources').remove([filePath])
@@ -165,11 +176,11 @@ function AddResourceModal({ onClose, onSuccess, domains: propDomains }) {
             />
           </div>
 
-          {/* Domain Checkboxes */}
+          {/* Domain/Category Checkboxes */}
           <div style={{ marginBottom: '1.25rem' }}>
-            <label style={labelStyle}>Domain(s) *</label>
+            <label style={labelStyle}>{useCategories ? 'Category(s)' : 'Domain(s)'} *</label>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem' }}>
-              {domainOptions.map(d => (
+              {options.map(d => (
                 <label
                   key={d.value}
                   style={{

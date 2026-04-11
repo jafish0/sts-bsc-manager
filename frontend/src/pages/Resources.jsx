@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { supabase } from '../utils/supabase'
 import { useAuth } from '../contexts/AuthContext'
 import { useProgramDomains } from '../hooks/useProgramDomains'
+import { useProgramCategories } from '../hooks/useProgramCategories'
 import AddResourceModal from '../components/AddResourceModal'
 import ctacLogo from '../assets/CTAC_white.png'
 
@@ -43,13 +44,23 @@ export default function Resources() {
   const [showAddModal, setShowAddModal] = useState(false)
   const [programType, setProgramType] = useState('sts_bsc')
   const { domains } = useProgramDomains(programType)
+  const { categories } = useProgramCategories(programType)
 
-  // Set initial active domain once domains are loaded
+  // Determine if this program uses categories (topic-based) or domains
+  const useCategories = categories.length > 0 && programType !== 'sts_bsc'
+  const tabs = useCategories ? categories : domains
+
+  // Set initial active tab once tabs are loaded
   useEffect(() => {
-    if (domains.length > 0 && !activeDomain) {
-      setActiveDomain(domains[0].value)
+    if (tabs.length > 0 && !activeDomain) {
+      setActiveDomain(tabs[0].value)
     }
-  }, [domains, activeDomain])
+  }, [tabs, activeDomain])
+
+  // Reset active tab when program type changes
+  useEffect(() => {
+    setActiveDomain(null)
+  }, [programType])
 
   // Fetch user's program type from their team
   useEffect(() => {
@@ -75,11 +86,15 @@ export default function Resources() {
     setLoading(false)
   }
 
-  const filteredResources = resources.filter(r => r.domains?.includes(activeDomain))
+  const filteredResources = useCategories
+    ? resources.filter(r => r.tags?.includes(activeDomain))
+    : resources.filter(r => r.domains?.includes(activeDomain))
 
-  const domainCounts = {}
-  domains.forEach(d => {
-    domainCounts[d.value] = resources.filter(r => r.domains?.includes(d.value)).length
+  const tabCounts = {}
+  tabs.forEach(t => {
+    tabCounts[t.value] = useCategories
+      ? resources.filter(r => r.tags?.includes(t.value)).length
+      : resources.filter(r => r.domains?.includes(t.value)).length
   })
 
   const handleDownload = async (resource) => {
@@ -124,7 +139,7 @@ export default function Resources() {
             <div>
               <h1 style={{ fontSize: '1.5rem', margin: 0, fontWeight: '700', color: 'white' }}>Resource Library</h1>
               <p style={{ margin: 0, fontSize: '0.9rem', opacity: 0.85, color: 'white' }}>
-                Guides, tools, and videos organized by domain
+                Guides, tools, and videos organized by {useCategories ? 'category' : 'domain'}
               </p>
             </div>
           </div>
@@ -153,21 +168,21 @@ export default function Resources() {
           cursor: 'pointer', marginBottom: '1.5rem', fontSize: '0.9rem'
         }}>← Back to Dashboard</button>
 
-        {/* Domain Tabs */}
+        {/* Tabs (Domain-based for STS-BSC, Category-based for TIC LC) */}
         <div style={{
           display: 'flex', gap: '0.5rem', marginBottom: '1.5rem',
           overflowX: 'auto', paddingBottom: '0.25rem', flexWrap: 'wrap'
         }}>
-          {domains.map(d => (
+          {tabs.map(t => (
             <button
-              key={d.value}
-              onClick={() => setActiveDomain(d.value)}
+              key={t.value}
+              onClick={() => setActiveDomain(t.value)}
               style={{
                 padding: '0.6rem 1rem',
                 borderRadius: '8px',
-                border: activeDomain === d.value ? `2px solid ${TEAL}` : '2px solid #e5e7eb',
-                background: activeDomain === d.value ? '#e0f7f5' : 'white',
-                color: activeDomain === d.value ? TEAL : '#374151',
+                border: activeDomain === t.value ? `2px solid ${TEAL}` : '2px solid #e5e7eb',
+                background: activeDomain === t.value ? '#e0f7f5' : 'white',
+                color: activeDomain === t.value ? TEAL : '#374151',
                 fontWeight: '600',
                 cursor: 'pointer',
                 fontSize: '0.85rem',
@@ -175,19 +190,19 @@ export default function Resources() {
                 transition: 'all 0.15s'
               }}
             >
-              {d.label}
+              {t.label}
               <span style={{
-                marginLeft: '0.4rem', background: activeDomain === d.value ? TEAL : '#e5e7eb',
-                color: activeDomain === d.value ? 'white' : '#6b7280',
+                marginLeft: '0.4rem', background: activeDomain === t.value ? TEAL : '#e5e7eb',
+                color: activeDomain === t.value ? 'white' : '#6b7280',
                 padding: '0.1rem 0.4rem', borderRadius: '10px', fontSize: '0.75rem'
-              }}>{domainCounts[d.value]}</span>
+              }}>{tabCounts[t.value]}</span>
             </button>
           ))}
         </div>
 
-        {/* Domain Title */}
+        {/* Active Tab Title */}
         <h2 style={{ color: NAVY, fontSize: '1.25rem', margin: '0 0 1rem' }}>
-          {domains.find(d => d.value === activeDomain)?.label}
+          {tabs.find(t => t.value === activeDomain)?.label}
         </h2>
 
         {/* Resources */}
@@ -199,7 +214,7 @@ export default function Resources() {
             background: 'var(--bg-card)', borderRadius: '12px', border: '1px solid var(--border)'
           }}>
             <div style={{ fontSize: '2.5rem', marginBottom: '0.5rem', opacity: 0.3 }}>&#128218;</div>
-            <p style={{ fontWeight: '600', marginBottom: '0.25rem' }}>No resources in this domain yet</p>
+            <p style={{ fontWeight: '600', marginBottom: '0.25rem' }}>No resources in this {useCategories ? 'category' : 'domain'} yet</p>
             {isSuperAdmin && <p style={{ fontSize: '0.9rem' }}>Click "Add Resource" to get started.</p>}
           </div>
         ) : (
@@ -240,19 +255,23 @@ export default function Resources() {
                         {resource.description}
                       </p>
                     )}
-                    {resource.domains?.length > 1 && (
-                      <div style={{ marginTop: '0.4rem', display: 'flex', gap: '0.3rem', flexWrap: 'wrap' }}>
-                        {resource.domains.map(d => {
-                          const opt = domains.find(o => o.value === d)
-                          return opt ? (
-                            <span key={d} style={{
-                              background: 'var(--bg-page)', color: 'var(--text-muted)', padding: '0.1rem 0.4rem',
-                              borderRadius: '4px', fontSize: '0.7rem'
-                            }}>{opt.label.replace(/Domain \d — /, '')}</span>
-                          ) : null
-                        })}
-                      </div>
-                    )}
+                    {(() => {
+                      const tagList = useCategories ? resource.tags : resource.domains
+                      if (!tagList || tagList.length <= 1) return null
+                      return (
+                        <div style={{ marginTop: '0.4rem', display: 'flex', gap: '0.3rem', flexWrap: 'wrap' }}>
+                          {tagList.map(t => {
+                            const opt = tabs.find(o => o.value === t)
+                            return opt ? (
+                              <span key={t} style={{
+                                background: 'var(--bg-page)', color: 'var(--text-muted)', padding: '0.1rem 0.4rem',
+                                borderRadius: '4px', fontSize: '0.7rem'
+                              }}>{opt.label.replace(/Domain \d — /, '')}</span>
+                            ) : null
+                          })}
+                        </div>
+                      )
+                    })()}
                   </div>
 
                   <div style={{ display: 'flex', gap: '0.5rem', flexShrink: 0 }}>
@@ -301,6 +320,7 @@ export default function Resources() {
           onClose={() => setShowAddModal(false)}
           onSuccess={() => fetchResources()}
           domains={domains}
+          categories={useCategories ? categories : null}
         />
       )}
     </div>

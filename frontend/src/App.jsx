@@ -8,6 +8,7 @@ import Demographics from './pages/Demographics'
 import STSS from './pages/STSS'
 import ProQOL from './pages/ProQOL'
 import STSIOA from './pages/STSIOA'
+import TicOsa from './pages/TicOsa'
 import AssessmentComplete from './pages/AssessmentComplete'
 import Login from './pages/Login'
 import AdminDashboard from './pages/AdminDashboard'
@@ -31,6 +32,7 @@ import DataRecommendations from './pages/DataRecommendations'
 import StsPat from './pages/StsPat'
 import StsPatOverview from './pages/StsPatOverview'
 import SupervisorSelfRating from './pages/SupervisorSelfRating'
+import ResourceMapping from './pages/ResourceMapping'
 import SessionSignIn from './pages/SessionSignIn'
 import SessionEvaluation from './pages/SessionEvaluation'
 import SessionSignOut from './pages/SessionSignOut'
@@ -72,6 +74,7 @@ function App() {
           <Route path="/stss" element={<STSS />} />
           <Route path="/proqol" element={<ProQOL />} />
           <Route path="/stsioa" element={<STSIOA />} />
+          <Route path="/tic-osa" element={<TicOsa />} />
           <Route path="/complete" element={<AssessmentComplete />} />
 
           {/* Public Session Routes */}
@@ -175,6 +178,11 @@ function App() {
           <Route path="/admin/supervisor-self-rating" element={
             <ProtectedRoute>
               <SupervisorSelfRating />
+            </ProtectedRoute>
+          } />
+          <Route path="/admin/resource-mapping" element={
+            <ProtectedRoute>
+              <ResourceMapping />
             </ProtectedRoute>
           } />
 

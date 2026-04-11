@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { COLORS } from '../utils/constants'
+import { getProgramBranding } from '../config/programConfig'
 
 const STATUS_OPTIONS = [
   { value: 'active', label: 'Active' },
@@ -23,7 +24,11 @@ const emptyForm = {
   target_date: ''
 }
 
-export default function SmartieGoalForm({ goal, onSave, onCancel, saving, initialDomain, domains = [] }) {
+export default function SmartieGoalForm({ goal, onSave, onCancel, saving, initialDomain, domains = [], programType }) {
+  const branding = getProgramBranding(programType)
+  const goalFields = branding.goalFields || []
+  const goalLabel = branding.goalLabel || 'SMARTIE Goal'
+
   const [form, setForm] = useState(() => initialDomain ? { ...emptyForm, framework_domain: initialDomain } : emptyForm)
 
   useEffect(() => {
@@ -145,103 +150,35 @@ export default function SmartieGoalForm({ goal, onSave, onCancel, saving, initia
         />
       </div>
 
-      {/* SMARTIE Fields */}
+      {/* Dynamic Goal Fields (SMARTIE or SMART based on program) */}
       <h3 style={{ color: COLORS.navy, fontSize: '1.1rem', marginBottom: '1rem', borderBottom: `2px solid ${COLORS.teal}`, paddingBottom: '0.5rem' }}>
-        SMARTIE Components
+        {goalLabel} Components
       </h3>
 
-      <div style={smartieFieldStyle}>
-        <label style={labelStyle}>S — Strategic</label>
-        <div style={helpStyle}>What do you hope you will accomplish?</div>
-        <textarea
-          value={form.strategic}
-          onChange={(e) => handleChange('strategic', e.target.value)}
-          style={textareaStyle}
-          onFocus={(e) => e.target.style.borderColor = COLORS.teal}
-          onBlur={(e) => e.target.style.borderColor = '#e5e7eb'}
-        />
-      </div>
-
-      <div style={smartieFieldStyle}>
-        <label style={labelStyle}>M — Measurable</label>
-        <div style={helpStyle}>How will you know if you are successful in achieving this goal? Include numbers or defined qualities so you know whether the goal has been met.</div>
-        <textarea
-          value={form.measurable}
-          onChange={(e) => handleChange('measurable', e.target.value)}
-          style={textareaStyle}
-          onFocus={(e) => e.target.style.borderColor = COLORS.teal}
-          onBlur={(e) => e.target.style.borderColor = '#e5e7eb'}
-        />
-      </div>
-
-      <div style={smartieFieldStyle}>
-        <label style={labelStyle}>A — Ambitious</label>
-        <div style={helpStyle}>In what ways is this goal a stretch? What challenges do you anticipate?</div>
-        <textarea
-          value={form.ambitious}
-          onChange={(e) => handleChange('ambitious', e.target.value)}
-          style={textareaStyle}
-          onFocus={(e) => e.target.style.borderColor = COLORS.teal}
-          onBlur={(e) => e.target.style.borderColor = '#e5e7eb'}
-        />
-      </div>
-
-      <div style={smartieFieldStyle}>
-        <label style={labelStyle}>R — Realistic</label>
-        <div style={helpStyle}>Where are your opportunities? How will it be possible to achieve?</div>
-        <textarea
-          value={form.realistic}
-          onChange={(e) => handleChange('realistic', e.target.value)}
-          style={textareaStyle}
-          onFocus={(e) => e.target.style.borderColor = COLORS.teal}
-          onBlur={(e) => e.target.style.borderColor = '#e5e7eb'}
-        />
-      </div>
-
-      <div style={smartieFieldStyle}>
-        <label style={labelStyle}>T — Time-bound</label>
-        <div style={helpStyle}>What is your timeline and deadline for achieving this goal?</div>
-        <textarea
-          value={form.time_bound}
-          onChange={(e) => handleChange('time_bound', e.target.value)}
-          style={textareaStyle}
-          onFocus={(e) => e.target.style.borderColor = COLORS.teal}
-          onBlur={(e) => e.target.style.borderColor = '#e5e7eb'}
-        />
-        <div style={{ marginTop: '0.5rem' }}>
-          <label style={{ ...labelStyle, fontSize: '0.8rem' }}>Target Date</label>
-          <input
-            type="date"
-            value={form.target_date}
-            onChange={(e) => handleChange('target_date', e.target.value)}
-            style={{ ...inputStyle, width: 'auto' }}
+      {goalFields.map((field) => (
+        <div key={field.key} style={smartieFieldStyle}>
+          <label style={labelStyle}>{field.letter} — {field.label}</label>
+          <div style={helpStyle}>{field.help}</div>
+          <textarea
+            value={form[field.key] || ''}
+            onChange={(e) => handleChange(field.key, e.target.value)}
+            style={textareaStyle}
+            onFocus={(e) => e.target.style.borderColor = COLORS.teal}
+            onBlur={(e) => e.target.style.borderColor = '#e5e7eb'}
           />
+          {field.key === 'time_bound' && (
+            <div style={{ marginTop: '0.5rem' }}>
+              <label style={{ ...labelStyle, fontSize: '0.8rem' }}>Target Date</label>
+              <input
+                type="date"
+                value={form.target_date}
+                onChange={(e) => handleChange('target_date', e.target.value)}
+                style={{ ...inputStyle, width: 'auto' }}
+              />
+            </div>
+          )}
         </div>
-      </div>
-
-      <div style={smartieFieldStyle}>
-        <label style={labelStyle}>I — Inclusive</label>
-        <div style={helpStyle}>In what ways will this goal bring people who are often excluded into processes, activities, and decision/policy-making in a way that shares power?</div>
-        <textarea
-          value={form.inclusive}
-          onChange={(e) => handleChange('inclusive', e.target.value)}
-          style={textareaStyle}
-          onFocus={(e) => e.target.style.borderColor = COLORS.teal}
-          onBlur={(e) => e.target.style.borderColor = '#e5e7eb'}
-        />
-      </div>
-
-      <div style={smartieFieldStyle}>
-        <label style={labelStyle}>E — Equitable</label>
-        <div style={helpStyle}>In what ways will this goal address fairness or justice to address systemic injustice, inequity, or oppression?</div>
-        <textarea
-          value={form.equitable}
-          onChange={(e) => handleChange('equitable', e.target.value)}
-          style={textareaStyle}
-          onFocus={(e) => e.target.style.borderColor = COLORS.teal}
-          onBlur={(e) => e.target.style.borderColor = '#e5e7eb'}
-        />
-      </div>
+      ))}
 
       {/* Status & Progress (shown when editing existing goal) */}
       {goal && (

@@ -1,5 +1,6 @@
 import { useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { getStorageKeysToClear } from '../config/programAssessments'
 import ctacLogo from '../assets/UKCTAC_logoasuite_web__primary_tagline_color.png'
 import ukLogo from '../assets/UK_Lockup-286.png'
 import '../styles/TeamCodeEntry.css'
@@ -9,13 +10,9 @@ function AssessmentComplete() {
 
   useEffect(() => {
     // Clear all assessment data from localStorage on completion
-    localStorage.removeItem('sts_teamCodeId')
-    localStorage.removeItem('sts_teamCode')
-    localStorage.removeItem('sts_assessmentResponseId')
-    localStorage.removeItem('sts_demographics')
-    localStorage.removeItem('sts_stss')
-    localStorage.removeItem('sts_proqol')
-    localStorage.removeItem('sts_stsioa')
+    const programType = localStorage.getItem('sts_programType') || 'sts_bsc'
+    const keys = getStorageKeysToClear(programType)
+    keys.forEach(key => localStorage.removeItem(key))
   }, [])
 
   return (
@@ -33,7 +30,7 @@ function AssessmentComplete() {
             Assessment Complete!
           </h1>
           <p style={{ fontSize: '1.125rem', color: '#374151', marginBottom: '2rem', lineHeight: '1.6' }}>
-            Thank you for completing the STS-BSC Assessment. Your responses have been recorded successfully.
+            Thank you for completing the assessment. Your responses have been recorded successfully.
           </p>
 
           <div className="info-box" style={{ marginBottom: '2rem' }}>
