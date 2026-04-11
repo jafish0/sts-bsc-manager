@@ -2,18 +2,10 @@ import { useState, useEffect } from 'react'
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
 import { supabase } from '../utils/supabase'
 import { useAuth } from '../contexts/AuthContext'
-import { COLORS, cardStyle, cardHeaderStyle, DOMAIN_OPTIONS, timeAgo } from '../utils/constants'
+import { COLORS, cardStyle, cardHeaderStyle, timeAgo } from '../utils/constants'
+import { useProgramDomains } from '../hooks/useProgramDomains'
+import { getProgramBranding } from '../config/programConfig'
 import PdsaCycleForm from '../components/PdsaCycleForm'
-
-const DOMAIN_LABELS = {
-  resilience: 'Resilience Building',
-  safety: 'Sense of Safety',
-  policies: 'Organizational Policies',
-  leadership: 'Practices of Leaders',
-  routine: 'Routine Practices',
-  evaluation: 'Evaluation & Monitoring',
-  other: 'Other'
-}
 
 const STATUS_CONFIG = {
   plan: { bg: '#dbeafe', text: '#1e40af', label: 'Plan' },
@@ -46,6 +38,8 @@ export default function PdsaCycles() {
   const [showQueued, setShowQueued] = useState(false)
   const [reviewIndex, setReviewIndex] = useState(0)
 
+  const { domains, domainLabels } = useProgramDomains(team?.collaboratives?.program_type)
+  const programBranding = getProgramBranding(team?.collaboratives?.program_type)
   const prefillGoalId = searchParams.get('goalId')
   const prefillDomain = searchParams.get('domain')
 
@@ -80,7 +74,7 @@ export default function PdsaCycles() {
 
       const { data: teamData, error: teamError } = await supabase
         .from('teams')
-        .select('id, team_name, agency_name, collaborative_id, collaboratives (name)')
+        .select('id, team_name, agency_name, collaborative_id, collaboratives (name, program_type)')
         .eq('id', teamId)
         .single()
 
@@ -292,7 +286,7 @@ export default function PdsaCycles() {
 
       <div style={{ maxWidth: '1200px', margin: '2rem auto', padding: '0 1rem' }}>
         {/* STS-PAT queued actions banner */}
-        {queuedCycles.length > 0 && !showQueued && (
+        {programBranding.hasStsPat && queuedCycles.length > 0 && !showQueued && (
           <div style={{ ...cardStyle, marginBottom: '1.5rem', borderLeft: `4px solid ${COLORS.amber}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.5rem' }}>
             <span style={{ color: 'var(--text-primary)', fontSize: '0.9rem' }}>
               You have <strong>{queuedCycles.length}</strong> new PDSA cycle{queuedCycles.length > 1 ? 's' : ''} from your STS-PAT assessment
@@ -304,7 +298,7 @@ export default function PdsaCycles() {
           </div>
         )}
 
-        {showQueued && queuedCycles.length > 0 && reviewIndex < queuedCycles.length && (
+        {programBranding.hasStsPat && showQueued && queuedCycles.length > 0 && reviewIndex < queuedCycles.length && (
           <div style={{ ...cardStyle, marginBottom: '1.5rem', borderLeft: `4px solid ${COLORS.amber}` }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
               <span style={{ fontWeight: '600', color: 'var(--text-primary)', fontSize: '0.9rem' }}>STS-PAT Action Item {reviewIndex + 1} of {queuedCycles.length}</span>
@@ -381,6 +375,7 @@ export default function PdsaCycles() {
               teamId={teamId}
               initialGoalId={!editingCycle ? prefillGoalId : undefined}
               initialDomain={!editingCycle ? prefillDomain : undefined}
+              domains={domains}
             />
           </div>
         )}
@@ -481,7 +476,7 @@ export default function PdsaCycles() {
                   background: `${COLORS.teal}15`,
                   color: COLORS.teal
                 }}>
-                  {DOMAIN_LABELS[cycle.framework_domain] || cycle.framework_domain}
+                  {domainLabels[cycle.framework_domain] || cycle.framework_domain}
                 </span>
               )}
             </div>
@@ -567,7 +562,7 @@ export default function PdsaCycles() {
                     borderRadius: '9999px',
                     fontWeight: '600'
                   }}>
-                    {DOMAIN_LABELS[cycle.smartie_goals.framework_domain]}
+                    {domainLabels[cycle.smartie_goals.framework_domain]}
                   </span>
                 )}
               </div>

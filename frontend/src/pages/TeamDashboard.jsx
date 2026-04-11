@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { supabase } from '../utils/supabase'
 import { useAuth } from '../contexts/AuthContext'
 import { COLORS, cardStyle, cardHeaderStyle } from '../utils/constants'
+import { getProgramBranding } from '../config/programConfig'
 import { calculatePhase, PHASES, getPhaseGuidance, phaseToChecklistKey } from '../utils/phaseCalculator'
 import { detectChecklistCompletion } from '../utils/checklistAutoDetect'
 import AttendanceReport from '../components/AttendanceReport'
@@ -47,7 +48,7 @@ export default function TeamDashboard() {
     try {
       const { data: teamData, error } = await supabase
         .from('teams')
-        .select('*, collaboratives (id, name, start_date, end_date)')
+        .select('*, collaboratives (id, name, start_date, end_date, program_type)')
         .eq('id', profile.team_id)
         .single()
 
@@ -279,6 +280,7 @@ export default function TeamDashboard() {
   }
 
   const teamDisplayName = team.display_name || team.team_name
+  const programBranding = getProgramBranding(team.collaboratives?.program_type)
 
   // Current phase checklist
   const currentPhaseKey = phaseInfo ? phaseToChecklistKey(phaseInfo.phaseIndex) : 'preparation'
@@ -634,7 +636,7 @@ export default function TeamDashboard() {
           <ActionCard
             icon="📊"
             title="Assessment Results"
-            description="View your team's STSS, ProQOL, and STSI-OA results across timepoints"
+            description="View your team's assessment results across timepoints"
             borderColor={COLORS.teal}
             onClick={() => navigate(`/admin/team-report/${team.id}`)}
           />
@@ -675,34 +677,38 @@ export default function TeamDashboard() {
             borderColor={COLORS.navy}
             onClick={() => navigate('/admin/strategies')}
           />
-          <ActionCard
-            icon="📜"
-            title={<>STS Policy Analysis{patCount > 0 && <span style={{ fontSize: '0.85rem', fontWeight: '400', color: COLORS.teal, marginLeft: '0.5rem' }}>({patCount} completed)</span>}</>}
-            description="Analyze your organization's STS-related policies using the STS-PAT tool"
-            borderColor={COLORS.navy}
-            onClick={() => navigate(`/admin/sts-pat/${team.id}`)}
-          />
+          {programBranding.hasStsPat && (
+            <ActionCard
+              icon="📜"
+              title={<>STS Policy Analysis{patCount > 0 && <span style={{ fontSize: '0.85rem', fontWeight: '400', color: COLORS.teal, marginLeft: '0.5rem' }}>({patCount} completed)</span>}</>}
+              description="Analyze your organization's STS-related policies using the STS-PAT tool"
+              borderColor={COLORS.navy}
+              onClick={() => navigate(`/admin/sts-pat/${team.id}`)}
+            />
+          )}
 
-          <ActionCard
-            icon="&#128203;"
-            title={<>Supervisor Self-Rating{lastSelfRatingDate && <span style={{ fontSize: '0.75rem', fontWeight: '400', color: COLORS.teal, marginLeft: '0.5rem' }}>(Last: {new Date(lastSelfRatingDate).toLocaleDateString()})</span>}</>}
-            description="Private self-assessment of your trauma-informed supervision competencies"
-            borderColor="#059669"
-            onClick={() => navigate('/admin/supervisor-self-rating')}
-          />
+          {programBranding.hasSupervisorSelfRating && (
+            <ActionCard
+              icon="&#128203;"
+              title={<>Supervisor Self-Rating{lastSelfRatingDate && <span style={{ fontSize: '0.75rem', fontWeight: '400', color: COLORS.teal, marginLeft: '0.5rem' }}>(Last: {new Date(lastSelfRatingDate).toLocaleDateString()})</span>}</>}
+              description="Private self-assessment of your trauma-informed supervision competencies"
+              borderColor="#059669"
+              onClick={() => navigate('/admin/supervisor-self-rating')}
+            />
+          )}
 
           {/* Row 3: Resources & Community */}
           <ActionCard
             icon="📚"
             title="Resources"
-            description="Browse guides, tools, and videos by STSI-OA domain"
+            description="Browse guides, tools, and videos by domain"
             borderColor={COLORS.teal}
             onClick={() => navigate('/admin/resources')}
           />
           <ActionCard
             icon="🏗️"
             title="Change Framework"
-            description="View the collaborative improvement framework by STSI-OA domain"
+            description="View the collaborative improvement framework by domain"
             borderColor={COLORS.navy}
             onClick={() => navigate('/admin/change-framework')}
           />

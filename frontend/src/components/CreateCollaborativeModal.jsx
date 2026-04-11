@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../utils/supabase'
+import { PROGRAM_TYPE_COLORS } from '../config/programConfig'
 
 const EVENT_TYPES = [
   { value: 'learning_session', label: 'Learning Session', audience: 'all_teams' },
@@ -25,7 +26,8 @@ function CreateCollaborativeModal({ onClose, onSuccess }) {
   const [formData, setFormData] = useState({
     name: '',
     description: '',
-    status: 'active'
+    status: 'active',
+    program_type: 'sts_bsc'
   })
 
   // Pre-populate LS1, LS2, LS3 — admin just picks dates
@@ -143,6 +145,7 @@ function CreateCollaborativeModal({ onClose, onSuccess }) {
         .insert([{
           name: formData.name.trim(),
           description: formData.description.trim() || null,
+          program_type: formData.program_type,
           start_date: startDate,
           end_date: endDate,
           baseline_start_date: assessmentDates.baseline_start_date || null,
@@ -238,6 +241,22 @@ function CreateCollaborativeModal({ onClose, onSuccess }) {
               style={{ width: '100%', padding: '0.75rem', border: '2px solid #e5e7eb', borderRadius: '8px', fontSize: '1rem', boxSizing: 'border-box', transition: 'border-color 0.2s' }}
               onFocus={(e) => e.target.style.borderColor = '#00A79D'}
               onBlur={(e) => e.target.style.borderColor = '#e5e7eb'} />
+          </div>
+
+          {/* Program Type */}
+          <div style={{ marginBottom: '1.25rem' }}>
+            <label style={{ display: 'block', color: '#374151', fontSize: '0.9rem', fontWeight: '600', marginBottom: '0.4rem' }}>
+              Program Type *
+            </label>
+            <select
+              value={formData.program_type}
+              onChange={(e) => handleChange('program_type', e.target.value)}
+              style={{ width: '100%', padding: '0.75rem', border: '2px solid #e5e7eb', borderRadius: '8px', fontSize: '1rem', boxSizing: 'border-box' }}
+            >
+              {Object.entries(PROGRAM_TYPE_COLORS).map(([key, pt]) => (
+                <option key={key} value={key}>{pt.label}</option>
+              ))}
+            </select>
           </div>
 
           {/* Description */}

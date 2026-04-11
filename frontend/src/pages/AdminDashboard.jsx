@@ -62,7 +62,7 @@ export default function AdminDashboard() {
       }}>
         <div style={{ maxWidth: '1200px', margin: '0 auto', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <div>
-            <h1 style={{ margin: 0, fontSize: '1.875rem' }}>STS-BSC Manager</h1>
+            <h1 style={{ margin: 0, fontSize: '1.875rem' }}>BSC Platform Manager</h1>
             <p style={{ margin: '0.25rem 0 0 0', opacity: 0.9, fontSize: '0.875rem' }}>
               Admin Dashboard
             </p>
@@ -311,7 +311,7 @@ export default function AdminDashboard() {
               Change Framework
             </div>
             <div style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>
-              View the collaborative improvement framework by STSI-OA domain
+              View the collaborative improvement framework by domain
             </div>
           </button>
 
@@ -342,7 +342,7 @@ export default function AdminDashboard() {
               Strategy Ideas
             </div>
             <div style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>
-              Browse improvement strategies by STSI-OA domain
+              Browse improvement strategies by domain
             </div>
           </button>
 

@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { supabase } from '../utils/supabase'
 import { useNavigate } from 'react-router-dom'
 import CreateCollaborativeModal from '../components/CreateCollaborativeModal'
+import { PROGRAM_TYPE_COLORS } from '../config/programConfig'
 import ctacLogo from '../assets/CTAC_white.png'
 
 export default function CollaborativesList() {
@@ -100,7 +101,7 @@ export default function CollaborativesList() {
             <div>
               <h1 style={{ fontSize: '1.25rem', margin: 0, color: 'white' }}>Collaboratives Management</h1>
               <p style={{ fontSize: '0.875rem', margin: 0, opacity: 0.9, color: 'white' }}>
-                STS Breakthrough Series Collaborative Manager
+                BSC Platform — Collaboratives Manager
               </p>
             </div>
           </div>
@@ -294,6 +295,16 @@ export default function CollaborativesList() {
                     }}>
                       {collab.name}
                     </h3>
+                    {(() => {
+                      const ptc = PROGRAM_TYPE_COLORS[collab.program_type] || PROGRAM_TYPE_COLORS.sts_bsc
+                      return (
+                        <span style={{
+                          background: ptc.bg, color: ptc.color,
+                          padding: '0.25rem 0.75rem', borderRadius: '12px',
+                          fontSize: '0.7rem', fontWeight: '700', marginLeft: '0.5rem'
+                        }}>{ptc.label}</span>
+                      )
+                    })()}
                     <span style={{
                       background: status.bg,
                       color: status.color,

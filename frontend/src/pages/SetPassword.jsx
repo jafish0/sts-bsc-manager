@@ -139,7 +139,7 @@ export default function SetPassword() {
           Set Your Password
         </h2>
         <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', marginBottom: '1.5rem' }}>
-          Welcome to the STS-BSC Manager! Create a password to access your team dashboard.
+          Welcome to the BSC Platform! Create a password to access your team dashboard.
         </p>
 
         {success ? (

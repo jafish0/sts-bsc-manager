@@ -2,23 +2,33 @@ import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../utils/supabase'
 import { useAuth } from '../contexts/AuthContext'
-import { COLORS, cardStyle, cardHeaderStyle, DOMAIN_OPTIONS } from '../utils/constants'
-
-const DOMAIN_TABS = [
-  { value: 'resilience', label: 'Resilience Building' },
-  { value: 'safety', label: 'Sense of Safety' },
-  { value: 'policies', label: 'Organizational Policies' },
-  { value: 'leadership', label: 'Practices of Leaders' },
-  { value: 'routine', label: 'Routine Practices' },
-  { value: 'evaluation', label: 'Evaluation & Monitoring' }
-]
+import { COLORS, cardStyle, cardHeaderStyle } from '../utils/constants'
+import { useProgramDomains } from '../hooks/useProgramDomains'
 
 export default function Strategies() {
   const navigate = useNavigate()
-  const { user } = useAuth()
+  const { user, profile: authProfile } = useAuth()
   const [strategies, setStrategies] = useState([])
   const [loading, setLoading] = useState(true)
-  const [activeDomain, setActiveDomain] = useState('resilience')
+  const [activeDomain, setActiveDomain] = useState(null)
+  const [programType, setProgramType] = useState('sts_bsc')
+  const { domains } = useProgramDomains(programType)
+
+  // Set initial domain
+  useEffect(() => {
+    if (domains.length > 0 && !activeDomain) setActiveDomain(domains[0].value)
+  }, [domains, activeDomain])
+
+  // Fetch program type
+  useEffect(() => {
+    if (authProfile?.team_id) {
+      supabase.from('teams').select('collaboratives (program_type)')
+        .eq('id', authProfile.team_id).single()
+        .then(({ data }) => {
+          if (data?.collaboratives?.program_type) setProgramType(data.collaboratives.program_type)
+        })
+    }
+  }, [authProfile])
   const [userProfile, setUserProfile] = useState(null)
   const [showAdd, setShowAdd] = useState(false)
   const [newStrategy, setNewStrategy] = useState('')
@@ -117,7 +127,7 @@ export default function Strategies() {
 
         {/* Domain tabs */}
         <div style={{ display: 'flex', gap: '0.25rem', marginBottom: '1.5rem', flexWrap: 'wrap' }}>
-          {DOMAIN_TABS.map(tab => (
+          {domains.map(tab => (
             <button
               key={tab.value}
               onClick={() => { setActiveDomain(tab.value); setShowAdd(false) }}
@@ -149,7 +159,7 @@ export default function Strategies() {
         <div style={cardStyle}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
             <h3 style={{ margin: 0, color: COLORS.navy, fontSize: '1.1rem' }}>
-              {DOMAIN_TABS.find(d => d.value === activeDomain)?.label}
+              {domains.find(d => d.value === activeDomain)?.label}
             </h3>
             {isSuperAdmin && (
               <button

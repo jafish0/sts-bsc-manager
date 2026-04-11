@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { supabase } from '../utils/supabase'
-import { DOMAIN_OPTIONS } from '../utils/constants'
+import { DOMAIN_OPTIONS as FALLBACK_DOMAINS } from '../utils/constants'
 
 const NAVY = '#0E1F56'
 const TEAL = '#00A79D'
@@ -16,7 +16,8 @@ const TYPE_OPTIONS = [
 
 const FILE_TYPES = ['pdf', 'docx', 'doc', 'pptx']
 
-function AddResourceModal({ onClose, onSuccess }) {
+function AddResourceModal({ onClose, onSuccess, domains: propDomains }) {
+  const domainOptions = propDomains && propDomains.length > 0 ? propDomains : FALLBACK_DOMAINS
   const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
   const [selectedDomains, setSelectedDomains] = useState([])
@@ -168,7 +169,7 @@ function AddResourceModal({ onClose, onSuccess }) {
           <div style={{ marginBottom: '1.25rem' }}>
             <label style={labelStyle}>Domain(s) *</label>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem' }}>
-              {DOMAIN_OPTIONS.map(d => (
+              {domainOptions.map(d => (
                 <label
                   key={d.value}
                   style={{

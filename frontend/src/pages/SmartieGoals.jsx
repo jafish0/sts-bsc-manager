@@ -3,17 +3,8 @@ import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
 import { supabase } from '../utils/supabase'
 import { useAuth } from '../contexts/AuthContext'
 import { COLORS, cardStyle, cardHeaderStyle, timeAgo } from '../utils/constants'
+import { useProgramDomains } from '../hooks/useProgramDomains'
 import SmartieGoalForm from '../components/SmartieGoalForm'
-
-const DOMAIN_LABELS = {
-  resilience: 'Resilience Building',
-  safety: 'Sense of Safety',
-  policies: 'Organizational Policies',
-  leadership: 'Practices of Leaders',
-  routine: 'Routine Practices',
-  evaluation: 'Evaluation & Monitoring',
-  other: 'Other'
-}
 
 const STATUS_COLORS = {
   active: { bg: '#dbeafe', text: '#1e40af', label: 'Active' },
@@ -38,6 +29,7 @@ export default function SmartieGoals() {
   const [queuedGoals, setQueuedGoals] = useState([])
   const [showQueued, setShowQueued] = useState(false)
   const [reviewIndex, setReviewIndex] = useState(0)
+  const { domains, domainLabels } = useProgramDomains(team?.collaboratives?.program_type)
 
   // Auto-open form if ?domain= param is present (from recommendations)
   const prefillDomain = searchParams.get('domain')
@@ -59,7 +51,7 @@ export default function SmartieGoals() {
       // Load team info
       const { data: teamData, error: teamError } = await supabase
         .from('teams')
-        .select('id, team_name, agency_name, collaborative_id, collaboratives (name)')
+        .select('id, team_name, agency_name, collaborative_id, collaboratives (name, program_type)')
         .eq('id', teamId)
         .single()
 
@@ -310,7 +302,7 @@ export default function SmartieGoals() {
         {/* Intro text */}
         <div style={{ ...cardStyle, marginBottom: '1.5rem', borderLeft: `4px solid ${COLORS.teal}` }}>
           <p style={{ margin: 0, fontSize: '0.9rem', color: 'var(--text-secondary)', lineHeight: '1.6' }}>
-            Use this worksheet to identify goals based on your STSI-OA assessment results. We encourage each goal to address a different domain from the assessment. You do not need to complete every field — use it as a guide to frame your thinking, discussion, and planning.
+            Use this worksheet to identify goals based on your organizational assessment results. We encourage each goal to address a different domain from the assessment. You do not need to complete every field — use it as a guide to frame your thinking, discussion, and planning.
           </p>
         </div>
 
@@ -326,6 +318,7 @@ export default function SmartieGoals() {
               onCancel={() => { setShowForm(false); setEditingGoal(null) }}
               saving={saving}
               initialDomain={!editingGoal ? prefillDomain : undefined}
+              domains={domains}
             />
           </div>
         )}
@@ -336,7 +329,7 @@ export default function SmartieGoals() {
             <div style={{ fontSize: '2.5rem', marginBottom: '1rem' }}>🎯</div>
             <h2 style={{ color: COLORS.navy, marginBottom: '0.5rem' }}>No Goals Yet</h2>
             <p style={{ color: 'var(--text-muted)', marginBottom: '1.5rem' }}>
-              Get started by creating your first SMARTIE goal based on your STSI-OA assessment results.
+              Get started by creating your first SMARTIE goal based on your organizational assessment results.
             </p>
             {canEdit && (
               <button
@@ -415,7 +408,7 @@ export default function SmartieGoals() {
               </span>
             </div>
             <div style={{ display: 'flex', gap: '1rem', fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-              {goal.framework_domain && <span>{DOMAIN_LABELS[goal.framework_domain]}</span>}
+              {goal.framework_domain && <span>{domainLabels[goal.framework_domain] || goal.framework_domain}</span>}
               {goal.target_date && <span>Target: {new Date(goal.target_date).toLocaleDateString()}</span>}
               <span>Created {new Date(goal.created_at).toLocaleDateString()}</span>
             </div>

@@ -1,11 +1,5 @@
 import { useState, useEffect } from 'react'
-import { COLORS, DOMAIN_OPTIONS } from '../utils/constants'
-
-const GOAL_DOMAIN_OPTIONS = [
-  { value: '', label: 'Select a domain...' },
-  ...DOMAIN_OPTIONS,
-  { value: 'other', label: 'Other' }
-]
+import { COLORS } from '../utils/constants'
 
 const STATUS_OPTIONS = [
   { value: 'active', label: 'Active' },
@@ -29,7 +23,7 @@ const emptyForm = {
   target_date: ''
 }
 
-export default function SmartieGoalForm({ goal, onSave, onCancel, saving, initialDomain }) {
+export default function SmartieGoalForm({ goal, onSave, onCancel, saving, initialDomain, domains = [] }) {
   const [form, setForm] = useState(() => initialDomain ? { ...emptyForm, framework_domain: initialDomain } : emptyForm)
 
   useEffect(() => {
@@ -125,13 +119,15 @@ export default function SmartieGoalForm({ goal, onSave, onCancel, saving, initia
           />
         </div>
         <div>
-          <label style={labelStyle}>STSI-OA Domain</label>
+          <label style={labelStyle}>Framework Domain</label>
           <select
             value={form.framework_domain}
             onChange={(e) => handleChange('framework_domain', e.target.value)}
             style={inputStyle}
           >
-            {GOAL_DOMAIN_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+            <option value="">Select a domain...</option>
+            {domains.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+            <option value="other">Other</option>
           </select>
         </div>
       </div>
@@ -142,7 +138,7 @@ export default function SmartieGoalForm({ goal, onSave, onCancel, saving, initia
         <textarea
           value={form.rationale}
           onChange={(e) => handleChange('rationale', e.target.value)}
-          placeholder="Explain why this goal is important for your team based on your STSI-OA results..."
+          placeholder="Explain why this goal is important for your team based on your assessment results..."
           style={textareaStyle}
           onFocus={(e) => e.target.style.borderColor = COLORS.teal}
           onBlur={(e) => e.target.style.borderColor = '#e5e7eb'}

@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../utils/supabase'
 import { useAuth } from '../contexts/AuthContext'
-import { DOMAIN_OPTIONS } from '../utils/constants'
+import { useProgramDomains } from '../hooks/useProgramDomains'
 import AddResourceModal from '../components/AddResourceModal'
 import ctacLogo from '../assets/CTAC_white.png'
 
@@ -36,11 +36,31 @@ function getTypeBadge(type) {
 
 export default function Resources() {
   const navigate = useNavigate()
-  const { isSuperAdmin } = useAuth()
+  const { isSuperAdmin, profile } = useAuth()
   const [resources, setResources] = useState([])
   const [loading, setLoading] = useState(true)
-  const [activeDomain, setActiveDomain] = useState('resilience')
+  const [activeDomain, setActiveDomain] = useState(null)
   const [showAddModal, setShowAddModal] = useState(false)
+  const [programType, setProgramType] = useState('sts_bsc')
+  const { domains } = useProgramDomains(programType)
+
+  // Set initial active domain once domains are loaded
+  useEffect(() => {
+    if (domains.length > 0 && !activeDomain) {
+      setActiveDomain(domains[0].value)
+    }
+  }, [domains, activeDomain])
+
+  // Fetch user's program type from their team
+  useEffect(() => {
+    if (profile?.team_id && !isSuperAdmin) {
+      supabase.from('teams').select('collaborative_id, collaboratives (program_type)')
+        .eq('id', profile.team_id).single()
+        .then(({ data }) => {
+          if (data?.collaboratives?.program_type) setProgramType(data.collaboratives.program_type)
+        })
+    }
+  }, [profile, isSuperAdmin])
 
   useEffect(() => { fetchResources() }, [])
 
@@ -58,7 +78,7 @@ export default function Resources() {
   const filteredResources = resources.filter(r => r.domains?.includes(activeDomain))
 
   const domainCounts = {}
-  DOMAIN_OPTIONS.forEach(d => {
+  domains.forEach(d => {
     domainCounts[d.value] = resources.filter(r => r.domains?.includes(d.value)).length
   })
 
@@ -104,7 +124,7 @@ export default function Resources() {
             <div>
               <h1 style={{ fontSize: '1.5rem', margin: 0, fontWeight: '700', color: 'white' }}>Resource Library</h1>
               <p style={{ margin: 0, fontSize: '0.9rem', opacity: 0.85, color: 'white' }}>
-                Guides, tools, and videos organized by STSI-OA domain
+                Guides, tools, and videos organized by domain
               </p>
             </div>
           </div>
@@ -138,7 +158,7 @@ export default function Resources() {
           display: 'flex', gap: '0.5rem', marginBottom: '1.5rem',
           overflowX: 'auto', paddingBottom: '0.25rem', flexWrap: 'wrap'
         }}>
-          {DOMAIN_OPTIONS.map(d => (
+          {domains.map(d => (
             <button
               key={d.value}
               onClick={() => setActiveDomain(d.value)}
@@ -167,7 +187,7 @@ export default function Resources() {
 
         {/* Domain Title */}
         <h2 style={{ color: NAVY, fontSize: '1.25rem', margin: '0 0 1rem' }}>
-          {DOMAIN_OPTIONS.find(d => d.value === activeDomain)?.label}
+          {domains.find(d => d.value === activeDomain)?.label}
         </h2>
 
         {/* Resources */}
@@ -223,7 +243,7 @@ export default function Resources() {
                     {resource.domains?.length > 1 && (
                       <div style={{ marginTop: '0.4rem', display: 'flex', gap: '0.3rem', flexWrap: 'wrap' }}>
                         {resource.domains.map(d => {
-                          const opt = DOMAIN_OPTIONS.find(o => o.value === d)
+                          const opt = domains.find(o => o.value === d)
                           return opt ? (
                             <span key={d} style={{
                               background: 'var(--bg-page)', color: 'var(--text-muted)', padding: '0.1rem 0.4rem',
@@ -280,6 +300,7 @@ export default function Resources() {
         <AddResourceModal
           onClose={() => setShowAddModal(false)}
           onSuccess={() => fetchResources()}
+          domains={domains}
         />
       )}
     </div>

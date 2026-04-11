@@ -82,7 +82,7 @@ function Login() {
             Admin Portal
           </h1>
           <p style={{ color: '#6b7280', fontSize: '0.95rem' }}>
-            STS Breakthrough Series Collaborative Manager
+            BSC Platform Manager
           </p>
         </div>
 

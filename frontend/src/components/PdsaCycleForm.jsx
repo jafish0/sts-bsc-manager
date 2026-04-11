@@ -1,12 +1,6 @@
 import { useState, useEffect } from 'react'
-import { COLORS, DOMAIN_OPTIONS } from '../utils/constants'
+import { COLORS } from '../utils/constants'
 import { supabase } from '../utils/supabase'
-
-const CYCLE_DOMAIN_OPTIONS = [
-  { value: '', label: 'Select a domain...' },
-  ...DOMAIN_OPTIONS,
-  { value: 'other', label: 'Other' }
-]
 
 const emptyForm = {
   title: '',
@@ -21,7 +15,7 @@ const emptyForm = {
   plan_data_collection: ''
 }
 
-export default function PdsaCycleForm({ cycle, onSave, onCancel, saving, teamId, initialGoalId, initialDomain }) {
+export default function PdsaCycleForm({ cycle, onSave, onCancel, saving, teamId, initialGoalId, initialDomain, domains = [] }) {
   const [form, setForm] = useState(() => {
     const base = { ...emptyForm }
     if (initialDomain) base.framework_domain = initialDomain
@@ -185,13 +179,15 @@ export default function PdsaCycleForm({ cycle, onSave, onCancel, saving, teamId,
           />
         </div>
         <div>
-          <label style={labelStyle}>STSI-OA Domain</label>
+          <label style={labelStyle}>Framework Domain</label>
           <select
             value={form.framework_domain}
             onChange={(e) => handleChange('framework_domain', e.target.value)}
             style={inputStyle}
           >
-            {CYCLE_DOMAIN_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+            <option value="">Select a domain...</option>
+            {domains.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+            <option value="other">Other</option>
           </select>
         </div>
       </div>
@@ -234,7 +230,7 @@ export default function PdsaCycleForm({ cycle, onSave, onCancel, saving, teamId,
               borderRadius: '9999px',
               fontWeight: '600'
             }}>
-              {DOMAIN_OPTIONS.find(d => d.value === selectedGoal.framework_domain)?.label || selectedGoal.framework_domain}
+              {domains.find(d => d.value === selectedGoal.framework_domain)?.label || selectedGoal.framework_domain}
             </span>
           )}
           {selectedGoal.strategic && (

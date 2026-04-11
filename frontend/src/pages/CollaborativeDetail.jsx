@@ -5,6 +5,7 @@ import AddTeamModal from '../components/AddTeamModal'
 import InviteTeamLeaderModal from '../components/InviteTeamLeaderModal'
 import AttendanceReport from '../components/AttendanceReport'
 import EvaluationReport from '../components/EvaluationReport'
+import { PROGRAM_TYPE_COLORS, getProgramBranding } from '../config/programConfig'
 import ctacLogo from '../assets/CTAC_white.png'
 
 const EVENT_TYPES = [
@@ -478,6 +479,16 @@ export default function CollaborativeDetail() {
                   collaborative.name
                 )}
               </h2>
+              {(() => {
+                const ptc = PROGRAM_TYPE_COLORS[collaborative.program_type] || PROGRAM_TYPE_COLORS.sts_bsc
+                return (
+                  <span style={{
+                    background: ptc.bg, color: ptc.color,
+                    padding: '0.25rem 0.75rem', borderRadius: '12px',
+                    fontSize: '0.75rem', fontWeight: '700'
+                  }}>{ptc.label}</span>
+                )
+              })()}
               <span style={{
                 background: collaborative.status === 'active' ? '#d1fae5' : '#f3f4f6',
                 color: collaborative.status === 'active' ? '#10b981' : '#6b7280',
@@ -904,22 +915,24 @@ export default function CollaborativeDetail() {
                       >
                         PDSA
                       </button>
-                      <button
-                        onClick={() => navigate(`/admin/sts-pat/${team.id}`)}
-                        style={{
-                          background: '#0E1F56',
-                          color: 'white',
-                          border: 'none',
-                          padding: '0.5rem 1rem',
-                          borderRadius: '6px',
-                          cursor: 'pointer',
-                          fontSize: '0.85rem',
-                          fontWeight: '600',
-                          whiteSpace: 'nowrap'
-                        }}
-                      >
-                        STS-PAT
-                      </button>
+                      {getProgramBranding(collaborative?.program_type).hasStsPat && (
+                        <button
+                          onClick={() => navigate(`/admin/sts-pat/${team.id}`)}
+                          style={{
+                            background: '#0E1F56',
+                            color: 'white',
+                            border: 'none',
+                            padding: '0.5rem 1rem',
+                            borderRadius: '6px',
+                            cursor: 'pointer',
+                            fontSize: '0.85rem',
+                            fontWeight: '600',
+                            whiteSpace: 'nowrap'
+                          }}
+                        >
+                          STS-PAT
+                        </button>
+                      )}
                       <button
                         onClick={() => navigate(`/admin/team-report/${team.id}`)}
                         style={{

@@ -2,28 +2,38 @@ import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../utils/supabase'
 import { useAuth } from '../contexts/AuthContext'
-import { COLORS, DOMAIN_OPTIONS } from '../utils/constants'
+import { COLORS } from '../utils/constants'
+import { useProgramDomains } from '../hooks/useProgramDomains'
 import ctacLogo from '../assets/CTAC_white.png'
-
-const DOMAIN_LABELS = {
-  resilience: 'Promotion of Resilience Building Activities',
-  safety: 'Sense of Safety',
-  policies: 'Organizational Policies',
-  leadership: 'Practices of Leaders',
-  routine: 'Routine Organizational Practices',
-  evaluation: 'Evaluation and Monitoring'
-}
 
 export default function ChangeFramework() {
   const navigate = useNavigate()
-  const { isSuperAdmin } = useAuth()
+  const { isSuperAdmin, profile } = useAuth()
   const [drivers, setDrivers] = useState([])
   const [loading, setLoading] = useState(true)
-  const [activeDomain, setActiveDomain] = useState('resilience')
+  const [activeDomain, setActiveDomain] = useState(null)
   const [editingId, setEditingId] = useState(null)
   const [editText, setEditText] = useState('')
   const [addingNew, setAddingNew] = useState(false)
   const [newText, setNewText] = useState('')
+  const [programType, setProgramType] = useState('sts_bsc')
+  const { domains, domainLabels } = useProgramDomains(programType)
+
+  // Set initial active domain once domains load
+  useEffect(() => {
+    if (domains.length > 0 && !activeDomain) setActiveDomain(domains[0].value)
+  }, [domains, activeDomain])
+
+  // Fetch program type from user's team
+  useEffect(() => {
+    if (profile?.team_id && !isSuperAdmin) {
+      supabase.from('teams').select('collaboratives (program_type)')
+        .eq('id', profile.team_id).single()
+        .then(({ data }) => {
+          if (data?.collaboratives?.program_type) setProgramType(data.collaboratives.program_type)
+        })
+    }
+  }, [profile, isSuperAdmin])
 
   useEffect(() => { fetchDrivers() }, [])
 
@@ -41,7 +51,7 @@ export default function ChangeFramework() {
   const filteredDrivers = drivers.filter(d => d.framework_domain === activeDomain)
 
   const domainCounts = {}
-  DOMAIN_OPTIONS.forEach(d => {
+  domains.forEach(d => {
     domainCounts[d.value] = drivers.filter(dr => dr.framework_domain === d.value).length
   })
 
@@ -99,7 +109,7 @@ export default function ChangeFramework() {
             <div>
               <h1 style={{ fontSize: '1.5rem', margin: 0, fontWeight: '700', color: 'white' }}>Collaborative Change Framework</h1>
               <p style={{ margin: 0, fontSize: '0.9rem', opacity: 0.85, color: 'white' }}>
-                Primary and secondary drivers by STSI-OA domain
+                Primary and secondary drivers by domain
               </p>
             </div>
           </div>
@@ -119,7 +129,7 @@ export default function ChangeFramework() {
           display: 'flex', gap: '0.5rem', marginBottom: '1.5rem',
           overflowX: 'auto', paddingBottom: '0.25rem', flexWrap: 'wrap'
         }}>
-          {DOMAIN_OPTIONS.map(d => (
+          {domains.map(d => (
             <button
               key={d.value}
               onClick={() => { setActiveDomain(d.value); setEditingId(null); setAddingNew(false) }}
@@ -159,7 +169,7 @@ export default function ChangeFramework() {
                 Primary Driver
               </div>
               <h2 style={{ margin: '0.25rem 0 0', color: COLORS.navy, fontSize: '1.25rem' }}>
-                {DOMAIN_LABELS[activeDomain]}
+                {domainLabels[activeDomain] || activeDomain}
               </h2>
             </div>
 
