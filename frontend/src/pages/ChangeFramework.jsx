@@ -38,11 +38,11 @@ export default function ChangeFramework() {
     setLoading(false)
   }
 
-  const filteredDrivers = drivers.filter(d => d.stsioa_domain === activeDomain)
+  const filteredDrivers = drivers.filter(d => d.framework_domain === activeDomain)
 
   const domainCounts = {}
   DOMAIN_OPTIONS.forEach(d => {
-    domainCounts[d.value] = drivers.filter(dr => dr.stsioa_domain === d.value).length
+    domainCounts[d.value] = drivers.filter(dr => dr.framework_domain === d.value).length
   })
 
   const handleSaveEdit = async (id) => {
@@ -62,7 +62,7 @@ export default function ChangeFramework() {
     const maxSort = filteredDrivers.reduce((max, d) => Math.max(max, d.sort_order || 0), 0)
     const { data, error } = await supabase
       .from('change_framework_drivers')
-      .insert({ stsioa_domain: activeDomain, driver_text: newText.trim(), sort_order: maxSort + 1 })
+      .insert({ framework_domain: activeDomain, driver_text: newText.trim(), sort_order: maxSort + 1 })
       .select()
       .single()
     if (error) { alert('Error adding: ' + error.message); return }
@@ -97,8 +97,8 @@ export default function ChangeFramework() {
             onClick={() => navigate('/admin')}>
             <img src={ctacLogo} alt="CTAC" style={{ height: '45px' }} />
             <div>
-              <h1 style={{ fontSize: '1.5rem', margin: 0, fontWeight: '700' }}>Collaborative Change Framework</h1>
-              <p style={{ margin: 0, fontSize: '0.9rem', opacity: 0.85 }}>
+              <h1 style={{ fontSize: '1.5rem', margin: 0, fontWeight: '700', color: 'white' }}>Collaborative Change Framework</h1>
+              <p style={{ margin: 0, fontSize: '0.9rem', opacity: 0.85, color: 'white' }}>
                 Primary and secondary drivers by STSI-OA domain
               </p>
             </div>

@@ -50,7 +50,7 @@ export default function Strategies() {
     const { error } = await supabase
       .from('pdsa_strategies')
       .insert({
-        stsioa_domain: activeDomain,
+        framework_domain: activeDomain,
         strategy_text: newStrategy.trim(),
         source: newSource.trim() || null
       })
@@ -75,7 +75,7 @@ export default function Strategies() {
   }
 
   const isSuperAdmin = userProfile?.role === 'super_admin'
-  const filtered = strategies.filter(s => s.stsioa_domain === activeDomain)
+  const filtered = strategies.filter(s => s.framework_domain === activeDomain)
 
   if (loading) {
     return (
@@ -139,7 +139,7 @@ export default function Strategies() {
                 fontSize: '0.7rem',
                 opacity: 0.7
               }}>
-                ({strategies.filter(s => s.stsioa_domain === tab.value).length})
+                ({strategies.filter(s => s.framework_domain === tab.value).length})
               </span>
             </button>
           ))}

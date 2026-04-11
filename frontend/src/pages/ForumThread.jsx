@@ -209,8 +209,8 @@ export default function ForumThread() {
             onClick={() => navigate('/admin')}>
             <img src={ctacLogo} alt="CTAC" style={{ height: '45px' }} />
             <div>
-              <h1 style={{ fontSize: '1.5rem', margin: 0, fontWeight: '700' }}>Community Forum</h1>
-              <p style={{ margin: 0, fontSize: '0.9rem', opacity: 0.85 }}>Thread Discussion</p>
+              <h1 style={{ fontSize: '1.5rem', margin: 0, fontWeight: '700', color: 'white' }}>Community Forum</h1>
+              <p style={{ margin: 0, fontSize: '0.9rem', opacity: 0.85, color: 'white' }}>Thread Discussion</p>
             </div>
           </div>
           <button onClick={handleSignOut} style={{

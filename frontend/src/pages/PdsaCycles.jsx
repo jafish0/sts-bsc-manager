@@ -117,7 +117,7 @@ export default function PdsaCycles() {
   const loadCycles = async () => {
     const { data, error } = await supabase
       .from('pdsa_cycles')
-      .select('*, smartie_goals (goal_title, stsioa_domain)')
+      .select('*, smartie_goals (goal_title, framework_domain)')
       .eq('team_id', teamId)
       .order('created_at', { ascending: false })
 
@@ -472,7 +472,7 @@ export default function PdsaCycles() {
               }}>
                 {statusInfo.label}
               </span>
-              {cycle.stsioa_domain && (
+              {cycle.framework_domain && (
                 <span style={{
                   padding: '0.15rem 0.5rem',
                   borderRadius: '9999px',
@@ -481,7 +481,7 @@ export default function PdsaCycles() {
                   background: `${COLORS.teal}15`,
                   color: COLORS.teal
                 }}>
-                  {DOMAIN_LABELS[cycle.stsioa_domain] || cycle.stsioa_domain}
+                  {DOMAIN_LABELS[cycle.framework_domain] || cycle.framework_domain}
                 </span>
               )}
             </div>
@@ -557,7 +557,7 @@ export default function PdsaCycles() {
                 onClick={() => navigate(`/admin/smartie-goals/${teamId}`)}
               >
                 🎯 Linked Goal: <strong>{cycle.smartie_goals.goal_title}</strong>
-                {cycle.smartie_goals.stsioa_domain && (
+                {cycle.smartie_goals.framework_domain && (
                   <span style={{
                     marginLeft: '0.5rem',
                     fontSize: '0.7rem',
@@ -567,7 +567,7 @@ export default function PdsaCycles() {
                     borderRadius: '9999px',
                     fontWeight: '600'
                   }}>
-                    {DOMAIN_LABELS[cycle.smartie_goals.stsioa_domain]}
+                    {DOMAIN_LABELS[cycle.smartie_goals.framework_domain]}
                   </span>
                 )}
               </div>

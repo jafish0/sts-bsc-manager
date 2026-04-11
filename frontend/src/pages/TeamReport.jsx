@@ -482,7 +482,7 @@ export default function TeamReport() {
                         {goal.status.charAt(0).toUpperCase() + goal.status.slice(1)}
                       </span>
                     </div>
-                    {goal.stsioa_domain && <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: '0.25rem' }}>Domain: {goal.stsioa_domain}</div>}
+                    {goal.framework_domain && <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: '0.25rem' }}>Domain: {goal.framework_domain}</div>}
                     {goal.strategic && <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}><strong>Strategic:</strong> {goal.strategic}</div>}
                     {goal.progress_notes && (
                       <div style={{ marginTop: '0.5rem', padding: '0.5rem', background: '#fffbeb', borderRadius: '4px', fontSize: '0.8rem' }}>

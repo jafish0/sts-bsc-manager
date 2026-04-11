@@ -415,7 +415,7 @@ export default function SmartieGoals() {
               </span>
             </div>
             <div style={{ display: 'flex', gap: '1rem', fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-              {goal.stsioa_domain && <span>{DOMAIN_LABELS[goal.stsioa_domain]}</span>}
+              {goal.framework_domain && <span>{DOMAIN_LABELS[goal.framework_domain]}</span>}
               {goal.target_date && <span>Target: {new Date(goal.target_date).toLocaleDateString()}</span>}
               <span>Created {new Date(goal.created_at).toLocaleDateString()}</span>
             </div>
@@ -477,7 +477,7 @@ export default function SmartieGoals() {
                     </strong>
                     {canEdit && (
                       <button
-                        onClick={() => navigate(`/admin/pdsa/${teamId}?goalId=${goal.id}&domain=${goal.stsioa_domain || ''}`)}
+                        onClick={() => navigate(`/admin/pdsa/${teamId}?goalId=${goal.id}&domain=${goal.framework_domain || ''}`)}
                         style={{
                           background: 'none',
                           border: `1px solid ${COLORS.teal}`,

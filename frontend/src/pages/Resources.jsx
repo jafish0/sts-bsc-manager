@@ -102,8 +102,8 @@ export default function Resources() {
             onClick={() => navigate('/admin')}>
             <img src={ctacLogo} alt="CTAC" style={{ height: '45px' }} />
             <div>
-              <h1 style={{ fontSize: '1.5rem', margin: 0, fontWeight: '700' }}>Resource Library</h1>
-              <p style={{ margin: 0, fontSize: '0.9rem', opacity: 0.85 }}>
+              <h1 style={{ fontSize: '1.5rem', margin: 0, fontWeight: '700', color: 'white' }}>Resource Library</h1>
+              <p style={{ margin: 0, fontSize: '0.9rem', opacity: 0.85, color: 'white' }}>
                 Guides, tools, and videos organized by STSI-OA domain
               </p>
             </div>

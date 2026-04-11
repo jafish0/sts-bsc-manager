@@ -15,7 +15,7 @@ const STATUS_OPTIONS = [
 
 const emptyForm = {
   goal_title: '',
-  stsioa_domain: '',
+  framework_domain: '',
   rationale: '',
   strategic: '',
   measurable: '',
@@ -30,13 +30,13 @@ const emptyForm = {
 }
 
 export default function SmartieGoalForm({ goal, onSave, onCancel, saving, initialDomain }) {
-  const [form, setForm] = useState(() => initialDomain ? { ...emptyForm, stsioa_domain: initialDomain } : emptyForm)
+  const [form, setForm] = useState(() => initialDomain ? { ...emptyForm, framework_domain: initialDomain } : emptyForm)
 
   useEffect(() => {
     if (goal) {
       setForm({
         goal_title: goal.goal_title || '',
-        stsioa_domain: goal.stsioa_domain || '',
+        framework_domain: goal.framework_domain || '',
         rationale: goal.rationale || '',
         strategic: goal.strategic || '',
         measurable: goal.measurable || '',
@@ -127,8 +127,8 @@ export default function SmartieGoalForm({ goal, onSave, onCancel, saving, initia
         <div>
           <label style={labelStyle}>STSI-OA Domain</label>
           <select
-            value={form.stsioa_domain}
-            onChange={(e) => handleChange('stsioa_domain', e.target.value)}
+            value={form.framework_domain}
+            onChange={(e) => handleChange('framework_domain', e.target.value)}
             style={inputStyle}
           >
             {GOAL_DOMAIN_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}

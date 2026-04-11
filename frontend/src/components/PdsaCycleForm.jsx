@@ -10,7 +10,7 @@ const CYCLE_DOMAIN_OPTIONS = [
 
 const emptyForm = {
   title: '',
-  stsioa_domain: '',
+  framework_domain: '',
   smartie_goal_id: '',
   aim: '',
   measure: '',
@@ -24,7 +24,7 @@ const emptyForm = {
 export default function PdsaCycleForm({ cycle, onSave, onCancel, saving, teamId, initialGoalId, initialDomain }) {
   const [form, setForm] = useState(() => {
     const base = { ...emptyForm }
-    if (initialDomain) base.stsioa_domain = initialDomain
+    if (initialDomain) base.framework_domain = initialDomain
     if (initialGoalId) base.smartie_goal_id = initialGoalId
     return base
   })
@@ -37,7 +37,7 @@ export default function PdsaCycleForm({ cycle, onSave, onCancel, saving, teamId,
     if (cycle) {
       setForm({
         title: cycle.title || '',
-        stsioa_domain: cycle.stsioa_domain || '',
+        framework_domain: cycle.framework_domain || '',
         smartie_goal_id: cycle.smartie_goal_id || '',
         aim: cycle.aim || '',
         measure: cycle.measure || '',
@@ -49,7 +49,7 @@ export default function PdsaCycleForm({ cycle, onSave, onCancel, saving, teamId,
       })
     } else {
       const base = { ...emptyForm }
-      if (initialDomain) base.stsioa_domain = initialDomain
+      if (initialDomain) base.framework_domain = initialDomain
       if (initialGoalId) base.smartie_goal_id = initialGoalId
       setForm(base)
     }
@@ -60,7 +60,7 @@ export default function PdsaCycleForm({ cycle, onSave, onCancel, saving, teamId,
     if (teamId) {
       supabase
         .from('smartie_goals')
-        .select('id, goal_title, stsioa_domain, strategic, status')
+        .select('id, goal_title, framework_domain, strategic, status')
         .eq('team_id', teamId)
         .in('status', ['active', 'completed'])
         .order('created_at', { ascending: false })
@@ -71,8 +71,8 @@ export default function PdsaCycleForm({ cycle, onSave, onCancel, saving, teamId,
             const g = data.find(g => g.id === initialGoalId)
             if (g) {
               setSelectedGoal(g)
-              if (!cycle && g.stsioa_domain) {
-                setForm(prev => ({ ...prev, stsioa_domain: g.stsioa_domain }))
+              if (!cycle && g.framework_domain) {
+                setForm(prev => ({ ...prev, framework_domain: g.framework_domain }))
               }
             }
           }
@@ -82,16 +82,16 @@ export default function PdsaCycleForm({ cycle, onSave, onCancel, saving, teamId,
 
   // Load strategies when domain changes
   useEffect(() => {
-    if (form.stsioa_domain && form.stsioa_domain !== 'other') {
+    if (form.framework_domain && form.framework_domain !== 'other') {
       supabase
         .from('pdsa_strategies')
         .select('id, strategy_text, source')
-        .eq('stsioa_domain', form.stsioa_domain)
+        .eq('framework_domain', form.framework_domain)
         .then(({ data }) => setStrategies(data || []))
     } else {
       setStrategies([])
     }
-  }, [form.stsioa_domain])
+  }, [form.framework_domain])
 
   const handleChange = (field, value) => {
     setForm(prev => ({ ...prev, [field]: value }))
@@ -102,8 +102,8 @@ export default function PdsaCycleForm({ cycle, onSave, onCancel, saving, teamId,
     if (goalId) {
       const g = goals.find(g => g.id === goalId)
       setSelectedGoal(g || null)
-      if (g?.stsioa_domain) {
-        handleChange('stsioa_domain', g.stsioa_domain)
+      if (g?.framework_domain) {
+        handleChange('framework_domain', g.framework_domain)
       }
     } else {
       setSelectedGoal(null)
@@ -187,8 +187,8 @@ export default function PdsaCycleForm({ cycle, onSave, onCancel, saving, teamId,
         <div>
           <label style={labelStyle}>STSI-OA Domain</label>
           <select
-            value={form.stsioa_domain}
-            onChange={(e) => handleChange('stsioa_domain', e.target.value)}
+            value={form.framework_domain}
+            onChange={(e) => handleChange('framework_domain', e.target.value)}
             style={inputStyle}
           >
             {CYCLE_DOMAIN_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
@@ -225,7 +225,7 @@ export default function PdsaCycleForm({ cycle, onSave, onCancel, saving, teamId,
           <div style={{ fontWeight: '600', color: COLORS.navy, fontSize: '0.9rem', marginBottom: '0.25rem' }}>
             {selectedGoal.goal_title}
           </div>
-          {selectedGoal.stsioa_domain && (
+          {selectedGoal.framework_domain && (
             <span style={{
               fontSize: '0.7rem',
               background: `${COLORS.teal}15`,
@@ -234,7 +234,7 @@ export default function PdsaCycleForm({ cycle, onSave, onCancel, saving, teamId,
               borderRadius: '9999px',
               fontWeight: '600'
             }}>
-              {DOMAIN_OPTIONS.find(d => d.value === selectedGoal.stsioa_domain)?.label || selectedGoal.stsioa_domain}
+              {DOMAIN_OPTIONS.find(d => d.value === selectedGoal.framework_domain)?.label || selectedGoal.framework_domain}
             </span>
           )}
           {selectedGoal.strategic && (

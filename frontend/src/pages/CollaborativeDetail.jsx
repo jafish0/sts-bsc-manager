@@ -393,8 +393,8 @@ export default function CollaborativeDetail() {
               style={{ height: '50px', width: 'auto' }}
             />
             <div>
-              <h1 style={{ fontSize: '1.25rem', margin: 0 }}>Collaborative Details</h1>
-              <p style={{ fontSize: '0.875rem', margin: 0, opacity: 0.9 }}>
+              <h1 style={{ fontSize: '1.25rem', margin: 0, color: 'white' }}>Collaborative Details</h1>
+              <p style={{ fontSize: '0.875rem', margin: 0, opacity: 0.9, color: 'white' }}>
                 View and manage collaborative information
               </p>
             </div>

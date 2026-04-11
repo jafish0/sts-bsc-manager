@@ -87,8 +87,8 @@ export default function StaffDirectory() {
             onClick={() => navigate('/admin')}>
             <img src={ctacLogo} alt="CTAC" style={{ height: '45px' }} />
             <div>
-              <h1 style={{ fontSize: '1.5rem', margin: 0, fontWeight: '700' }}>Project Staff</h1>
-              <p style={{ margin: 0, fontSize: '0.9rem', opacity: 0.85 }}>
+              <h1 style={{ fontSize: '1.5rem', margin: 0, fontWeight: '700', color: 'white' }}>Project Staff</h1>
+              <p style={{ margin: 0, fontSize: '0.9rem', opacity: 0.85, color: 'white' }}>
                 BSC faculty and support team
               </p>
             </div>
