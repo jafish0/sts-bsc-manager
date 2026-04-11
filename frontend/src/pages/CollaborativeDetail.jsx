@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { supabase } from '../utils/supabase'
+import { useAuth } from '../contexts/AuthContext'
 import AddTeamModal from '../components/AddTeamModal'
 import InviteTeamLeaderModal from '../components/InviteTeamLeaderModal'
 import AttendanceReport from '../components/AttendanceReport'
@@ -20,6 +21,7 @@ const EVENT_TYPES = [
 export default function CollaborativeDetail() {
   const { id } = useParams()
   const navigate = useNavigate()
+  const { isSuperAdmin } = useAuth()
   const [collaborative, setCollaborative] = useState(null)
   const [teams, setTeams] = useState([])
   const [loading, setLoading] = useState(true)
@@ -501,7 +503,7 @@ export default function CollaborativeDetail() {
               </span>
             </div>
 
-            {!isEditing ? (
+            {isSuperAdmin && (!isEditing ? (
               <button
                 onClick={() => setIsEditing(true)}
                 style={{
@@ -553,7 +555,7 @@ export default function CollaborativeDetail() {
                   {saving ? 'Saving...' : 'Save'}
                 </button>
               </div>
-            )}
+            ))}
           </div>
 
           {isEditing ? (
@@ -682,12 +684,14 @@ export default function CollaborativeDetail() {
             <h3 style={{ fontSize: '1.5rem', fontWeight: '700', color: '#0E1F56', margin: 0 }}>
               BSC Events
             </h3>
-            <button onClick={() => setShowAddEvent(!showAddEvent)} style={{
-              background: showAddEvent ? '#e5e7eb' : 'linear-gradient(135deg, #00A79D 0%, #0E1F56 100%)',
-              color: showAddEvent ? '#374151' : 'white',
-              padding: '0.625rem 1.25rem', borderRadius: '8px', border: 'none',
-              fontWeight: '600', cursor: 'pointer', fontSize: '0.9rem'
-            }}>{showAddEvent ? 'Cancel' : '+ Add Event'}</button>
+            {isSuperAdmin && (
+              <button onClick={() => setShowAddEvent(!showAddEvent)} style={{
+                background: showAddEvent ? '#e5e7eb' : 'linear-gradient(135deg, #00A79D 0%, #0E1F56 100%)',
+                color: showAddEvent ? '#374151' : 'white',
+                padding: '0.625rem 1.25rem', borderRadius: '8px', border: 'none',
+                fontWeight: '600', cursor: 'pointer', fontSize: '0.9rem'
+              }}>{showAddEvent ? 'Cancel' : '+ Add Event'}</button>
+            )}
           </div>
 
           {showAddEvent && (
@@ -761,9 +765,11 @@ export default function CollaborativeDetail() {
                           </span>
                         )}
                       </div>
-                      <button onClick={() => handleDeleteEvent(evt.id)} style={{
-                        background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', fontSize: '0.8rem'
-                      }}>Delete</button>
+                      {isSuperAdmin && (
+                        <button onClick={() => handleDeleteEvent(evt.id)} style={{
+                          background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', fontSize: '0.8rem'
+                        }}>Delete</button>
+                      )}
                     </div>
 
                     {/* Session management controls for learning sessions */}
@@ -837,22 +843,24 @@ export default function CollaborativeDetail() {
             <h3 style={{ fontSize: '1.5rem', fontWeight: '700', color: '#0E1F56', margin: 0 }}>
               Teams
             </h3>
-            <button
-              onClick={() => setShowAddTeamModal(true)}
-              style={{
-                background: 'linear-gradient(135deg, #00A79D 0%, #0E1F56 100%)',
-                color: 'white',
-                padding: '0.75rem 1.5rem',
-                borderRadius: '8px',
-                border: 'none',
-                fontWeight: '600',
-                cursor: 'pointer',
-                fontSize: '0.95rem',
-                boxShadow: '0 4px 12px rgba(0, 167, 157, 0.3)'
-              }}
-            >
-              + Add Team
-            </button>
+            {isSuperAdmin && (
+              <button
+                onClick={() => setShowAddTeamModal(true)}
+                style={{
+                  background: 'linear-gradient(135deg, #00A79D 0%, #0E1F56 100%)',
+                  color: 'white',
+                  padding: '0.75rem 1.5rem',
+                  borderRadius: '8px',
+                  border: 'none',
+                  fontWeight: '600',
+                  cursor: 'pointer',
+                  fontSize: '0.95rem',
+                  boxShadow: '0 4px 12px rgba(0, 167, 157, 0.3)'
+                }}
+              >
+                + Add Team
+              </button>
+            )}
           </div>
 
           {teams.length === 0 ? (
@@ -949,22 +957,24 @@ export default function CollaborativeDetail() {
                       >
                         View Report
                       </button>
-                      <button
-                        onClick={() => setInviteTeam(team)}
-                        style={{
-                          background: 'white',
-                          color: '#0E1F56',
-                          border: '2px solid #0E1F56',
-                          padding: '0.4rem 0.85rem',
-                          borderRadius: '6px',
-                          cursor: 'pointer',
-                          fontSize: '0.85rem',
-                          fontWeight: '600',
-                          whiteSpace: 'nowrap'
-                        }}
-                      >
-                        + Invite Leader
-                      </button>
+                      {isSuperAdmin && (
+                        <button
+                          onClick={() => setInviteTeam(team)}
+                          style={{
+                            background: 'white',
+                            color: '#0E1F56',
+                            border: '2px solid #0E1F56',
+                            padding: '0.4rem 0.85rem',
+                            borderRadius: '6px',
+                            cursor: 'pointer',
+                            fontSize: '0.85rem',
+                            fontWeight: '600',
+                            whiteSpace: 'nowrap'
+                          }}
+                        >
+                          + Invite Leader
+                        </button>
+                      )}
                     </div>
                   </div>
 

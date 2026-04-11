@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../utils/supabase'
 import { useNavigate } from 'react-router-dom'
+import { useAuth } from '../contexts/AuthContext'
 import CreateCollaborativeModal from '../components/CreateCollaborativeModal'
 import { PROGRAM_TYPE_COLORS } from '../config/programConfig'
 import ctacLogo from '../assets/CTAC_white.png'
@@ -11,6 +12,7 @@ export default function CollaborativesList() {
   const [showCreateModal, setShowCreateModal] = useState(false)
   const [filter, setFilter] = useState('active')
   const navigate = useNavigate()
+  const { isSuperAdmin } = useAuth()
 
   useEffect(() => {
     fetchCollaboratives()
@@ -194,31 +196,33 @@ export default function CollaborativesList() {
             </button>
           </div>
 
-          <button
-            onClick={() => setShowCreateModal(true)}
-            style={{
-              background: 'linear-gradient(135deg, #00A79D 0%, #0E1F56 100%)',
-              color: 'white',
-              padding: '0.75rem 1.5rem',
-              borderRadius: '8px',
-              border: 'none',
-              fontWeight: '600',
-              fontSize: '1rem',
-              cursor: 'pointer',
-              boxShadow: '0 4px 12px rgba(0, 167, 157, 0.3)',
-              transition: 'all 0.2s'
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.transform = 'translateY(-2px)'
-              e.currentTarget.style.boxShadow = '0 6px 20px rgba(0, 167, 157, 0.4)'
-            }}
-            onMouseOut={(e) => {
-              e.currentTarget.style.transform = 'translateY(0)'
-              e.currentTarget.style.boxShadow = '0 4px 12px rgba(0, 167, 157, 0.3)'
-            }}
-          >
-            + Create New Collaborative
-          </button>
+          {isSuperAdmin && (
+            <button
+              onClick={() => setShowCreateModal(true)}
+              style={{
+                background: 'linear-gradient(135deg, #00A79D 0%, #0E1F56 100%)',
+                color: 'white',
+                padding: '0.75rem 1.5rem',
+                borderRadius: '8px',
+                border: 'none',
+                fontWeight: '600',
+                fontSize: '1rem',
+                cursor: 'pointer',
+                boxShadow: '0 4px 12px rgba(0, 167, 157, 0.3)',
+                transition: 'all 0.2s'
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.transform = 'translateY(-2px)'
+                e.currentTarget.style.boxShadow = '0 6px 20px rgba(0, 167, 157, 0.4)'
+              }}
+              onMouseOut={(e) => {
+                e.currentTarget.style.transform = 'translateY(0)'
+                e.currentTarget.style.boxShadow = '0 4px 12px rgba(0, 167, 157, 0.3)'
+              }}
+            >
+              + Create New Collaborative
+            </button>
+          )}
         </div>
 
         {/* Collaboratives Grid */}
@@ -237,7 +241,7 @@ export default function CollaborativesList() {
                 ? 'Get started by creating your first collaborative'
                 : `No ${filter} collaboratives at this time`}
             </p>
-            {filter === 'all' && (
+            {filter === 'all' && isSuperAdmin && (
               <button
                 onClick={() => setShowCreateModal(true)}
                 style={{

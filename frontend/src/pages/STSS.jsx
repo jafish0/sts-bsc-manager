@@ -50,20 +50,18 @@ function STSS() {
   }
 
   const calculateScores = () => {
-    const intrusionItems = STSS_ITEMS.filter(item => item.subscale === 'intrusion')
-    const avoidanceItems = STSS_ITEMS.filter(item => item.subscale === 'avoidance')
-    const arousalItems = STSS_ITEMS.filter(item => item.subscale === 'arousal')
+    // 3-subscale model matching DB trigger (Bride 2004)
+    const intrusion = [2, 3, 6, 10, 13]
+    const avoidance = [1, 5, 7, 9, 12, 14, 17]
+    const arousal = [4, 8, 11, 15, 16]
 
-    const intrusionScore = intrusionItems.reduce((sum, item) => sum + (responses[item.id] || 0), 0)
-    const avoidanceScore = avoidanceItems.reduce((sum, item) => sum + (responses[item.id] || 0), 0)
-    const arousalScore = arousalItems.reduce((sum, item) => sum + (responses[item.id] || 0), 0)
-    const totalScore = intrusionScore + avoidanceScore + arousalScore
+    const sum = (items) => items.reduce((s, id) => s + (responses[id] || 0), 0)
 
     return {
-      intrusion_score: intrusionScore,
-      avoidance_score: avoidanceScore,
-      arousal_score: arousalScore,
-      total_score: totalScore
+      intrusion_score: sum(intrusion),
+      avoidance_score: sum(avoidance),
+      arousal_score: sum(arousal),
+      total_score: sum(intrusion) + sum(avoidance) + sum(arousal)
     }
   }
 
