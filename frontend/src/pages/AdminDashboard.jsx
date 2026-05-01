@@ -89,7 +89,7 @@ export default function AdminDashboard() {
       <div style={{ maxWidth: '1200px', margin: '0 auto', padding: '2rem' }}>
         {/* Program Tiles */}
         <div style={{ marginBottom: '2rem' }}>
-          <h2 style={{ color: '#0E1F56', marginBottom: '1rem' }}>Programs</h2>
+          <h2 style={{ color: 'var(--text-heading)', marginBottom: '1rem' }}>Programs</h2>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '1rem' }}>
             {[
               { key: 'sts_bsc', name: 'STS-BSC', full: 'Secondary Traumatic Stress Breakthrough Series Collaborative', active: true },
@@ -139,7 +139,7 @@ export default function AdminDashboard() {
                   }}>
                     {colors.label}
                   </span>
-                  <div style={{ color: '#0E1F56', fontSize: '1.1rem', fontWeight: '600', marginBottom: '0.25rem' }}>
+                  <div style={{ color: 'var(--text-heading)', fontSize: '1.1rem', fontWeight: '600', marginBottom: '0.25rem' }}>
                     {prog.name}
                   </div>
                   <div style={{ color: 'var(--text-muted)', fontSize: '0.8rem', lineHeight: '1.3' }}>
@@ -152,7 +152,7 @@ export default function AdminDashboard() {
         </div>
 
         {/* Admin Tools */}
-        <h2 style={{ color: '#0E1F56', marginBottom: '1rem' }}>Admin Tools</h2>
+        <h2 style={{ color: 'var(--text-heading)', marginBottom: '1rem' }}>Admin Tools</h2>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '1.5rem' }}>
           <button
             onClick={() => navigate('/admin/collaboratives')}
@@ -177,7 +177,7 @@ export default function AdminDashboard() {
             }}
           >
             <div style={{ fontSize: '2rem', marginBottom: '0.5rem' }}>📋</div>
-            <div style={{ color: '#0E1F56', fontSize: '1.25rem', fontWeight: '600', marginBottom: '0.5rem' }}>
+            <div style={{ color: 'var(--text-heading)', fontSize: '1.25rem', fontWeight: '600', marginBottom: '0.5rem' }}>
               Manage Collaboratives
             </div>
             <div style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>
@@ -208,7 +208,7 @@ export default function AdminDashboard() {
             }}
           >
             <div style={{ fontSize: '2rem', marginBottom: '0.5rem' }}>📊</div>
-            <div style={{ color: '#0E1F56', fontSize: '1.25rem', fontWeight: '600', marginBottom: '0.5rem' }}>
+            <div style={{ color: 'var(--text-heading)', fontSize: '1.25rem', fontWeight: '600', marginBottom: '0.5rem' }}>
               Completion Tracking
             </div>
             <div style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>
@@ -239,7 +239,7 @@ export default function AdminDashboard() {
             }}
           >
             <div style={{ fontSize: '2rem', marginBottom: '0.5rem' }}>📈</div>
-            <div style={{ color: '#0E1F56', fontSize: '1.25rem', fontWeight: '600', marginBottom: '0.5rem' }}>
+            <div style={{ color: 'var(--text-heading)', fontSize: '1.25rem', fontWeight: '600', marginBottom: '0.5rem' }}>
               Data Visualization
             </div>
             <div style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>
@@ -270,7 +270,7 @@ export default function AdminDashboard() {
             }}
           >
             <div style={{ fontSize: '2rem', marginBottom: '0.5rem' }}>📄</div>
-            <div style={{ color: '#0E1F56', fontSize: '1.25rem', fontWeight: '600', marginBottom: '0.5rem' }}>
+            <div style={{ color: 'var(--text-heading)', fontSize: '1.25rem', fontWeight: '600', marginBottom: '0.5rem' }}>
               Team Reports
             </div>
             <div style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>
@@ -301,7 +301,7 @@ export default function AdminDashboard() {
             }}
           >
             <div style={{ fontSize: '2rem', marginBottom: '0.5rem' }}>📚</div>
-            <div style={{ color: '#0E1F56', fontSize: '1.25rem', fontWeight: '600', marginBottom: '0.5rem' }}>
+            <div style={{ color: 'var(--text-heading)', fontSize: '1.25rem', fontWeight: '600', marginBottom: '0.5rem' }}>
               Resources
             </div>
             <div style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>
@@ -332,7 +332,7 @@ export default function AdminDashboard() {
             }}
           >
             <div style={{ fontSize: '2rem', marginBottom: '0.5rem' }}>💬</div>
-            <div style={{ color: '#0E1F56', fontSize: '1.25rem', fontWeight: '600', marginBottom: '0.5rem' }}>
+            <div style={{ color: 'var(--text-heading)', fontSize: '1.25rem', fontWeight: '600', marginBottom: '0.5rem' }}>
               Community Forum
             </div>
             <div style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>
@@ -363,7 +363,7 @@ export default function AdminDashboard() {
             }}
           >
             <div style={{ fontSize: '2rem', marginBottom: '0.5rem' }}>🏗️</div>
-            <div style={{ color: '#0E1F56', fontSize: '1.25rem', fontWeight: '600', marginBottom: '0.5rem' }}>
+            <div style={{ color: 'var(--text-heading)', fontSize: '1.25rem', fontWeight: '600', marginBottom: '0.5rem' }}>
               Change Framework
             </div>
             <div style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>
@@ -394,7 +394,7 @@ export default function AdminDashboard() {
             }}
           >
             <div style={{ fontSize: '2rem', marginBottom: '0.5rem' }}>💡</div>
-            <div style={{ color: '#0E1F56', fontSize: '1.25rem', fontWeight: '600', marginBottom: '0.5rem' }}>
+            <div style={{ color: 'var(--text-heading)', fontSize: '1.25rem', fontWeight: '600', marginBottom: '0.5rem' }}>
               Strategy Ideas
             </div>
             <div style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>
@@ -425,7 +425,7 @@ export default function AdminDashboard() {
             }}
           >
             <div style={{ fontSize: '2rem', marginBottom: '0.5rem' }}>📜</div>
-            <div style={{ color: '#0E1F56', fontSize: '1.25rem', fontWeight: '600', marginBottom: '0.5rem' }}>
+            <div style={{ color: 'var(--text-heading)', fontSize: '1.25rem', fontWeight: '600', marginBottom: '0.5rem' }}>
               STS-PAT Results
             </div>
             <div style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>
@@ -444,7 +444,7 @@ export default function AdminDashboard() {
             }}
           >
             <div style={{ fontSize: '2rem', marginBottom: '0.5rem' }}>&#128203;</div>
-            <div style={{ color: '#0E1F56', fontSize: '1.25rem', fontWeight: '600', marginBottom: '0.5rem' }}>
+            <div style={{ color: 'var(--text-heading)', fontSize: '1.25rem', fontWeight: '600', marginBottom: '0.5rem' }}>
               Self-Rating Engagement
             </div>
             <div style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>
@@ -475,7 +475,7 @@ export default function AdminDashboard() {
             }}
           >
             <div style={{ fontSize: '2rem', marginBottom: '0.5rem' }}>👥</div>
-            <div style={{ color: '#0E1F56', fontSize: '1.25rem', fontWeight: '600', marginBottom: '0.5rem' }}>
+            <div style={{ color: 'var(--text-heading)', fontSize: '1.25rem', fontWeight: '600', marginBottom: '0.5rem' }}>
               Project Staff
             </div>
             <div style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>
@@ -496,7 +496,7 @@ export default function AdminDashboard() {
               }}
             >
               <div style={{ fontSize: '2rem', marginBottom: '0.5rem' }}>&#9888;&#65039;</div>
-              <div style={{ color: '#0E1F56', fontSize: '1.25rem', fontWeight: '600', marginBottom: '0.5rem' }}>
+              <div style={{ color: 'var(--text-heading)', fontSize: '1.25rem', fontWeight: '600', marginBottom: '0.5rem' }}>
                 Unmatched Attendees
                 <span style={{ background: '#f59e0b', color: 'white', borderRadius: '999px', padding: '0.15rem 0.5rem', fontSize: '0.8rem', marginLeft: '0.5rem' }}>{unmatchedCount}</span>
               </div>
@@ -510,7 +510,7 @@ export default function AdminDashboard() {
         {/* Unmatched Attendees Panel */}
         {showUnmatched && unmatchedList.length > 0 && (
           <div style={{ marginTop: '1.5rem', background: 'var(--bg-card)', borderRadius: '0.75rem', padding: '1.5rem', border: '2px solid #f59e0b' }}>
-            <h3 style={{ margin: '0 0 1rem', color: '#0E1F56', fontSize: '1.1rem' }}>Unmatched Attendees</h3>
+            <h3 style={{ margin: '0 0 1rem', color: 'var(--text-heading)', fontSize: '1.1rem' }}>Unmatched Attendees</h3>
             <div style={{ overflowX: 'auto' }}>
               <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
                 <thead>

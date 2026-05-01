@@ -846,7 +846,7 @@ function ActionCard({ icon, title, description, borderColor, onClick }) {
       }}
     >
       <div style={{ fontSize: '2rem', marginBottom: '0.5rem' }}>{icon}</div>
-      <div style={{ color: COLORS.navy, fontSize: '1.25rem', fontWeight: '600', marginBottom: '0.5rem' }}>
+      <div style={{ color: 'var(--text-heading)', fontSize: '1.25rem', fontWeight: '600', marginBottom: '0.5rem' }}>
         {title}
       </div>
       <div style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>
