@@ -1,6 +1,23 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../utils/supabase'
-import { PROGRAM_TYPE_COLORS } from '../config/programConfig'
+import { PROGRAM_TYPE_COLORS, getProgramBranding } from '../config/programConfig'
+
+// Build the locked, pre-populated event list for a given program type.
+// Falls back to STS-BSC defaults if program has none defined.
+function buildDefaultEvents(programType) {
+  const branding = getProgramBranding(programType)
+  const defaults = branding.defaultEvents || []
+  return defaults.map(d => ({
+    event_type: d.event_type,
+    title: d.title,
+    event_date: '',
+    start_time: '',
+    end_time: '',
+    location: 'Virtual',
+    sequence_number: d.sequence_number,
+    locked: true,
+  }))
+}
 
 const EVENT_TYPES = [
   { value: 'learning_session', label: 'Learning Session', audience: 'all_teams' },
@@ -30,12 +47,10 @@ function CreateCollaborativeModal({ onClose, onSuccess }) {
     program_type: 'sts_bsc'
   })
 
-  // Pre-populate LS1, LS2, LS3 — admin just picks dates
-  const [bscEvents, setBscEvents] = useState([
-    { event_type: 'learning_session', title: 'Learning Session 1', event_date: '', start_time: '', end_time: '', location: 'Virtual', sequence_number: 1, locked: true },
-    { event_type: 'learning_session', title: 'Learning Session 2', event_date: '', start_time: '', end_time: '', location: 'Virtual', sequence_number: 2, locked: true },
-    { event_type: 'learning_session', title: 'Learning Session 3', event_date: '', start_time: '', end_time: '', location: 'Virtual', sequence_number: 3, locked: true }
-  ])
+  // Pre-populate the standard schedule for the selected program type.
+  // Default events are sourced from each program's welcome packet / agenda — see programConfig.js.
+  // Resets when program_type changes (see effect below).
+  const [bscEvents, setBscEvents] = useState(() => buildDefaultEvents(formData.program_type))
 
   // Auto-computed assessment dates from LS3
   const [assessmentDates, setAssessmentDates] = useState({
@@ -48,30 +63,41 @@ function CreateCollaborativeModal({ onClose, onSuccess }) {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
 
-  // Auto-compute assessment dates when LS dates change
+  // Reset event list to the program's defaults whenever program_type changes.
   useEffect(() => {
-    const ls1 = bscEvents.find(e => e.sequence_number === 1 && e.event_type === 'learning_session')
-    const ls3 = bscEvents.find(e => e.sequence_number === 3 && e.event_type === 'learning_session')
+    setBscEvents(buildDefaultEvents(formData.program_type))
+  }, [formData.program_type])
 
-    if (ls1?.event_date) {
-      // Baseline: 4 weeks before LS1 through day before LS1
+  // Helper: get first and last Learning Sessions by sequence_number (program-agnostic).
+  const learningSessions = bscEvents
+    .filter(e => e.event_type === 'learning_session')
+    .slice()
+    .sort((a, b) => (a.sequence_number || 0) - (b.sequence_number || 0))
+  const firstLs = learningSessions[0]
+  const lastLs = learningSessions[learningSessions.length - 1]
+
+  // Auto-compute assessment dates when LS dates change.
+  // Anchored to the first LS (baseline) and the last LS (endline + follow-ups).
+  useEffect(() => {
+    if (firstLs?.event_date) {
+      // Baseline: 4 weeks before first LS through day before first LS
       setAssessmentDates(prev => ({
         ...prev,
-        baseline_start_date: addDays(ls1.event_date, -28),
-        baseline_end_date: addDays(ls1.event_date, -1)
+        baseline_start_date: addDays(firstLs.event_date, -28),
+        baseline_end_date: addDays(firstLs.event_date, -1)
       }))
     }
 
-    if (ls3?.event_date) {
-      // Endline: 2 weeks after LS3 through 6 weeks after
-      const endlineStart = addDays(ls3.event_date, 14)
-      const endlineEnd = addDays(ls3.event_date, 42)
-      // 6mo follow-up: 6 months after LS3 (180 days) ± 3 weeks
-      const sixMoCenter = addDays(ls3.event_date, 180)
+    if (lastLs?.event_date) {
+      // Endline: 2 weeks after last LS through 6 weeks after
+      const endlineStart = addDays(lastLs.event_date, 14)
+      const endlineEnd = addDays(lastLs.event_date, 42)
+      // 6mo follow-up: 6 months after last LS (180 days) ± 3 weeks
+      const sixMoCenter = addDays(lastLs.event_date, 180)
       const sixMoStart = addDays(sixMoCenter, -21)
       const sixMoEnd = addDays(sixMoCenter, 21)
-      // 12mo follow-up: 12 months after LS3 (365 days) ± 3 weeks
-      const twelveMoCenter = addDays(ls3.event_date, 365)
+      // 12mo follow-up: 12 months after last LS (365 days) ± 3 weeks
+      const twelveMoCenter = addDays(lastLs.event_date, 365)
       const twelveMoStart = addDays(twelveMoCenter, -21)
       const twelveMoEnd = addDays(twelveMoCenter, 21)
 
@@ -85,7 +111,7 @@ function CreateCollaborativeModal({ onClose, onSuccess }) {
         followup_12mo_end_date: twelveMoEnd
       }))
     }
-  }, [bscEvents])
+  }, [firstLs?.event_date, lastLs?.event_date])
 
   const addEvent = () => {
     const newEvt = {
@@ -111,7 +137,6 @@ function CreateCollaborativeModal({ onClose, onSuccess }) {
   }
 
   const removeEvent = (idx) => {
-    if (bscEvents[idx].locked) return // can't remove prepopulated LS
     setBscEvents(prev => prev.filter((_, i) => i !== idx))
   }
 
@@ -126,18 +151,16 @@ function CreateCollaborativeModal({ onClose, onSuccess }) {
       return
     }
 
-    // Validate LS dates are set
-    const ls1 = bscEvents.find(e => e.sequence_number === 1 && e.event_type === 'learning_session')
-    const ls3 = bscEvents.find(e => e.sequence_number === 3 && e.event_type === 'learning_session')
-    if (!ls1?.event_date || !ls3?.event_date) {
-      setError('Please set dates for all three Learning Sessions')
+    // Validate first and last Learning Session dates are set
+    if (!firstLs?.event_date || !lastLs?.event_date) {
+      setError('Please set dates for the first and last Learning Sessions')
       setLoading(false)
       return
     }
 
-    // Derive start/end from LS1 and follow-up window
-    const startDate = addDays(ls1.event_date, -30) // 30 days before LS1
-    const endDate = assessmentDates.followup_12mo_end_date || addDays(ls3.event_date, 400)
+    // Derive start/end from first LS and follow-up window
+    const startDate = addDays(firstLs.event_date, -30) // 30 days before first LS
+    const endDate = assessmentDates.followup_12mo_end_date || addDays(lastLs.event_date, 400)
 
     try {
       const { data, error: insertError } = await supabase
@@ -277,7 +300,7 @@ function CreateCollaborativeModal({ onClose, onSuccess }) {
               BSC Schedule *
             </h3>
             <p style={{ color: '#6b7280', fontSize: '0.8rem', marginBottom: '1rem' }}>
-              Set dates for the three Learning Sessions. Assessment windows will be auto-calculated.
+              Default schedule pre-populated from the program's standard agenda. Set dates for at least the first and last Learning Sessions — assessment windows are auto-calculated from those. Other dates (calls, intermediate sessions) are optional; leave blank to skip.
             </p>
 
             {bscEvents.map((evt, idx) => (
@@ -289,12 +312,10 @@ function CreateCollaborativeModal({ onClose, onSuccess }) {
                   <span style={{ fontSize: '0.8rem', fontWeight: '700', color: evt.locked ? '#00A79D' : '#374151' }}>
                     {evt.title}
                   </span>
-                  {!evt.locked && (
-                    <button type="button" onClick={() => removeEvent(idx)} style={{
-                      background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer',
-                      fontSize: '1.1rem', padding: '0', lineHeight: '1'
-                    }}>×</button>
-                  )}
+                  <button type="button" onClick={() => removeEvent(idx)} title="Remove this event" style={{
+                    background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer',
+                    fontSize: '1.1rem', padding: '0', lineHeight: '1'
+                  }}>×</button>
                 </div>
                 <div style={{ display: 'grid', gridTemplateColumns: evt.locked ? '1fr 1fr 1fr' : '1fr 1fr 1fr 1fr 1fr', gap: '0.4rem' }}>
                   {!evt.locked && (
@@ -305,8 +326,7 @@ function CreateCollaborativeModal({ onClose, onSuccess }) {
                     </select>
                   )}
                   <input type="date" value={evt.event_date} onChange={(e) => updateEvent(idx, 'event_date', e.target.value)}
-                    style={{ ...inputStyle, borderColor: evt.locked && !evt.event_date ? '#f59e0b' : '#e5e7eb' }}
-                    required={evt.locked} />
+                    style={{ ...inputStyle, borderColor: evt.locked && !evt.event_date ? '#f59e0b' : '#e5e7eb' }} />
                   <input type="time" value={evt.start_time} onChange={(e) => updateEvent(idx, 'start_time', e.target.value)}
                     style={inputStyle} placeholder="Start" />
                   <input type="time" value={evt.end_time} onChange={(e) => updateEvent(idx, 'end_time', e.target.value)}
@@ -373,7 +393,7 @@ function CreateCollaborativeModal({ onClose, onSuccess }) {
                 style={inputStyle} />
             </div>
 
-            {!bscEvents.find(e => e.sequence_number === 1)?.event_date && (
+            {!firstLs?.event_date && (
               <p style={{ color: '#f59e0b', fontSize: '0.75rem', marginTop: '0.5rem', marginBottom: 0 }}>
                 Set Learning Session dates above to auto-calculate assessment windows.
               </p>

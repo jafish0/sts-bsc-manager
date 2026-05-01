@@ -151,6 +151,7 @@ export async function loadTeamReportData(teamId) {
       stss: stssStats,
       proqol: proqolStats,
       stsioa: stsioaStats,
+      stsioaRaw: stsioaResponses, // Raw item-level rows for the Office Visual
       completion
     }
   }

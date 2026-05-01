@@ -11,6 +11,7 @@ import {
 import { STS_PAT_INFO, STS_PAT_QUESTIONS } from '../config/stspat'
 import { exportTeamReportExcel } from '../utils/exportExcel'
 import { exportTeamReportPdf } from '../utils/exportPdf'
+import STSIOAOfficeVisual from '../components/STSIOAOfficeVisual'
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
   BarChart, Bar
@@ -33,6 +34,7 @@ export default function TeamReport() {
   const [report, setReport] = useState(null)
   const [smartieGoals, setSmartieGoals] = useState([])
   const [patAssessments, setPatAssessments] = useState([])
+  const [officeVisualTimepoint, setOfficeVisualTimepoint] = useState(null)
 
   useEffect(() => {
     loadReport()
@@ -139,6 +141,12 @@ export default function TeamReport() {
 
   // Check which timepoints have data
   const timepointsWithData = TIMEPOINT_ORDER.filter(tp => tpData[tp] && tpData[tp].n > 0)
+
+  // Office Visual: which timepoints have raw STSI-OA rows? Default to the most recent one.
+  const officeTimepointsAvailable = TIMEPOINT_ORDER.filter(tp => (tpData[tp]?.stsioaRaw?.length || 0) > 0)
+  const activeOfficeTp = officeTimepointsAvailable.includes(officeVisualTimepoint)
+    ? officeVisualTimepoint
+    : (officeTimepointsAvailable[officeTimepointsAvailable.length - 1] || null)
 
   return (
     <div style={{ minHeight: '100vh', background: 'var(--bg-page)' }}>
@@ -455,6 +463,34 @@ export default function TeamReport() {
                     })}
                   </tbody>
                 </table>
+              </div>
+            )}
+
+            {/* STSI-OA Office Visual — color-coded item-level view for one timepoint */}
+            {activeOfficeTp && (
+              <div style={{ marginBottom: '1.5rem' }}>
+                <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '0.5rem', gap: '0.5rem', alignItems: 'center' }}>
+                  <label style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', fontWeight: '600' }}>
+                    Office Visual timepoint:
+                  </label>
+                  <select
+                    value={activeOfficeTp}
+                    onChange={(e) => setOfficeVisualTimepoint(e.target.value)}
+                    style={{
+                      padding: '0.4rem 0.75rem', border: '1px solid var(--border)', borderRadius: '6px',
+                      fontSize: '0.85rem', background: 'var(--bg-card)', cursor: 'pointer'
+                    }}
+                  >
+                    {officeTimepointsAvailable.map(tp => (
+                      <option key={tp} value={tp}>{TIMEPOINT_LABELS[tp]} (n={tpData[tp].stsioaRaw.length})</option>
+                    ))}
+                  </select>
+                </div>
+                <STSIOAOfficeVisual
+                  responses={tpData[activeOfficeTp].stsioaRaw}
+                  teamName={team.displayName || team.teamName || team.agencyName}
+                  timepoint={activeOfficeTp}
+                />
               </div>
             )}
 

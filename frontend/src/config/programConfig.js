@@ -26,6 +26,16 @@ export const PROGRAM_BRANDING = {
       { key: 'inclusive', letter: 'I', label: 'Inclusive', help: 'In what ways will this goal bring people who are often excluded into processes, activities, and decision/policy-making in a way that shares power?' },
       { key: 'equitable', letter: 'E', label: 'Equitable', help: 'In what ways will this goal address fairness or justice to address systemic injustice, inequity, or oppression?' },
     ],
+    // Default events pre-populated when creating a collaborative.
+    // Source: 2026 STS-BSC Welcome Packet — 3 Learning Sessions + 3 All-Team Calls (1st is Welcome & Orientation).
+    defaultEvents: [
+      { event_type: 'learning_session', title: 'Learning Session 1', sequence_number: 1 },
+      { event_type: 'learning_session', title: 'Learning Session 2', sequence_number: 2 },
+      { event_type: 'learning_session', title: 'Learning Session 3', sequence_number: 3 },
+      { event_type: 'all_team_call', title: 'All-Team Call 1 (Welcome & Orientation)', sequence_number: 1 },
+      { event_type: 'all_team_call', title: 'All-Team Call 2', sequence_number: 2 },
+      { event_type: 'all_team_call', title: 'All-Team Call 3', sequence_number: 3 },
+    ],
   },
   tic_lc: {
     key: 'tic_lc',
@@ -47,6 +57,18 @@ export const PROGRAM_BRANDING = {
       { key: 'realistic', letter: 'R', label: 'Relevant', help: 'Why does this goal matter to your organization?' },
       { key: 'time_bound', letter: 'T', label: 'Time-Bound', help: 'By when will this be accomplished?' },
     ],
+    // Source: KY Six Year 3 (2026) Proposed Schedule — 1 Pre-training Call + 4 Sessions + 4 Coaching Calls (interleaved).
+    defaultEvents: [
+      { event_type: 'all_team_call', title: 'Pre-training Call (Intro & LC Overview)', sequence_number: 1 },
+      { event_type: 'learning_session', title: 'Learning Session 1', sequence_number: 1 },
+      { event_type: 'learning_session', title: 'Learning Session 2', sequence_number: 2 },
+      { event_type: 'learning_session', title: 'Learning Session 3', sequence_number: 3 },
+      { event_type: 'learning_session', title: 'Learning Session 4', sequence_number: 4 },
+      { event_type: 'all_team_call', title: 'Coaching Call 1', sequence_number: 2 },
+      { event_type: 'all_team_call', title: 'Coaching Call 2', sequence_number: 3 },
+      { event_type: 'all_team_call', title: 'Coaching Call 3', sequence_number: 4 },
+      { event_type: 'all_team_call', title: 'Coaching Call 4', sequence_number: 5 },
+    ],
   },
   tipe_lc: {
     key: 'tipe_lc',
@@ -62,6 +84,17 @@ export const PROGRAM_BRANDING = {
     goalType: 'smart',
     goalLabel: 'S.M.A.R.T Goal',
     goalFields: [],
+    // Source: AWARE 3 Year 3 Trainer Agenda — 5 Learning Sessions + 3 Learning Calls (interleaved between sessions).
+    defaultEvents: [
+      { event_type: 'learning_session', title: 'Learning Session 1', sequence_number: 1 },
+      { event_type: 'learning_session', title: 'Learning Session 2', sequence_number: 2 },
+      { event_type: 'learning_session', title: 'Learning Session 3', sequence_number: 3 },
+      { event_type: 'learning_session', title: 'Learning Session 4', sequence_number: 4 },
+      { event_type: 'learning_session', title: 'Learning Session 5', sequence_number: 5 },
+      { event_type: 'all_team_call', title: 'Learning Call 1', sequence_number: 1 },
+      { event_type: 'all_team_call', title: 'Learning Call 2', sequence_number: 2 },
+      { event_type: 'all_team_call', title: 'Learning Call 3', sequence_number: 3 },
+    ],
   },
   fourc: {
     key: 'fourc',
@@ -77,6 +110,12 @@ export const PROGRAM_BRANDING = {
     goalType: 'smartie',
     goalLabel: 'SMARTIE Goal',
     goalFields: [],
+    // Source: FourC series folders (July 2025, December 2025, Spring 2026) — 3 Sessions: Calming, Cognitive Coping, Connections.
+    defaultEvents: [
+      { event_type: 'learning_session', title: 'Session 1: Calming', sequence_number: 1 },
+      { event_type: 'learning_session', title: 'Session 2: Cognitive Coping', sequence_number: 2 },
+      { event_type: 'learning_session', title: 'Session 3: Connections', sequence_number: 3 },
+    ],
   },
 }
 
