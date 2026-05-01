@@ -12,6 +12,7 @@ import { STS_PAT_INFO, STS_PAT_QUESTIONS } from '../config/stspat'
 import { exportTeamReportExcel } from '../utils/exportExcel'
 import { exportTeamReportPdf } from '../utils/exportPdf'
 import STSIOAOfficeVisual from '../components/STSIOAOfficeVisual'
+import ShowProgressModal from '../components/ShowProgressModal'
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
   BarChart, Bar
@@ -35,6 +36,7 @@ export default function TeamReport() {
   const [smartieGoals, setSmartieGoals] = useState([])
   const [patAssessments, setPatAssessments] = useState([])
   const [officeVisualTimepoint, setOfficeVisualTimepoint] = useState(null)
+  const [showProgressOpen, setShowProgressOpen] = useState(false)
 
   useEffect(() => {
     loadReport()
@@ -147,6 +149,17 @@ export default function TeamReport() {
   const activeOfficeTp = officeTimepointsAvailable.includes(officeVisualTimepoint)
     ? officeVisualTimepoint
     : (officeTimepointsAvailable[officeTimepointsAvailable.length - 1] || null)
+
+  // Show Our Progress: build {timepoint: rawRows} once, gate the button on having ≥2 timepoints
+  // with enough respondents to satisfy k-anonymity.
+  const stsioaByTimepoint = TIMEPOINT_ORDER.reduce((acc, tp) => {
+    acc[tp] = tpData[tp]?.stsioaRaw || []
+    return acc
+  }, {})
+  const showableProgressTimepoints = TIMEPOINT_ORDER.filter(
+    tp => (stsioaByTimepoint[tp]?.length || 0) >= K_ANONYMITY_THRESHOLD
+  )
+  const canShowProgress = showableProgressTimepoints.length >= 2
 
   return (
     <div style={{ minHeight: '100vh', background: 'var(--bg-page)' }}>
@@ -491,6 +504,26 @@ export default function TeamReport() {
                   teamName={team.displayName || team.teamName || team.agencyName}
                   timepoint={activeOfficeTp}
                 />
+                {canShowProgress && (
+                  <div style={{ display: 'flex', justifyContent: 'center', marginTop: '0.75rem' }}>
+                    <button
+                      onClick={() => setShowProgressOpen(true)}
+                      style={{
+                        background: `linear-gradient(135deg, ${COLORS.teal} 0%, ${COLORS.navy} 100%)`,
+                        color: 'white',
+                        border: 'none',
+                        borderRadius: '8px',
+                        padding: '0.65rem 1.5rem',
+                        fontSize: '0.95rem',
+                        fontWeight: '600',
+                        cursor: 'pointer',
+                        boxShadow: '0 2px 6px rgba(0,167,157,0.25)',
+                      }}
+                    >
+                      ▶ Show Our Progress
+                    </button>
+                  </div>
+                )}
               </div>
             )}
 
@@ -684,6 +717,13 @@ export default function TeamReport() {
           </>
         )}
       </div>
+
+      <ShowProgressModal
+        open={showProgressOpen}
+        onClose={() => setShowProgressOpen(false)}
+        dataByTimepoint={stsioaByTimepoint}
+        teamName={team.displayName || team.teamName || team.agencyName}
+      />
     </div>
   )
 }

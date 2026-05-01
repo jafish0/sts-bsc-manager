@@ -135,6 +135,7 @@ export default function STSIOAOfficeVisual({ responses, teamName, timepoint }) {
           justifyContent: 'center',
           overflow: 'hidden',
           boxSizing: 'border-box',
+          transition: 'background 600ms ease, color 600ms ease',
           ...style
         }}
         onMouseEnter={(e) => handleMouseEnter(e, q.id)}

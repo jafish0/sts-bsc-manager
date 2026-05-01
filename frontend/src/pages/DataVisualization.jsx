@@ -14,6 +14,7 @@ import {
 import { STSIOA_DOMAINS } from '../config/stsioa'
 import { exportDataVizExcel } from '../utils/exportExcel'
 import STSIOAOfficeVisual from '../components/STSIOAOfficeVisual'
+import ShowProgressModal from '../components/ShowProgressModal'
 
 export default function DataVisualization() {
   const navigate = useNavigate()
@@ -27,6 +28,11 @@ export default function DataVisualization() {
   const [data, setData] = useState(null)
   const [timepointAutoSet, setTimepointAutoSet] = useState(false)
   const [patData, setPatData] = useState([])
+
+  // Show Our Progress: { baseline: [rows], endline: [rows], ... } loaded lazily on click
+  const [progressData, setProgressData] = useState(null)
+  const [progressLoading, setProgressLoading] = useState(false)
+  const [showProgressOpen, setShowProgressOpen] = useState(false)
 
   const timepoints = TIMEPOINTS
 
@@ -109,6 +115,67 @@ export default function DataVisualization() {
     } catch (error) {
       console.error('Error loading teams:', error)
     }
+  }
+
+  // Load raw STSI-OA rows for ALL timepoints, respecting the current collaborative + team filter.
+  // Used by the Show Our Progress modal — fetched lazily on first open.
+  const loadProgressData = async () => {
+    if (!selectedCollaborative) return
+    setProgressLoading(true)
+    try {
+      const { data: teamsData, error: teamsError } = await supabase
+        .from('teams')
+        .select(`id, team_codes (id, timepoint)`)
+        .eq('collaborative_id', selectedCollaborative)
+      if (teamsError) throw teamsError
+
+      const filteredTeams = selectedTeam === 'all'
+        ? teamsData
+        : teamsData.filter(t => t.id === selectedTeam)
+
+      // Group team_code ids by timepoint
+      const codeIdsByTp = { baseline: [], endline: [], followup_6mo: [], followup_12mo: [] }
+      filteredTeams.forEach(team => {
+        team.team_codes.forEach(tc => {
+          if (codeIdsByTp[tc.timepoint]) codeIdsByTp[tc.timepoint].push(tc.id)
+        })
+      })
+
+      // For each timepoint, fetch ARs then stsioa rows
+      const result = {}
+      await Promise.all(Object.keys(codeIdsByTp).map(async (tp) => {
+        const codeIds = codeIdsByTp[tp]
+        if (codeIds.length === 0) { result[tp] = []; return }
+        const { data: ars } = await supabase
+          .from('assessment_responses')
+          .select('id')
+          .in('team_code_id', codeIds)
+        const arIds = (ars || []).map(a => a.id)
+        if (arIds.length === 0) { result[tp] = []; return }
+        const { data: rows } = await supabase
+          .from('stsioa_responses')
+          .select('*')
+          .in('assessment_response_id', arIds)
+        result[tp] = rows || []
+      }))
+
+      setProgressData(result)
+    } catch (err) {
+      console.error('Error loading progress data:', err)
+      setProgressData({})
+    } finally {
+      setProgressLoading(false)
+    }
+  }
+
+  // Reset cached progress data whenever the collaborative or team filter changes
+  useEffect(() => {
+    setProgressData(null)
+  }, [selectedCollaborative, selectedTeam])
+
+  const handleOpenProgress = async () => {
+    if (!progressData) await loadProgressData()
+    setShowProgressOpen(true)
   }
 
   const loadData = async () => {
@@ -688,11 +755,34 @@ export default function DataVisualization() {
 
           {/* STSI-OA Office Visual */}
           {data.stsioaRawResponses && data.stsioaRawResponses.length > 0 && (
-            <STSIOAOfficeVisual
-              responses={data.stsioaRawResponses}
-              teamName={selectedTeamName}
-              timepoint={selectedTimepoint}
-            />
+            <>
+              <STSIOAOfficeVisual
+                responses={data.stsioaRawResponses}
+                teamName={selectedTeamName}
+                timepoint={selectedTimepoint}
+              />
+              <div style={{ display: 'flex', justifyContent: 'center', marginTop: '0.5rem', marginBottom: '1.5rem' }}>
+                <button
+                  onClick={handleOpenProgress}
+                  disabled={progressLoading}
+                  style={{
+                    background: progressLoading
+                      ? 'var(--text-muted)'
+                      : `linear-gradient(135deg, ${COLORS.teal} 0%, ${COLORS.navy} 100%)`,
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '8px',
+                    padding: '0.65rem 1.5rem',
+                    fontSize: '0.95rem',
+                    fontWeight: '600',
+                    cursor: progressLoading ? 'wait' : 'pointer',
+                    boxShadow: '0 2px 6px rgba(0,167,157,0.25)',
+                  }}
+                >
+                  {progressLoading ? 'Loading…' : '▶ Show Our Progress'}
+                </button>
+              </div>
+            </>
           )}
 
           {/* STS-PAT Radar Chart */}
@@ -749,6 +839,13 @@ export default function DataVisualization() {
           <div style={{ fontSize: '1.25rem' }}>Select a collaborative to view data</div>
         </div>
       )}
+
+      <ShowProgressModal
+        open={showProgressOpen}
+        onClose={() => setShowProgressOpen(false)}
+        dataByTimepoint={progressData || {}}
+        teamName={selectedTeamName}
+      />
     </div>
   )
 }
