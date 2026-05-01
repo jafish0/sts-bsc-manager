@@ -1,0 +1,18 @@
+# Environment / secrets — anon key is public-by-design but no env files should be committed
+.env
+.env.local
+.env.*.local
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Python (seed-script bytecode)
+__pycache__/
+*.pyc
+
+# Local build / scratch artifacts
+tmp/
+
+# Claude Code per-machine settings (settings.json, launch.json, etc. CAN be committed if shared)
+.claude/settings.local.json
