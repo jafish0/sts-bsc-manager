@@ -142,70 +142,88 @@ export default function ShowProgressModal({ open, onClose, dataByTimepoint, team
         zIndex: 2000,
         display: 'flex',
         flexDirection: 'column',
-        alignItems: 'center',
-        justifyContent: 'flex-start',
-        padding: '1.5rem',
-        overflowY: 'auto',
+        padding: '0.5rem 1rem 0.5rem',
+        overflow: 'hidden',
       }}
     >
-      {/* Close X (positioned absolute relative to overlay) */}
+      {/* Close X */}
       <button
         onClick={onClose}
         aria-label="Close"
         style={{
           position: 'absolute',
-          top: '1rem',
-          right: '1.5rem',
+          top: '0.75rem',
+          right: '1rem',
           background: 'rgba(255,255,255,0.1)',
           border: '1px solid rgba(255,255,255,0.3)',
           color: '#fff',
-          fontSize: '1.5rem',
-          width: '2.5rem',
-          height: '2.5rem',
+          fontSize: '1.4rem',
+          width: '2.25rem',
+          height: '2.25rem',
           borderRadius: '50%',
           cursor: 'pointer',
           lineHeight: '1',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
+          zIndex: 10,
         }}
       >
         ×
       </button>
 
+      {/* Top: title + n */}
+      <div
+        onClick={(e) => e.stopPropagation()}
+        style={{ flexShrink: 0, textAlign: 'center', color: '#fff', padding: '0.25rem 0' }}
+      >
+        <div style={{ fontSize: 'clamp(1.5rem, 3.5vw, 2.5rem)', fontWeight: '700', lineHeight: 1.1 }}>
+          {TIMEPOINT_TITLE[currentTp]}
+        </div>
+        <div style={{ fontSize: '0.95rem', opacity: 0.85, marginTop: '0.15rem' }}>
+          n = {responses.length} respondents
+        </div>
+      </div>
+
+      {/* Middle: building scales to fit */}
       <div
         onClick={(e) => e.stopPropagation()}
         style={{
-          width: '100%',
-          maxWidth: '95vw',
+          flex: 1,
           display: 'flex',
-          flexDirection: 'column',
           alignItems: 'center',
-          gap: '1rem',
+          justifyContent: 'center',
+          minHeight: 0,
+          margin: '0.5rem 0',
         }}
       >
-        {/* Big timepoint title */}
-        <div style={{ textAlign: 'center', color: '#fff', marginTop: '1rem' }}>
-          <div style={{ fontSize: 'clamp(2rem, 4vw, 3rem)', fontWeight: '700', letterSpacing: '0.02em' }}>
-            {TIMEPOINT_TITLE[currentTp]}
-          </div>
-          <div style={{ fontSize: '1.05rem', opacity: 0.85, marginTop: '0.25rem' }}>
-            n = {responses.length} respondents
-          </div>
-        </div>
-
-        {/* The building — flex-centered, capped at 90vw */}
-        <div style={{ width: '100%', maxWidth: '90vw' }}>
+        <div style={{
+          width: 'min(92vw, calc((100vh - 240px) * 864 / 498))',
+          aspectRatio: '864 / 498',
+          maxHeight: 'calc(100vh - 240px)',
+        }}>
           <STSIOAOfficeVisual
             responses={responses}
             teamName={teamName}
             timepoint={currentTp}
+            compact
           />
         </div>
+      </div>
 
-        {/* Delta caption — skipped on the first showable timepoint */}
+      {/* Bottom: caption + controls + dots + hint */}
+      <div
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          flexShrink: 0,
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          gap: '0.5rem',
+        }}
+      >
         {delta && (
-          <div style={{ color: '#fff', fontSize: '1.05rem', textAlign: 'center', marginTop: '-0.5rem' }}>
+          <div style={{ color: '#fff', fontSize: '0.95rem', textAlign: 'center' }}>
             <span style={{ color: '#86efac', fontWeight: 600 }}>
               {delta.improved} room{delta.improved === 1 ? '' : 's'} improved
             </span>
@@ -217,8 +235,7 @@ export default function ShowProgressModal({ open, onClose, dataByTimepoint, team
           </div>
         )}
 
-        {/* Controls */}
-        <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center', marginTop: '0.5rem' }}>
+        <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
           <button onClick={goPrev} style={controlBtn} aria-label="Previous timepoint">‹ Prev</button>
           <button onClick={togglePlay} style={controlBtn} aria-label={playing ? 'Pause' : 'Play'}>
             {playing ? '⏸ Pause' : '▶ Play'}
@@ -226,8 +243,7 @@ export default function ShowProgressModal({ open, onClose, dataByTimepoint, team
           <button onClick={goNext} style={controlBtn} aria-label="Next timepoint">Next ›</button>
         </div>
 
-        {/* Dot indicators */}
-        <div style={{ display: 'flex', gap: '1.5rem', marginTop: '0.5rem', flexWrap: 'wrap', justifyContent: 'center' }}>
+        <div style={{ display: 'flex', gap: '1.25rem', flexWrap: 'wrap', justifyContent: 'center' }}>
           {showable.map((tp, i) => (
             <button
               key={tp}
@@ -237,18 +253,18 @@ export default function ShowProgressModal({ open, onClose, dataByTimepoint, team
                 border: 'none',
                 cursor: 'pointer',
                 color: i === index ? '#fff' : 'rgba(255,255,255,0.55)',
-                fontSize: '0.85rem',
+                fontSize: '0.78rem',
                 display: 'flex',
                 flexDirection: 'column',
                 alignItems: 'center',
-                gap: '0.35rem',
+                gap: '0.25rem',
                 padding: 0,
               }}
             >
               <div
                 style={{
-                  width: 14,
-                  height: 14,
+                  width: 12,
+                  height: 12,
                   borderRadius: '50%',
                   background: i === index ? '#fff' : 'rgba(255,255,255,0.25)',
                   border: '2px solid rgba(255,255,255,0.7)',
@@ -260,8 +276,7 @@ export default function ShowProgressModal({ open, onClose, dataByTimepoint, team
           ))}
         </div>
 
-        {/* Hint */}
-        <div style={{ color: 'rgba(255,255,255,0.5)', fontSize: '0.75rem', marginTop: '0.25rem' }}>
+        <div style={{ color: 'rgba(255,255,255,0.5)', fontSize: '0.7rem' }}>
           Space = play/pause · ← → = prev/next · Esc = close
         </div>
       </div>

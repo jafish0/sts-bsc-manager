@@ -102,7 +102,7 @@ const ROOM_REGIONS = {
   domain6: { left: 85.53, top: 9.83, width: 10.53, height: 86.16 },
 }
 
-export default function STSIOAOfficeVisual({ responses, teamName, timepoint }) {
+export default function STSIOAOfficeVisual({ responses, teamName, timepoint, compact = false }) {
   const [hoveredItem, setHoveredItem] = useState(null)
   const [hoverPos, setHoverPos] = useState({ x: 0, y: 0 })
 
@@ -204,6 +204,68 @@ export default function STSIOAOfficeVisual({ responses, teamName, timepoint }) {
   const d5 = getQ(5)
   const d6 = getQ(6)
 
+  const buildingRooms = (
+    <>
+      {/* Domain 1: Resilience Building Activities — top-left room */}
+      {renderDomainRoom(1, 'Resilience Building Activities', d1, ROOM_REGIONS.domain1, <>
+        {cellRow(d1.slice(0, 4), 4)}
+        {cellRow(d1.slice(4), 3)}
+      </>)}
+
+      {/* Domain 2: Staff Safety — middle-left room */}
+      {renderDomainRoom(2, 'Staff Safety', d2, ROOM_REGIONS.domain2, <>
+        {cellRow(d2.slice(0, 3), 3)}
+        {cellRow([d2[4]], 1)}
+        {cellRow([d2[3], d2[5], d2[6]], 3)}
+      </>)}
+
+      {/* Domain 3: STS-Informed Policies — bottom-left room */}
+      {renderDomainRoom(3, 'STS-Informed Policies', d3, ROOM_REGIONS.domain3, <>
+        {cellRow(d3.slice(0, 4), 4)}
+        {cellRow(d3.slice(4), 2)}
+      </>)}
+
+      {/* Domain 5: Routine Practices — top-center room */}
+      {renderDomainRoom(5, 'Routine Practices', d5, ROOM_REGIONS.domain5, <>
+        {cellRow(d5.slice(0, 3), 3)}
+        {cellRow(d5.slice(3, 6), 3)}
+        {cellRow(d5.slice(6), 1)}
+      </>)}
+
+      {/* Domain 4: Leader Practices — bottom-center room */}
+      {renderDomainRoom(4, 'Leader Practices', d4, ROOM_REGIONS.domain4, <>
+        {cellRow(d4.slice(0, 2), 2)}
+        {cellRow(d4.slice(2, 6), 4)}
+        {cellRow(d4.slice(6, 9), 3)}
+      </>)}
+
+      {/* Domain 6: Monitoring & Outcome Evaluation — right wing shelves */}
+      {renderDomainRoom(6, 'Monitoring & Outcome Evaluation', d6, ROOM_REGIONS.domain6,
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+          {d6.map(q => renderCell(q, { flex: 1 }))}
+        </div>
+      )}
+    </>
+  )
+
+  // Compact mode: just the building, no card chrome, no minWidth.
+  // Caller is responsible for sizing the parent (e.g. via aspectRatio + max-height).
+  if (compact) {
+    return (
+      <div style={{
+        position: 'relative',
+        width: '100%',
+        height: '100%',
+        backgroundImage: `url(${officeFrameImg})`,
+        backgroundSize: '100% 100%',
+        backgroundRepeat: 'no-repeat',
+        backgroundColor: '#e8e8e8',
+      }}>
+        {buildingRooms}
+      </div>
+    )
+  }
+
   return (
     <div style={{ ...cardStyle, marginBottom: '1rem', position: 'relative' }}>
       <div style={cardHeaderStyle}>STSI-OA Organizational Assessment — Office Visual</div>
@@ -251,46 +313,7 @@ export default function STSIOAOfficeVisual({ responses, teamName, timepoint }) {
           backgroundColor: '#e8e8e8',
           minWidth: '860px',
         }}>
-
-          {/* Domain 1: Resilience Building Activities — top-left room */}
-          {renderDomainRoom(1, 'Resilience Building Activities', d1, ROOM_REGIONS.domain1, <>
-            {cellRow(d1.slice(0, 4), 4)}
-            {cellRow(d1.slice(4), 3)}
-          </>)}
-
-          {/* Domain 2: Staff Safety — middle-left room */}
-          {renderDomainRoom(2, 'Staff Safety', d2, ROOM_REGIONS.domain2, <>
-            {cellRow(d2.slice(0, 3), 3)}
-            {cellRow([d2[4]], 1)}
-            {cellRow([d2[3], d2[5], d2[6]], 3)}
-          </>)}
-
-          {/* Domain 3: STS-Informed Policies — bottom-left room */}
-          {renderDomainRoom(3, 'STS-Informed Policies', d3, ROOM_REGIONS.domain3, <>
-            {cellRow(d3.slice(0, 4), 4)}
-            {cellRow(d3.slice(4), 2)}
-          </>)}
-
-          {/* Domain 5: Routine Practices — top-center room */}
-          {renderDomainRoom(5, 'Routine Practices', d5, ROOM_REGIONS.domain5, <>
-            {cellRow(d5.slice(0, 3), 3)}
-            {cellRow(d5.slice(3, 6), 3)}
-            {cellRow(d5.slice(6), 1)}
-          </>)}
-
-          {/* Domain 4: Leader Practices — bottom-center room */}
-          {renderDomainRoom(4, 'Leader Practices', d4, ROOM_REGIONS.domain4, <>
-            {cellRow(d4.slice(0, 2), 2)}
-            {cellRow(d4.slice(2, 6), 4)}
-            {cellRow(d4.slice(6, 9), 3)}
-          </>)}
-
-          {/* Domain 6: Monitoring & Outcome Evaluation — right wing shelves */}
-          {renderDomainRoom(6, 'Monitoring & Outcome Evaluation', d6, ROOM_REGIONS.domain6,
-            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
-              {d6.map(q => renderCell(q, { flex: 1 }))}
-            </div>
-          )}
+          {buildingRooms}
         </div>
       </div>
 
