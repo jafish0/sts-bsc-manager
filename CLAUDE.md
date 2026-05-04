@@ -37,7 +37,7 @@ Web app for managing Secondary Traumatic Stress Breakthrough Series Collaborativ
   - Agency admins can invite to their own team; super admins can invite to any team
   - On `resend: true`, deletes existing user and re-invites with fresh token
 - **Email flow:** Supabase `inviteUserByEmail()` → user clicks link → `AuthRedirectHandler` catches `type=invite` hash → redirects to `/set-password` → user sets password → redirects to `/admin`
-- **Redirect URL:** Hardcoded to `https://sts-bsc-manager.vercel.app/set-password`
+- **Redirect URL:** Hardcoded to `https://bsc.ctac.app/set-password`
 - **Rate limits:** Default Supabase SMTP has very low limits (~2-3/hour). Custom SMTP needed for production (Resend recommended).
 
 ## Database Gotchas
@@ -59,7 +59,7 @@ Web app for managing Secondary Traumatic Stress Breakthrough Series Collaborativ
 - Currently on Free plan — email rate limits apply
 
 ## Deployment
-- Vercel project: `sts-bsc-manager` at `https://sts-bsc-manager.vercel.app/`
+- Vercel project: `sts-bsc-manager` at `https://bsc.ctac.app/`
 - Auto-deploys on push to `main`
 - Vercel root directory: `frontend`, framework: Vite
 - `frontend/vercel.json` has SPA rewrite rule for React Router

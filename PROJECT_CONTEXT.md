@@ -2,7 +2,7 @@
 
 **Last Updated:** April 9, 2026
 **Repository:** https://github.com/jafish0/sts-bsc-manager
-**Live URL:** https://sts-bsc-manager.vercel.app/
+**Live URL:** https://bsc.ctac.app/
 **Supabase Project:** jhnquklmwoubpbbmnrjf
 
 ---
@@ -768,7 +768,7 @@ sts-bsc-manager/
 
 ### Vercel
 - Project: `sts-bsc-manager`
-- URL: `https://sts-bsc-manager.vercel.app/`
+- URL: `https://bsc.ctac.app/`
 - Auto-deploys from GitHub `main` branch
 - Root directory: `frontend`
 - Framework: Vite

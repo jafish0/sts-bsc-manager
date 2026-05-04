@@ -219,7 +219,7 @@ export default function CollaborativeDetail() {
   const [evalLinkCopied, setEvalLinkCopied] = useState(null)
 
   const copySessionLink = async (token) => {
-    const url = `https://sts-bsc-manager.vercel.app/session/${token}`
+    const url = `https://bsc.ctac.app/session/${token}`
     try {
       await navigator.clipboard.writeText(url)
       setLinkCopied(token)
@@ -230,7 +230,7 @@ export default function CollaborativeDetail() {
   }
 
   const copyEvalLink = async (token) => {
-    const url = `https://sts-bsc-manager.vercel.app/session/${token}/eval`
+    const url = `https://bsc.ctac.app/session/${token}/eval`
     try {
       await navigator.clipboard.writeText(url)
       setEvalLinkCopied(token)

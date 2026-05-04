@@ -121,7 +121,7 @@ Deno.serve(async (req) => {
     }
 
     // Invite user via Supabase Auth (sends invite email automatically)
-    const redirectUrl = 'https://sts-bsc-manager.vercel.app/set-password'
+    const redirectUrl = 'https://bsc.ctac.app/set-password'
     const { data: inviteData, error: inviteError } = await adminClient.auth.admin.inviteUserByEmail(
       email,
       {
