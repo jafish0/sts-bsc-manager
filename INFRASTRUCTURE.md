@@ -2,7 +2,7 @@
 
 Living doc of the live production stack: domains, DNS, email, hosting, and the integration points between them. Complements `CLAUDE.md` (which covers code conventions and database schema). Update this when infrastructure changes; don't let it go stale.
 
-**Last updated:** 2026-05-04 — initial migration from `sts-bsc-manager.vercel.app` to `bsc.ctac.app`, custom SMTP via Resend, full email auth (SPF + DKIM + DMARC).
+**Last updated:** 2026-05-05 — FK constraints to `user_profiles.id` now `ON DELETE SET NULL` (resend-invite flow no longer breaks on users with attendance/forum history). Earlier on 2026-05-04: initial migration from `sts-bsc-manager.vercel.app` to `bsc.ctac.app`, custom SMTP via Resend, full email auth (SPF + DKIM + DMARC).
 
 ---
 
@@ -106,13 +106,12 @@ Authentication → URL Configuration:
 
 - **Email template edits** require dashboard work — no Supabase MCP tool covers them. See "Email templates" section above.
 - **DNS record edits** require dashboard work — no Vercel MCP tool covers DNS. (Available Vercel MCP tools: deployments, projects, logs, toolbar comments, domain availability/price, docs search. No DNS create/update/delete.)
-- **`session_attendance.user_profile_id` FK has no `ON DELETE` behavior** — deleting a user with attendance records fails with `SQLSTATE 23503` (FK violation). The `invite-team-leader` edge function's "resend → delete + reinvite" path breaks on this. Same audit needed for other FKs to `user_profiles` (forum_posts, smartie_goals, etc.). Migration pending — see open follow-ups.
+- **User-attribution rows orphan on delete** — deleting a user no longer fails (FKs are now `ON DELETE SET NULL` for `checklist_items.completed_by`, `forum_posts.created_by`, `forum_threads.created_by`, `pdsa_cycles.created_by`, `session_attendance.user_profile_id`). Orphaned forum posts render as authored by "Unknown" — frontend already handled the null case. If new tables add user-attribution columns, default them to `ON DELETE SET NULL` unless ownership is unambiguous.
 
 ---
 
 ## Open follow-ups
 
-- **FK constraint migration.** Audit every FK to `user_profiles.id`. Recommend `ON DELETE SET NULL` for historical/research data (session_attendance, forum_posts) so reporting survives user deletion. `CASCADE` only where ownership is unambiguous. Single migration covering all of them.
 - **`ctac.app` apex routing.** Currently serves BSC-Manager directly. When a CTAC landing page exists (or other programs come online), either remove the apex attachment or 307-redirect to the new project.
 - **DMARC tightening.** After ~4 weeks of clean sending, change the Vercel `_dmarc` TXT record to `v=DMARC1; p=quarantine; pct=100;`. Eventually `p=reject` once confident.
 - **Inbox placement monitoring.** First invite landed in UKY Outlook Junk (new-domain reputation). Trajectory should improve as recipients mark "Not Junk." If it doesn't, consider Postmark DMARC Digest or Dmarcian for aggregate report visibility.
