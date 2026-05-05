@@ -3,6 +3,8 @@
 ## What This App Is
 Web app for managing Secondary Traumatic Stress Breakthrough Series Collaboratives. Built for CTAC (Center on Trauma and Children) at the University of Kentucky. Collects assessments from frontline workers, provides dashboards/reports for team leaders, and admin tools for CTAC staff.
 
+> **See [`INFRASTRUCTURE.md`](INFRASTRUCTURE.md)** for the live production stack — domains, DNS, email pipeline, hosting, and operational gotchas. Update that doc when infrastructure changes.
+
 ## Tech Stack
 - **Frontend:** React 19 + Vite, inline styles (no CSS framework), Recharts for charts
 - **Backend:** Supabase (PostgreSQL + Auth + Storage + Edge Functions)
@@ -38,7 +40,7 @@ Web app for managing Secondary Traumatic Stress Breakthrough Series Collaborativ
   - On `resend: true`, deletes existing user and re-invites with fresh token
 - **Email flow:** Supabase `inviteUserByEmail()` → user clicks link → `AuthRedirectHandler` catches `type=invite` hash → redirects to `/set-password` → user sets password → redirects to `/admin`
 - **Redirect URL:** Hardcoded to `https://bsc.ctac.app/set-password`
-- **Rate limits:** Default Supabase SMTP has very low limits (~2-3/hour). Custom SMTP needed for production (Resend recommended).
+- **Rate limits:** Custom SMTP via Resend is configured (see `INFRASTRUCTURE.md`). Auth email rate limit raised from 2/h to 30/h. If hitting that ceiling, raise it in Supabase Auth → Rate Limits.
 
 ## Database Gotchas
 - **Assessment query pattern:** Always join through `assessment_responses`. Never query `demographics`/`stss_responses`/etc. by `team_code_id` directly — they link via `assessment_response_id`.
@@ -56,7 +58,7 @@ Web app for managing Secondary Traumatic Stress Breakthrough Series Collaborativ
 - Project ref: `jhnquklmwoubpbbmnrjf`
 - Edge Functions deployed with `--no-verify-jwt` (gateway JWT check disabled)
 - Storage bucket: `resources` (private, signed URLs for downloads)
-- Currently on Free plan — email rate limits apply
+- Supabase: Free plan with custom SMTP via Resend (email rate limits effectively bypassed). Vercel: Pro plan.
 
 ## Deployment
 - Vercel project: `sts-bsc-manager` at `https://bsc.ctac.app/`
