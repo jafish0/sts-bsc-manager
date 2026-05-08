@@ -56,6 +56,11 @@ export default function EventDetail() {
   const [documents, setDocuments] = useState([])
   const [uploading, setUploading] = useState(false)
   const [uploadError, setUploadError] = useState(null)
+  // Email composer modal: { recipientsType: 'all'|'team'|'coordinator', teamId?, teamName?, defaultSubject? } | null
+  const [emailModal, setEmailModal] = useState(null)
+  // Coordinator address (for "Message coordinator" section)
+  const [coordinatorEmail, setCoordinatorEmail] = useState(null)
+  const [coordinatorName, setCoordinatorName] = useState(null)
 
   // 1. Initial load: event, collaborative, teams in collab, all team_members
   useEffect(() => {
@@ -103,6 +108,18 @@ export default function EventDetail() {
           if (memErr) throw memErr
           if (cancelled) return
           setMembers(mems || [])
+        }
+
+        // Coordinator (one per collaborative — unique partial index guarantees ≤1)
+        const { data: coordRow } = await supabase
+          .from('collaborative_trainers')
+          .select('user_profiles ( full_name, email )')
+          .eq('collaborative_id', ev.collaborative_id)
+          .eq('is_coordinator', true)
+          .maybeSingle()
+        if (!cancelled) {
+          setCoordinatorEmail(coordRow?.user_profiles?.email || null)
+          setCoordinatorName(coordRow?.user_profiles?.full_name || null)
         }
       } catch (err) {
         if (!cancelled) setError(err.message || String(err))
@@ -284,7 +301,7 @@ export default function EventDetail() {
               <div style={{ fontSize: '1.5rem', fontWeight: 700, color: 'var(--text-muted)' }}>{absentCount}</div>
             </div>
           </div>
-          <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+          <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap' }}>
             <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
               Last refresh: {lastRefreshAt ? lastRefreshAt.toLocaleTimeString() : '—'} (auto every 30s)
             </span>
@@ -294,6 +311,15 @@ export default function EventDetail() {
               style={{ background: COLORS.teal, color: 'white', border: 'none', padding: '0.4rem 0.85rem', borderRadius: '6px', cursor: attRefreshing ? 'wait' : 'pointer', fontSize: '0.85rem', fontWeight: 500 }}
             >
               {attRefreshing ? 'Refreshing…' : 'Refresh'}
+            </button>
+            <button
+              onClick={() => setEmailModal({
+                recipientsType: 'all',
+                defaultSubject: `${event.title} — ${collaborative?.name || ''}`.trim().replace(/—\s*$/, '').trim(),
+              })}
+              style={{ background: COLORS.navy, color: 'white', border: 'none', padding: '0.4rem 0.85rem', borderRadius: '6px', cursor: 'pointer', fontSize: '0.85rem', fontWeight: 500 }}
+            >
+              ✉ Email all participants
             </button>
           </div>
         </div>
@@ -360,10 +386,7 @@ export default function EventDetail() {
         ) : (
           membersByTeam.map(({ team, members: tm }) => {
             const teamPresent = tm.filter(isPresent).length
-            const emails = tm.map(m => m.email).filter(Boolean)
-            const mailtoTeam = emails.length > 0
-              ? `mailto:${emails.join(',')}?subject=${encodeURIComponent(event.title + ' — ' + (collaborative?.name || ''))}`
-              : null
+            const hasEmails = tm.some(m => m.email)
 
             return (
               <section key={team.id} style={{ ...cardStyle, marginBottom: '1rem' }}>
@@ -384,11 +407,16 @@ export default function EventDetail() {
                       onClick={() => navigate(`/admin/team-report/${team.id}`)}
                       style={{ background: 'transparent', color: COLORS.navy, border: `1px solid ${COLORS.navy}`, padding: '0.35rem 0.75rem', borderRadius: '6px', cursor: 'pointer', fontSize: '0.8rem' }}
                     >View team dashboard</button>
-                    {mailtoTeam ? (
-                      <a
-                        href={mailtoTeam}
-                        style={{ background: COLORS.teal, color: 'white', textDecoration: 'none', padding: '0.35rem 0.75rem', borderRadius: '6px', fontSize: '0.8rem', display: 'inline-block' }}
-                      >Email team</a>
+                    {hasEmails ? (
+                      <button
+                        onClick={() => setEmailModal({
+                          recipientsType: 'team',
+                          teamId: team.id,
+                          teamName: team.team_name || team.agency_name,
+                          defaultSubject: `${event.title} — ${team.team_name || team.agency_name}`,
+                        })}
+                        style={{ background: COLORS.teal, color: 'white', border: 'none', padding: '0.35rem 0.75rem', borderRadius: '6px', cursor: 'pointer', fontSize: '0.8rem' }}
+                      >Email team</button>
                     ) : (
                       <span style={{ color: 'var(--text-faint)', fontSize: '0.8rem' }}>(no emails)</span>
                     )}
@@ -443,6 +471,152 @@ export default function EventDetail() {
             )
           })
         )}
+
+        {/* Message Coordinator */}
+        <section style={{ ...cardStyle, marginTop: '1rem' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.5rem' }}>
+            <div>
+              <div style={{ fontSize: '1.05rem', fontWeight: 700, color: 'var(--text-heading)' }}>Coordinator</div>
+              <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
+                {coordinatorEmail
+                  ? <>The named contact for this collaborative is <strong>{coordinatorName}</strong> ({coordinatorEmail}).</>
+                  : 'No coordinator assigned to this collaborative yet.'}
+              </div>
+            </div>
+            {coordinatorEmail && (
+              <button
+                onClick={() => setEmailModal({
+                  recipientsType: 'coordinator',
+                  defaultSubject: `Question about ${event.title}`,
+                })}
+                style={{ background: COLORS.navy, color: 'white', border: 'none', padding: '0.4rem 0.85rem', borderRadius: '6px', cursor: 'pointer', fontSize: '0.85rem' }}
+              >Message coordinator</button>
+            )}
+          </div>
+        </section>
+      </div>
+
+      {emailModal && (
+        <EmailComposerModal
+          mode={emailModal}
+          eventId={eventId}
+          onClose={() => setEmailModal(null)}
+        />
+      )}
+    </div>
+  )
+}
+
+// Composer modal: subject + body, sends via the send-event-email edge function.
+// `mode` shape: { recipientsType: 'all'|'team'|'coordinator', teamId?, teamName?, defaultSubject? }
+function EmailComposerModal({ mode, eventId, onClose }) {
+  const [subject, setSubject] = useState(mode.defaultSubject || '')
+  const [body, setBody] = useState('')
+  const [sending, setSending] = useState(false)
+  const [error, setError] = useState(null)
+  const [success, setSuccess] = useState(null)
+
+  const recipientLabel = mode.recipientsType === 'all'
+    ? 'All event participants'
+    : mode.recipientsType === 'team'
+      ? `Team: ${mode.teamName}`
+      : 'Collaborative coordinator'
+
+  const send = async () => {
+    if (!subject.trim() || !body.trim()) {
+      setError('Subject and body are required.')
+      return
+    }
+    setSending(true); setError(null); setSuccess(null)
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session) throw new Error('Not authenticated')
+
+      const url = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-event-email`
+      const resp = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${session.access_token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          event_id: eventId,
+          recipients_type: mode.recipientsType,
+          team_id: mode.teamId || null,
+          subject: subject.trim(),
+          body: body.trim(),
+        }),
+      })
+      const json = await resp.json().catch(() => ({}))
+      if (!resp.ok) throw new Error(json.error || `Email send failed (HTTP ${resp.status})`)
+
+      setSuccess(`Sent to ${json.recipient_count} recipient${json.recipient_count === 1 ? '' : 's'}.`)
+      setBody('')
+    } catch (err) {
+      setError(err.message || String(err))
+    } finally {
+      setSending(false)
+    }
+  }
+
+  return (
+    <div
+      style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 1000, display: 'flex', justifyContent: 'center', alignItems: 'center', padding: '1rem' }}
+      onClick={onClose}
+    >
+      <div
+        style={{ background: 'var(--bg-card)', borderRadius: '0.75rem', padding: '1.5rem', maxWidth: '640px', width: '100%', maxHeight: '85vh', overflowY: 'auto' }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+          <h3 style={{ margin: 0, color: 'var(--text-heading)' }}>Send email</h3>
+          <button onClick={onClose} style={{ background: 'transparent', border: 'none', fontSize: '1.4rem', cursor: 'pointer', color: 'var(--text-muted)' }}>×</button>
+        </div>
+
+        <div style={{ background: 'var(--bg-card-alt, #f9fafb)', padding: '0.5rem 0.75rem', borderRadius: '6px', marginBottom: '1rem', fontSize: '0.85rem' }}>
+          <strong>To:</strong> {recipientLabel}
+          <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.25rem' }}>
+            Recipients will be BCC'd. Replies go directly to your email.
+          </div>
+        </div>
+
+        <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-body)', marginBottom: '0.25rem' }}>Subject</label>
+        <input
+          type="text"
+          value={subject}
+          onChange={(e) => setSubject(e.target.value)}
+          disabled={sending}
+          style={{ width: '100%', padding: '0.5rem 0.75rem', borderRadius: '6px', border: '1px solid var(--border)', marginBottom: '0.75rem', background: 'var(--bg-card)', color: 'var(--text-body)', fontSize: '0.9rem', boxSizing: 'border-box' }}
+        />
+
+        <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-body)', marginBottom: '0.25rem' }}>Message</label>
+        <textarea
+          value={body}
+          onChange={(e) => setBody(e.target.value)}
+          disabled={sending}
+          rows={10}
+          style={{ width: '100%', padding: '0.5rem 0.75rem', borderRadius: '6px', border: '1px solid var(--border)', background: 'var(--bg-card)', color: 'var(--text-body)', fontSize: '0.9rem', resize: 'vertical', boxSizing: 'border-box', fontFamily: 'inherit' }}
+        />
+
+        {error && (
+          <div style={{ background: '#fef2f2', color: '#991b1b', padding: '0.5rem 0.75rem', borderRadius: '6px', fontSize: '0.85rem', marginTop: '0.75rem' }}>{error}</div>
+        )}
+        {success && (
+          <div style={{ background: '#ecfdf5', color: '#065f46', padding: '0.5rem 0.75rem', borderRadius: '6px', fontSize: '0.85rem', marginTop: '0.75rem' }}>{success}</div>
+        )}
+
+        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem', marginTop: '1rem' }}>
+          <button
+            onClick={onClose}
+            disabled={sending}
+            style={{ background: 'transparent', color: 'var(--text-body)', border: '1px solid var(--border)', padding: '0.5rem 1rem', borderRadius: '6px', cursor: 'pointer', fontSize: '0.9rem' }}
+          >Close</button>
+          <button
+            onClick={send}
+            disabled={sending}
+            style={{ background: COLORS.navy, color: 'white', border: 'none', padding: '0.5rem 1.25rem', borderRadius: '6px', cursor: sending ? 'wait' : 'pointer', fontSize: '0.9rem', fontWeight: 600 }}
+          >{sending ? 'Sending…' : 'Send'}</button>
+        </div>
       </div>
     </div>
   )
