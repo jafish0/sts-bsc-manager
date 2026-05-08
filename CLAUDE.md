@@ -59,7 +59,13 @@ Web app for managing Secondary Traumatic Stress Breakthrough Series Collaborativ
 - **Forum threads:** Scoped per collaborative via `collaborative_id` FK
 - **user_profiles columns:** `id`, `email`, `full_name`, `role`, `team_id`, `is_active`, `agency_role`, `is_senior_leader`, `invite_accepted_at`, `created_at`, `updated_at`
 - **collaborative_trainers** join table for who's a trainer/coordinator on a collaborative. Columns: `id`, `collaborative_id`, `user_id`, `is_coordinator`. Unique partial index `WHERE is_coordinator = true` enforces one coordinator per collab. Source of truth for the Trainer Dashboard.
-- **`pg_cron` is enabled.** A job named `close-expired-sessions` runs every minute and calls `public.close_expired_sessions()`, which deactivates `session_links` for any event whose `end_time + 30 min` (computed in the event's stored timezone, default `America/New_York`) has passed and bulk-stamps `session_attendance.signed_out_at` for stragglers. The "Close now" button on `CollaborativeDetail.jsx` runs the same logic on demand. Sessions without `end_time` never auto-close; UI surfaces this.
+- **`pg_cron` is enabled.** Three scheduled jobs:
+  - `close-expired-sessions` — every minute; deactivates session_links 30 min after event end_time and bulk-stamps `session_attendance.signed_out_at` for stragglers. Sessions without `end_time` never auto-close.
+  - `day-before-reminders` — daily at 13:30 UTC (~9:30 AM ET in summer); calls `fire_day_before_reminders()` which finds events 1 day out and posts to the `send-event-reminder` edge function via `pg_net`.
+  - `week-before-reminders` — daily at 15:00 UTC (~11:00 AM ET in summer); same pattern, 7 days out.
+  Both reminder crons require `vault.secrets` row named `service_role_key` (one-time manual setup; documented in INFRASTRUCTURE.md). Without it, they no-op silently.
+- **`event_rsvps`, `event_reminder_log`, `event_parking_lot_items`, `smartie_goal_comments`** — auxiliary tables for the May 8 feature batch (RSVP buttons in reminder emails, idempotent reminder dispatch, per-event off-topic tracker, trainer feedback on goals). All RLS-scoped via `is_admin_for_collaborative` except `event_rsvps`, which has public SELECT/UPDATE policies so anonymous email recipients can flip their status by `rsvp_token`.
+- **`user_profiles.unsubscribe_token` / `notifications_unsubscribed_at`** — every user gets a stable hex token (16 bytes); the `/unsubscribe/:token` public page sets `notifications_unsubscribed_at` and the reminder/email edge functions skip those users.
 
 ## Supabase Project
 - Project ref: `jhnquklmwoubpbbmnrjf`

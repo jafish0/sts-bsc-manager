@@ -54,6 +54,8 @@ export default function TrainerDashboard() {
   const [evalSearch, setEvalSearch] = useState('')
   const [brightSpots, setBrightSpots] = useState([])  // completed SMARTIE goals across teams in my collabs
   const [disengagedTeams, setDisengagedTeams] = useState([])  // teams idle 14+ days
+  const [rsvpsByEvent, setRsvpsByEvent] = useState({})  // { eventId: { attending: [...], not_attending: [...], no_response: [...] } }
+  const [expandedRsvpEvent, setExpandedRsvpEvent] = useState(null)
 
   useEffect(() => {
     if (!user?.id) return
@@ -107,6 +109,24 @@ export default function TrainerDashboard() {
         collaborative_name: collabById[e.collaborative_id]?.name || '',
         program_type: collabById[e.collaborative_id]?.program_type || '',
       })))
+
+      // 2b. RSVPs for those upcoming events.
+      const upcomingEventIds = (events || []).map(e => e.id)
+      if (upcomingEventIds.length > 0) {
+        const { data: rsvpRows } = await supabase
+          .from('event_rsvps')
+          .select('event_id, status, email, user_profiles:user_id ( full_name, email )')
+          .in('event_id', upcomingEventIds)
+        const grouped = {}
+        ;(rsvpRows || []).forEach(r => {
+          if (!grouped[r.event_id]) grouped[r.event_id] = { attending: [], not_attending: [], no_response: [] }
+          grouped[r.event_id][r.status]?.push({
+            name: r.user_profiles?.full_name || r.email,
+            email: r.user_profiles?.email || r.email,
+          })
+        })
+        if (!cancelled) setRsvpsByEvent(grouped)
+      }
 
       // 3. Recent evaluations — group by event
       const { data: evalRows } = await supabase
@@ -461,6 +481,67 @@ export default function TrainerDashboard() {
               )}
             </section>
 
+            {/* RSVPs — who's planning to attend each upcoming session */}
+            {upcomingEvents.length > 0 && Object.keys(rsvpsByEvent).length > 0 && (
+              <section style={{ ...cardStyle, marginBottom: '1.5rem' }}>
+                <div style={cardHeaderStyle}>
+                  📨 RSVPs
+                  <span style={{ fontWeight: 400, fontSize: '0.85rem', color: 'var(--text-muted)', marginLeft: '0.5rem' }}>
+                    responses from automated reminders
+                  </span>
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginTop: '0.5rem' }}>
+                  {upcomingEvents.map(ev => {
+                    const r = rsvpsByEvent[ev.id]
+                    if (!r) return null
+                    const total = r.attending.length + r.not_attending.length + r.no_response.length
+                    if (total === 0) return null
+                    const isExpanded = expandedRsvpEvent === ev.id
+                    return (
+                      <div
+                        key={ev.id}
+                        style={{
+                          padding: '0.6rem 0.85rem',
+                          border: '1px solid var(--border-light)',
+                          borderRadius: '6px',
+                          background: 'var(--bg-card)',
+                        }}
+                      >
+                        <button
+                          onClick={() => setExpandedRsvpEvent(isExpanded ? null : ev.id)}
+                          style={{
+                            width: '100%', background: 'transparent', border: 'none',
+                            cursor: 'pointer', textAlign: 'left', padding: 0,
+                            display: 'grid', gridTemplateColumns: '1fr auto auto', gap: '0.75rem', alignItems: 'center',
+                          }}
+                        >
+                          <div>
+                            <div style={{ fontSize: '0.9rem', fontWeight: 600, color: 'var(--text-body)' }}>{ev.title}</div>
+                            <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                              {fmtDateShort(ev.event_date)} · {ev.collaborative_name}
+                            </div>
+                          </div>
+                          <div style={{ display: 'flex', gap: '0.4rem' }}>
+                            <Badge color="#16a34a" bg="#dcfce7">✓ {r.attending.length}</Badge>
+                            <Badge color="#991b1b" bg="#fee2e2">✕ {r.not_attending.length}</Badge>
+                            <Badge color="#6b7280" bg="#f3f4f6">? {r.no_response.length}</Badge>
+                          </div>
+                          <span style={{ color: COLORS.teal, fontSize: '1.1rem' }}>{isExpanded ? '▾' : '▸'}</span>
+                        </button>
+                        {isExpanded && (
+                          <div style={{ marginTop: '0.75rem', display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '0.75rem' }}>
+                            <RsvpColumn title="Attending" people={r.attending} color="#16a34a" />
+                            <RsvpColumn title="Not Attending" people={r.not_attending} color="#991b1b" />
+                            <RsvpColumn title="No Response" people={r.no_response} color="#6b7280" />
+                          </div>
+                        )}
+                      </div>
+                    )
+                  })}
+                </div>
+              </section>
+            )}
+
             {/* Bright Spots — completed goals across my teams */}
             {brightSpots.length > 0 && (
               <section style={{ ...cardStyle, marginBottom: '1.5rem' }}>
@@ -568,6 +649,37 @@ export default function TrainerDashboard() {
           </>
         )}
       </div>
+    </div>
+  )
+}
+
+function Badge({ color, bg, children }) {
+  return (
+    <span style={{
+      background: bg, color, padding: '0.15rem 0.5rem',
+      borderRadius: '999px', fontSize: '0.72rem', fontWeight: 700,
+    }}>{children}</span>
+  )
+}
+
+function RsvpColumn({ title, people, color }) {
+  return (
+    <div>
+      <div style={{ fontSize: '0.75rem', fontWeight: 700, color, marginBottom: '0.25rem', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+        {title} ({people.length})
+      </div>
+      {people.length === 0 ? (
+        <div style={{ fontSize: '0.78rem', color: 'var(--text-faint)' }}>—</div>
+      ) : (
+        <ul style={{ listStyle: 'none', padding: 0, margin: 0, fontSize: '0.78rem' }}>
+          {people.slice(0, 12).map((p, i) => (
+            <li key={i} style={{ marginBottom: '0.15rem', color: 'var(--text-body)' }}>{p.name}</li>
+          ))}
+          {people.length > 12 && (
+            <li style={{ color: 'var(--text-muted)', fontStyle: 'italic' }}>+ {people.length - 12} more</li>
+          )}
+        </ul>
+      )}
     </div>
   )
 }

@@ -122,6 +122,18 @@ Authentication → URL Configuration:
 
 ## Open follow-ups
 
+- **Store the service-role key in Vault for reminder cron jobs.** The pg_cron jobs `day-before-reminders` and `week-before-reminders` call the `send-event-reminder` edge function via `pg_net.http_post` and need to authenticate as service-role. Until the key is stored, the cron functions log a NOTICE and silently no-op (they will not fail). To enable:
+  ```sql
+  -- In Supabase SQL editor, with the secret key copied from Project Settings → API:
+  INSERT INTO vault.secrets (name, secret) VALUES ('service_role_key', 'eyJ...your_service_role_key...');
+  -- Verify: cron will pick it up on the next firing.
+  SELECT public.fire_day_before_reminders();
+  ```
+- **Reminder system: T-1 hour and T-0 reminders not yet wired.** The send-event-reminder edge function supports them (`reminder_type`: `hour_before`, `starting_now`) but no pg_cron job triggers them yet because hour-before timing requires a per-event schedule, not a daily fixed time. Possible approach: a 5-minute cron that finds events whose `start_time + 0/-60min` falls within the next 5 min window. Defer until day_before reminders are validated in production.
+- **Build the registration system (#7 in user's May 8 request).** Public `/register/:event_token` form, `event_registrations` table with capacity + waitlist, confirmation email with `.ics` attachment, and tokenized "Cancel my enrollment" link. ~60+ minutes of focused work; deserves its own dedicated plan.
+- **Active Participation Index widget for TrainerDashboard.** Composite metric blending forum post frequency, SMARTIE goal updates, and checklist completion rates per team.
+- **Resource Utilization Heatmap.** Track downloads from `resources` (and possibly `bsc_event_documents`) and show which STSI-OA domains are getting the most engagement.
+- **Weekly trainer summary edge function.** Cron-driven email digest at Monday 9 AM ET listing each assigned collab's progress for the prior week (new goals, completed PDSAs, recent evaluation responses, parking-lot items).
 - **Invite Ginny Sprang as super_admin.** In Supabase Auth dashboard → Invite User → `sprang@uky.edu`. After she sets her password and `user_profiles` auto-creates, run:
   ```sql
   UPDATE user_profiles SET role = 'super_admin', is_active = true

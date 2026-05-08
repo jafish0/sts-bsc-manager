@@ -38,6 +38,8 @@ import SessionEvaluation from './pages/SessionEvaluation'
 import SessionSignOut from './pages/SessionSignOut'
 import TrainerDashboard from './pages/TrainerDashboard'
 import EventDetail from './pages/EventDetail'
+import RsvpPage from './pages/RsvpPage'
+import UnsubscribePage from './pages/UnsubscribePage'
 
 // Detect invite/recovery tokens in URL hash and redirect to /set-password
 function AuthRedirectHandler() {
@@ -84,6 +86,10 @@ function App() {
           <Route path="/session/:token" element={<SessionSignIn />} />
           <Route path="/session/:token/eval" element={<SessionEvaluation />} />
           <Route path="/session/:token/signout" element={<SessionSignOut />} />
+
+          {/* Public RSVP / unsubscribe (one-click links from reminder emails) */}
+          <Route path="/rsvp/:token" element={<RsvpPage />} />
+          <Route path="/unsubscribe/:token" element={<UnsubscribePage />} />
 
           {/* Auth Routes */}
           <Route path="/login" element={<Login />} />
