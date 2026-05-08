@@ -40,6 +40,8 @@ import TrainerDashboard from './pages/TrainerDashboard'
 import EventDetail from './pages/EventDetail'
 import RsvpPage from './pages/RsvpPage'
 import UnsubscribePage from './pages/UnsubscribePage'
+import RegisterPage from './pages/RegisterPage'
+import CancelRegistrationPage from './pages/CancelRegistrationPage'
 
 // Detect invite/recovery tokens in URL hash and redirect to /set-password
 function AuthRedirectHandler() {
@@ -90,6 +92,10 @@ function App() {
           {/* Public RSVP / unsubscribe (one-click links from reminder emails) */}
           <Route path="/rsvp/:token" element={<RsvpPage />} />
           <Route path="/unsubscribe/:token" element={<UnsubscribePage />} />
+
+          {/* Public registration + cancel pages */}
+          <Route path="/register/:token" element={<RegisterPage />} />
+          <Route path="/cancel-registration/:token" element={<CancelRegistrationPage />} />
 
           {/* Auth Routes */}
           <Route path="/login" element={<Login />} />

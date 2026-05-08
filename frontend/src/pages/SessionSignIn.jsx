@@ -97,6 +97,32 @@ export default function SessionSignIn() {
       sessionStorage.setItem(`attendance_${token}`, attendanceId)
       setAttendanceId(attendanceId)
       setSignedIn(true)
+
+      // QR check-in linkage: if this email matches a registration covering
+      // this event, mark them checked_in and link to the new attendance row.
+      try {
+        const lowerEmail = form.email.trim().toLowerCase()
+        const { data: matchingRegs } = await supabase
+          .from('event_registrations')
+          .select('id, status, registration_link_id, event_registration_link_events!inner(event_id)')
+          .ilike('email', lowerEmail)
+          .eq('event_registration_link_events.event_id', eventInfo.id)
+          .neq('status', 'cancelled')
+        const reg = (matchingRegs || [])[0]
+        if (reg) {
+          await supabase
+            .from('event_registrations')
+            .update({
+              status: 'checked_in',
+              checked_in_at: new Date().toISOString(),
+              session_attendance_id: attendanceId,
+            })
+            .eq('id', reg.id)
+        }
+      } catch (linkErr) {
+        // Non-fatal — sign-in already succeeded; registration linkage is bonus.
+        console.warn('Could not link registration to attendance:', linkErr)
+      }
     } catch (err) {
       console.error('Sign-in error:', err)
       alert('Error signing in: ' + err.message)

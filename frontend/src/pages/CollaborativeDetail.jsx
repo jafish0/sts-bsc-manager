@@ -7,6 +7,7 @@ import InviteTeamLeaderModal from '../components/InviteTeamLeaderModal'
 import AttendanceReport from '../components/AttendanceReport'
 import EvaluationReport from '../components/EvaluationReport'
 import QrCodeModal from '../components/QrCodeModal'
+import RegistrationLinkModal from '../components/RegistrationLinkModal'
 import { PROGRAM_TYPE_COLORS, getProgramBranding } from '../config/programConfig'
 import ctacLogo from '../assets/CTAC_white.png'
 
@@ -73,6 +74,15 @@ export default function CollaborativeDetail() {
   const [editingEventDraft, setEditingEventDraft] = useState(null)
   const [savingEvent, setSavingEvent] = useState(false)
 
+  // Registration links + RSVPs state
+  const [registrationLinks, setRegistrationLinks] = useState([])
+  const [showRegistrationModal, setShowRegistrationModal] = useState(false)
+  const [editingLink, setEditingLink] = useState(null)
+  const [viewingRosterFor, setViewingRosterFor] = useState(null) // { id, title }
+  const [rosterRows, setRosterRows] = useState([])
+  const [rosterSearch, setRosterSearch] = useState('')
+  const [rosterStatusFilter, setRosterStatusFilter] = useState('all')
+
   // Session link & report state
   const [sessionLinks, setSessionLinks] = useState({})
   const [attendanceCounts, setAttendanceCounts] = useState({})
@@ -87,7 +97,78 @@ export default function CollaborativeDetail() {
     fetchTeamLeaders()
     fetchEvents()
     fetchTrainers()
+    fetchRegistrationLinks()
   }, [id])
+
+  // Pull all registration links + status counts for this collaborative.
+  const fetchRegistrationLinks = async () => {
+    const { data: links } = await supabase
+      .from('event_registration_links')
+      .select('*')
+      .eq('collaborative_id', id)
+      .order('created_at', { ascending: false })
+    if (!links || links.length === 0) { setRegistrationLinks([]); return }
+    // Counts by status, per link
+    const linkIds = links.map(l => l.id)
+    const { data: regs } = await supabase
+      .from('event_registrations')
+      .select('registration_link_id, status')
+      .in('registration_link_id', linkIds)
+    const counts = {}
+    ;(regs || []).forEach(r => {
+      if (!counts[r.registration_link_id]) counts[r.registration_link_id] = { registered: 0, waitlisted: 0, cancelled: 0, checked_in: 0 }
+      counts[r.registration_link_id][r.status] = (counts[r.registration_link_id][r.status] || 0) + 1
+    })
+    setRegistrationLinks(links.map(l => ({ ...l, counts: counts[l.id] || { registered: 0, waitlisted: 0, cancelled: 0, checked_in: 0 } })))
+  }
+
+  // Roster for the currently-viewed link
+  const loadRoster = async (linkId) => {
+    const { data } = await supabase
+      .from('event_registrations')
+      .select('id, full_name, email, responses, status, registered_at, cancelled_at, checked_in_at, waitlist_position, cancel_token')
+      .eq('registration_link_id', linkId)
+      .order('registered_at', { ascending: false })
+    setRosterRows(data || [])
+  }
+
+  // Manual roster operations (admin)
+  const promoteWaitlister = async (regId) => {
+    if (!window.confirm('Promote this person off the waitlist to registered?')) return
+    await supabase.from('event_registrations').update({ status: 'registered', waitlist_position: null }).eq('id', regId)
+    await loadRoster(viewingRosterFor.id)
+    await fetchRegistrationLinks()
+  }
+  const cancelRegistrationAdmin = async (regId) => {
+    if (!window.confirm('Cancel this registration?')) return
+    await supabase.from('event_registrations').update({ status: 'cancelled', cancelled_at: new Date().toISOString() }).eq('id', regId)
+    await loadRoster(viewingRosterFor.id)
+    await fetchRegistrationLinks()
+  }
+
+  const exportRosterCsv = () => {
+    if (rosterRows.length === 0) return
+    // Collect all unique response keys to flatten into columns.
+    const keysSet = new Set()
+    rosterRows.forEach(r => Object.keys(r.responses || {}).forEach(k => keysSet.add(k)))
+    const responseKeys = Array.from(keysSet).filter(k => k !== 'full_name' && k !== 'email' && k !== 'email_confirm')
+    const headers = ['Status', 'Full Name', 'Email', 'Registered At', 'Cancelled At', 'Checked In At', 'Waitlist #', ...responseKeys]
+    const rows = rosterRows.map(r => [
+      r.status, r.full_name, r.email,
+      r.registered_at || '', r.cancelled_at || '', r.checked_in_at || '',
+      r.waitlist_position == null ? '' : String(r.waitlist_position),
+      ...responseKeys.map(k => String(r.responses?.[k] ?? '')),
+    ])
+    const escape = (v) => `"${String(v).replace(/"/g, '""')}"`
+    const csv = [headers, ...rows].map(row => row.map(escape).join(',')).join('\r\n')
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `registrations_${viewingRosterFor?.title?.replace(/[^a-zA-Z0-9]+/g, '_') || 'roster'}.csv`
+    document.body.appendChild(a); a.click(); document.body.removeChild(a)
+    URL.revokeObjectURL(url)
+  }
 
   // Fetch CTAC trainers + coordinator assigned to this collaborative.
   const fetchTrainers = async () => {
@@ -1090,6 +1171,79 @@ export default function CollaborativeDetail() {
           )}
         </div>
 
+        {/* Registrations Section (admin-only) */}
+        {isAdminHere && (
+          <div style={{
+            background: 'white', borderRadius: '12px', padding: '2rem',
+            marginBottom: '2rem', boxShadow: '0 4px 12px rgba(0, 0, 0, 0.1)'
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem' }}>
+              <h3 style={{ fontSize: '1.5rem', fontWeight: '700', color: '#0E1F56', margin: 0 }}>
+                📝 Registrations
+              </h3>
+              <button
+                onClick={() => { setEditingLink(null); setShowRegistrationModal(true) }}
+                style={{
+                  background: 'linear-gradient(135deg, #00A79D 0%, #0E1F56 100%)',
+                  color: 'white', padding: '0.6rem 1.25rem', borderRadius: '8px',
+                  border: 'none', fontWeight: '600', cursor: 'pointer', fontSize: '0.9rem',
+                }}
+              >+ Create Registration Link</button>
+            </div>
+
+            {registrationLinks.length === 0 ? (
+              <p style={{ color: '#6b7280', fontSize: '0.9rem', margin: 0 }}>
+                No registration links yet. Create one to share a public sign-up form for this collaborative.
+              </p>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                {registrationLinks.map(link => {
+                  const c = link.counts
+                  const status = !link.is_active
+                    ? { label: 'Closed', color: '#991b1b', bg: '#fee2e2' }
+                    : (link.registration_opens_at && new Date(link.registration_opens_at) > new Date())
+                      ? { label: 'Pre-open', color: '#92400e', bg: '#fef3c7' }
+                      : (link.registration_closes_at && new Date(link.registration_closes_at) < new Date())
+                        ? { label: 'Closed', color: '#991b1b', bg: '#fee2e2' }
+                        : { label: 'Active', color: '#166534', bg: '#dcfce7' }
+                  const shareUrl = `https://bsc.ctac.app/register/${link.token}`
+                  return (
+                    <div key={link.id} style={{
+                      padding: '1rem', border: '1px solid #e5e7eb', borderRadius: '8px',
+                      display: 'grid', gridTemplateColumns: '1fr auto', gap: '0.75rem', alignItems: 'flex-start'
+                    }}>
+                      <div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+                          <strong style={{ color: '#0E1F56', fontSize: '1rem' }}>{link.title}</strong>
+                          <span style={{ background: status.bg, color: status.color, padding: '0.15rem 0.55rem', borderRadius: '999px', fontSize: '0.72rem', fontWeight: 700 }}>{status.label}</span>
+                        </div>
+                        <div style={{ fontSize: '0.8rem', color: '#6b7280', marginTop: '0.25rem', display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
+                          <span><strong style={{ color: '#166534' }}>{c.registered}</strong> registered</span>
+                          {c.waitlisted > 0 && <span><strong style={{ color: '#92400e' }}>{c.waitlisted}</strong> waitlisted</span>}
+                          {c.cancelled > 0 && <span><strong style={{ color: '#6b7280' }}>{c.cancelled}</strong> cancelled</span>}
+                          {c.checked_in > 0 && <span><strong style={{ color: '#0E1F56' }}>{c.checked_in}</strong> checked in</span>}
+                          {link.capacity != null && <span>· capacity {link.capacity}</span>}
+                        </div>
+                        <div style={{ fontSize: '0.72rem', color: '#9ca3af', marginTop: '0.25rem' }}>
+                          <code>{shareUrl}</code>
+                          <button
+                            onClick={() => navigator.clipboard.writeText(shareUrl)}
+                            style={{ background: 'transparent', border: 'none', color: '#0E1F56', cursor: 'pointer', fontSize: '0.72rem', marginLeft: '0.5rem' }}
+                          >Copy</button>
+                        </div>
+                      </div>
+                      <div style={{ display: 'flex', gap: '0.4rem', flexShrink: 0 }}>
+                        <button onClick={() => { setViewingRosterFor({ id: link.id, title: link.title }); loadRoster(link.id) }} style={{ background: '#0E1F56', color: 'white', border: 'none', padding: '0.4rem 0.75rem', borderRadius: '6px', cursor: 'pointer', fontSize: '0.78rem' }}>View Roster</button>
+                        <button onClick={() => { setEditingLink(link); setShowRegistrationModal(true) }} style={{ background: 'transparent', color: '#0E1F56', border: '1px solid #0E1F56', padding: '0.4rem 0.75rem', borderRadius: '6px', cursor: 'pointer', fontSize: '0.78rem' }}>Edit</button>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+          </div>
+        )}
+
         {/* Teams Section */}
         <div style={{
           background: 'white',
@@ -1362,6 +1516,105 @@ export default function CollaborativeDetail() {
           filename={qrModal.filename}
           onClose={() => setQrModal(null)}
         />
+      )}
+
+      {/* Registration Link create/edit modal */}
+      {showRegistrationModal && (
+        <RegistrationLinkModal
+          collaborativeId={id}
+          eventsForCollab={events}
+          editingLink={editingLink}
+          onClose={() => { setShowRegistrationModal(false); setEditingLink(null) }}
+          onSaved={() => { fetchRegistrationLinks() }}
+        />
+      )}
+
+      {/* Roster modal */}
+      {viewingRosterFor && (
+        <div
+          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.55)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }}
+          onClick={() => setViewingRosterFor(null)}
+        >
+          <div
+            onClick={e => e.stopPropagation()}
+            style={{ background: 'white', borderRadius: '0.75rem', maxWidth: '1100px', width: '100%', maxHeight: '90vh', overflowY: 'auto', padding: '1.5rem' }}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+              <h3 style={{ margin: 0, color: '#0E1F56' }}>Roster — {viewingRosterFor.title}</h3>
+              <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                <button onClick={exportRosterCsv} style={{ background: '#00A79D', color: 'white', border: 'none', padding: '0.4rem 0.85rem', borderRadius: '6px', cursor: 'pointer', fontSize: '0.85rem', fontWeight: 600 }}>Download CSV</button>
+                <button onClick={() => setViewingRosterFor(null)} style={{ background: 'transparent', border: 'none', fontSize: '1.5rem', cursor: 'pointer', color: '#6b7280' }}>×</button>
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1rem', flexWrap: 'wrap' }}>
+              <input
+                type="text"
+                placeholder="Search by name or email…"
+                value={rosterSearch}
+                onChange={e => setRosterSearch(e.target.value)}
+                style={{ flex: 1, minWidth: '14rem', padding: '0.45rem 0.75rem', border: '1px solid #d1d5db', borderRadius: '6px', fontSize: '0.85rem' }}
+              />
+              <select value={rosterStatusFilter} onChange={e => setRosterStatusFilter(e.target.value)} style={{ padding: '0.45rem 0.75rem', border: '1px solid #d1d5db', borderRadius: '6px', fontSize: '0.85rem' }}>
+                <option value="all">All ({rosterRows.length})</option>
+                <option value="registered">Registered ({rosterRows.filter(r => r.status === 'registered').length})</option>
+                <option value="waitlisted">Waitlisted ({rosterRows.filter(r => r.status === 'waitlisted').length})</option>
+                <option value="checked_in">Checked in ({rosterRows.filter(r => r.status === 'checked_in').length})</option>
+                <option value="cancelled">Cancelled ({rosterRows.filter(r => r.status === 'cancelled').length})</option>
+              </select>
+            </div>
+
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
+              <thead>
+                <tr style={{ background: '#f9fafb', borderBottom: '2px solid #e5e7eb' }}>
+                  <th style={{ textAlign: 'left', padding: '0.4rem 0.5rem' }}>Status</th>
+                  <th style={{ textAlign: 'left', padding: '0.4rem 0.5rem' }}>Name</th>
+                  <th style={{ textAlign: 'left', padding: '0.4rem 0.5rem' }}>Email</th>
+                  <th style={{ textAlign: 'left', padding: '0.4rem 0.5rem' }}>Agency</th>
+                  <th style={{ textAlign: 'left', padding: '0.4rem 0.5rem' }}>Role</th>
+                  <th style={{ textAlign: 'left', padding: '0.4rem 0.5rem' }}>Registered</th>
+                  <th style={{ textAlign: 'left', padding: '0.4rem 0.5rem' }}>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {rosterRows
+                  .filter(r => rosterStatusFilter === 'all' || r.status === rosterStatusFilter)
+                  .filter(r => {
+                    const t = rosterSearch.trim().toLowerCase()
+                    if (!t) return true
+                    return (r.full_name || '').toLowerCase().includes(t) || (r.email || '').toLowerCase().includes(t)
+                  })
+                  .map(r => (
+                    <tr key={r.id} style={{ borderBottom: '1px solid #f3f4f6' }}>
+                      <td style={{ padding: '0.4rem 0.5rem' }}>
+                        <span style={{ background: r.status === 'registered' ? '#dcfce7' : r.status === 'waitlisted' ? '#fef3c7' : r.status === 'cancelled' ? '#fee2e2' : '#dbeafe', color: r.status === 'registered' ? '#166534' : r.status === 'waitlisted' ? '#92400e' : r.status === 'cancelled' ? '#991b1b' : '#1e40af', padding: '0.1rem 0.5rem', borderRadius: '999px', fontSize: '0.7rem', fontWeight: 700 }}>
+                          {r.status}{r.status === 'waitlisted' && r.waitlist_position != null && ` #${r.waitlist_position}`}
+                        </span>
+                      </td>
+                      <td style={{ padding: '0.4rem 0.5rem', fontWeight: 500 }}>{r.full_name}</td>
+                      <td style={{ padding: '0.4rem 0.5rem' }}><a href={`mailto:${r.email}`} style={{ color: '#0E1F56' }}>{r.email}</a></td>
+                      <td style={{ padding: '0.4rem 0.5rem', color: '#6b7280' }}>{r.responses?.agency || ''}</td>
+                      <td style={{ padding: '0.4rem 0.5rem', color: '#6b7280' }}>{r.responses?.role || ''}</td>
+                      <td style={{ padding: '0.4rem 0.5rem', color: '#6b7280', fontSize: '0.78rem' }}>{r.registered_at ? new Date(r.registered_at).toLocaleDateString() : ''}</td>
+                      <td style={{ padding: '0.4rem 0.5rem' }}>
+                        <div style={{ display: 'flex', gap: '0.3rem' }}>
+                          {r.status === 'waitlisted' && (
+                            <button onClick={() => promoteWaitlister(r.id)} title="Promote to registered" style={{ background: '#16a34a', color: 'white', border: 'none', padding: '0.2rem 0.5rem', borderRadius: '4px', cursor: 'pointer', fontSize: '0.72rem' }}>↑</button>
+                          )}
+                          {r.status !== 'cancelled' && (
+                            <button onClick={() => cancelRegistrationAdmin(r.id)} title="Cancel registration" style={{ background: 'transparent', color: '#991b1b', border: '1px solid #991b1b', padding: '0.2rem 0.5rem', borderRadius: '4px', cursor: 'pointer', fontSize: '0.72rem' }}>✕</button>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+              </tbody>
+            </table>
+            {rosterRows.length === 0 && (
+              <p style={{ color: '#9ca3af', fontStyle: 'italic', padding: '1rem 0' }}>No registrations yet.</p>
+            )}
+          </div>
+        </div>
       )}
 
       {/* Add Team Modal */}
