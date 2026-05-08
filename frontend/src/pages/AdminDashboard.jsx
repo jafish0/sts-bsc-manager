@@ -6,7 +6,7 @@ import { PROGRAM_TYPE_COLORS } from '../config/programConfig'
 
 export default function AdminDashboard() {
   const navigate = useNavigate()
-  const { user } = useAuth()
+  const { user, isSuperAdmin } = useAuth()
   const [selfRatingCount, setSelfRatingCount] = useState(0)
   const [unmatchedCount, setUnmatchedCount] = useState(0)
   const [unmatchedList, setUnmatchedList] = useState([])
@@ -371,6 +371,7 @@ export default function AdminDashboard() {
             </div>
           </button>
 
+          {isSuperAdmin && (
           <button
             onClick={() => navigate('/admin/change-framework')}
             style={{
@@ -401,7 +402,9 @@ export default function AdminDashboard() {
               View the collaborative improvement framework by domain
             </div>
           </button>
+          )}
 
+          {isSuperAdmin && (
           <button
             onClick={() => navigate('/admin/strategies')}
             style={{
@@ -432,7 +435,9 @@ export default function AdminDashboard() {
               Browse improvement strategies by domain
             </div>
           </button>
+          )}
 
+          {isSuperAdmin && (
           <button
             onClick={() => navigate('/admin/sts-pat-overview')}
             style={{
@@ -463,7 +468,9 @@ export default function AdminDashboard() {
               View policy analysis results across all teams
             </div>
           </button>
+          )}
 
+          {isSuperAdmin && (
           <button
             style={{
               padding: '2rem',
@@ -482,7 +489,9 @@ export default function AdminDashboard() {
               {selfRatingCount} team member{selfRatingCount !== 1 ? 's' : ''} completed the supervisor self-rating
             </div>
           </button>
+          )}
 
+          {isSuperAdmin && (
           <button
             onClick={() => navigate('/admin/staff')}
             style={{
@@ -513,7 +522,8 @@ export default function AdminDashboard() {
               Meet the BSC faculty and support team
             </div>
           </button>
-          {unmatchedCount > 0 && (
+          )}
+          {isSuperAdmin && unmatchedCount > 0 && (
             <button
               onClick={() => setShowUnmatched(!showUnmatched)}
               style={{

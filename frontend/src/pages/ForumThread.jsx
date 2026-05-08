@@ -22,7 +22,9 @@ function InitialsAvatar({ name, size = 32 }) {
 export default function ForumThread() {
   const { threadId } = useParams()
   const navigate = useNavigate()
-  const { user, isSuperAdmin } = useAuth()
+  const { user, canAdminCollaborative } = useAuth()
+  // Computed once thread is loaded; until then, isAdminHere is false (safe default).
+  const isAdminHere = canAdminCollaborative(thread?.collaborative_id)
 
   const [thread, setThread] = useState(null)
   const [posts, setPosts] = useState([])
@@ -257,7 +259,7 @@ export default function ForumThread() {
             </div>
             {/* Thread actions */}
             <div style={{ display: 'flex', gap: '0.3rem', flexShrink: 0 }}>
-              {isSuperAdmin && (
+              {isAdminHere && (
                 <button onClick={handlePinThread} title={thread.is_pinned ? 'Unpin' : 'Pin'} style={{
                   background: thread.is_pinned ? COLORS.teal : '#f3f4f6',
                   color: thread.is_pinned ? 'white' : '#6b7280',
@@ -272,7 +274,7 @@ export default function ForumThread() {
                   cursor: 'pointer', fontSize: '0.85rem'
                 }}>&#9998;</button>
               )}
-              {(isThreadAuthor || isSuperAdmin) && (
+              {(isThreadAuthor || isAdminHere) && (
                 <button onClick={handleDeleteThread} title="Delete" style={{
                   background: '#fee2e2', color: '#991b1b', border: 'none',
                   padding: '0.4rem 0.6rem', borderRadius: '6px',
@@ -349,7 +351,7 @@ export default function ForumThread() {
                               cursor: 'pointer', fontSize: '0.8rem'
                             }}>&#9998;</button>
                         )}
-                        {(isPostAuthor || isSuperAdmin) && (
+                        {(isPostAuthor || isAdminHere) && (
                           <button onClick={() => handleDeletePost(post.id)}
                             title="Delete" style={{
                               background: 'transparent', color: '#ef4444', border: 'none',

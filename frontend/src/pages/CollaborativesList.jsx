@@ -12,7 +12,7 @@ export default function CollaborativesList() {
   const [showCreateModal, setShowCreateModal] = useState(false)
   const [filter, setFilter] = useState('active')
   const navigate = useNavigate()
-  const { isSuperAdmin } = useAuth()
+  const { isSuperAdmin, isTrainerAdmin } = useAuth()
 
   useEffect(() => {
     fetchCollaboratives()
@@ -237,9 +237,11 @@ export default function CollaborativesList() {
             <div style={{ fontSize: '4rem', marginBottom: '1rem', opacity: 0.3 }}>📋</div>
             <h2 style={{ color: '#374151', marginBottom: '0.5rem' }}>No collaboratives found</h2>
             <p style={{ color: '#6b7280', marginBottom: '2rem' }}>
-              {filter === 'all' 
-                ? 'Get started by creating your first collaborative'
-                : `No ${filter} collaboratives at this time`}
+              {isTrainerAdmin && filter === 'all'
+                ? "You're not assigned to any collaboratives yet — ask a super admin to add you as a trainer."
+                : filter === 'all'
+                  ? 'Get started by creating your first collaborative'
+                  : `No ${filter} collaboratives at this time`}
             </p>
             {filter === 'all' && isSuperAdmin && (
               <button

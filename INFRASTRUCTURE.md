@@ -2,7 +2,7 @@
 
 Living doc of the live production stack: domains, DNS, email, hosting, and the integration points between them. Complements `CLAUDE.md` (which covers code conventions and database schema). Update this when infrastructure changes; don't let it go stale.
 
-**Last updated:** 2026-05-05 — FK constraints to `user_profiles.id` now `ON DELETE SET NULL` (resend-invite flow no longer breaks on users with attendance/forum history). Earlier on 2026-05-04: initial migration from `sts-bsc-manager.vercel.app` to `bsc.ctac.app`, custom SMTP via Resend, full email auth (SPF + DKIM + DMARC).
+**Last updated:** 2026-05-07 — `trainer_admin` role added with collaborative-scoped admin access; `pg_cron` enabled with a 1-min `close-expired-sessions` job that auto-closes session links 30 minutes after `end_time`. Earlier 2026-05-05: FK constraints to `user_profiles.id` now `ON DELETE SET NULL`. Earlier 2026-05-04: initial migration from `sts-bsc-manager.vercel.app` to `bsc.ctac.app`, custom SMTP via Resend, full email auth (SPF + DKIM + DMARC).
 
 ---
 
@@ -107,6 +107,16 @@ Authentication → URL Configuration:
 - **Email template edits** require dashboard work — no Supabase MCP tool covers them. See "Email templates" section above.
 - **DNS record edits** require dashboard work — no Vercel MCP tool covers DNS. (Available Vercel MCP tools: deployments, projects, logs, toolbar comments, domain availability/price, docs search. No DNS create/update/delete.)
 - **User-attribution rows orphan on delete** — deleting a user no longer fails (FKs are now `ON DELETE SET NULL` for `checklist_items.completed_by`, `forum_posts.created_by`, `forum_threads.created_by`, `pdsa_cycles.created_by`, `session_attendance.user_profile_id`). Orphaned forum posts render as authored by "Unknown" — frontend already handled the null case. If new tables add user-attribution columns, default them to `ON DELETE SET NULL` unless ownership is unambiguous.
+- **Promoting a user to `super_admin` or `trainer_admin`** is a manual two-step. Auto-creating accounts on a user's behalf is against Claude's safety policy.
+  1. In the Supabase Auth dashboard → Invite User → enter the user's email; they set a password through the standard invite flow.
+  2. Once their `user_profiles` row exists, run via `execute_sql`:
+     ```sql
+     UPDATE user_profiles SET role = 'super_admin', is_active = true
+     WHERE email = 'someone@uky.edu';
+     -- or 'trainer_admin' for collaborative-scoped admins; pair with an
+     -- INSERT into collaborative_trainers for each collab they should access.
+     ```
+  Currently confirmed super_admins: Josh (`jafish0@uky.edu`). Pending: Ginny Sprang (`sprang@uky.edu`) — invite + promote when ready.
 
 ---
 

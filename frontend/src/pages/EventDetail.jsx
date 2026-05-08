@@ -58,7 +58,7 @@ const NPS_COLOR = (score) => score >= 9 ? '#16a34a' : score >= 7 ? '#f59e0b' : '
 export default function EventDetail() {
   const { eventId } = useParams()
   const navigate = useNavigate()
-  const { isSuperAdmin, user } = useAuth()
+  const { user, canAdminCollaborative } = useAuth()
 
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
@@ -395,7 +395,7 @@ export default function EventDetail() {
                 {documents.length === 0 ? 'No documents uploaded yet.' : `${documents.length} document${documents.length === 1 ? '' : 's'}`}
               </div>
             </div>
-            {isSuperAdmin && (
+            {canAdminCollaborative(event?.collaborative_id) && (
               <label style={{ background: COLORS.teal, color: 'white', padding: '0.45rem 0.9rem', borderRadius: '6px', cursor: uploading ? 'wait' : 'pointer', fontSize: '0.85rem', fontWeight: 500 }}>
                 {uploading ? 'Uploading…' : '+ Upload document'}
                 <input type="file" onChange={handleUpload} disabled={uploading} style={{ display: 'none' }} />
@@ -427,7 +427,7 @@ export default function EventDetail() {
                       onClick={() => handleDocumentDownload(d)}
                       style={{ background: COLORS.navy, color: 'white', border: 'none', padding: '0.3rem 0.7rem', borderRadius: '6px', cursor: 'pointer', fontSize: '0.78rem' }}
                     >Download</button>
-                    {isSuperAdmin && (
+                    {canAdminCollaborative(event?.collaborative_id) && (
                       <button
                         onClick={() => handleDocumentDelete(d)}
                         style={{ background: 'transparent', color: COLORS.red, border: `1px solid ${COLORS.red}`, padding: '0.3rem 0.6rem', borderRadius: '6px', cursor: 'pointer', fontSize: '0.78rem' }}

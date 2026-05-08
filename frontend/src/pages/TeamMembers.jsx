@@ -15,13 +15,15 @@ const ROLE_BADGES = {
 export default function TeamMembers() {
   const { teamId } = useParams()
   const navigate = useNavigate()
-  const { user, profile, isSuperAdmin, isTeamMember } = useAuth()
+  const { user, profile, isSuperAdmin, isTeamMember, canAdminCollaborative } = useAuth()
   const [loading, setLoading] = useState(true)
   const [team, setTeam] = useState(null)
   const [members, setMembers] = useState([])
   const [showInviteModal, setShowInviteModal] = useState(false)
 
-  const canManage = isSuperAdmin ||
+  // Trainer admins can manage team members for any team in their assigned
+  // collabs; team leaders/agency admins can manage their own team's members.
+  const canManage = canAdminCollaborative(team?.collaborative_id) ||
     (profile?.team_id === teamId && ['agency_admin', 'team_leader'].includes(profile?.role))
 
   useEffect(() => {

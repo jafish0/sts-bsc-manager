@@ -23,7 +23,7 @@ export default function PdsaCycles() {
   const { teamId } = useParams()
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
-  const { user } = useAuth()
+  const { user, canAdminCollaborative } = useAuth()
   const [loading, setLoading] = useState(true)
   const [cycles, setCycles] = useState([])
   const [team, setTeam] = useState(null)
@@ -223,7 +223,10 @@ export default function PdsaCycles() {
     navigate('/login')
   }
 
-  const canEdit = userProfile?.role === 'super_admin' ||
+  // Trainer admins can edit cycles for any team in their collabs; team
+  // leaders/agency admins can edit cycles for their own team. Super admins
+  // can edit any.
+  const canEdit = canAdminCollaborative(team?.collaborative_id) ||
     (userProfile?.team_id === teamId && ['agency_admin', 'team_leader'].includes(userProfile?.role))
 
   // Filter cycles

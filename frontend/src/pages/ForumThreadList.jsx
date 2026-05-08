@@ -21,7 +21,7 @@ function InitialsAvatar({ name, size = 32 }) {
 
 export default function ForumThreadList() {
   const navigate = useNavigate()
-  const { user, profile, isSuperAdmin } = useAuth()
+  const { user, profile, isSuperAdmin, isAdminLevel, canAdminCollaborative } = useAuth()
   const [threads, setThreads] = useState([])
   const [loading, setLoading] = useState(true)
   const [hasMore, setHasMore] = useState(true)
@@ -39,7 +39,9 @@ export default function ForumThreadList() {
 
   useEffect(() => {
     if (!profile) return
-    if (isSuperAdmin) {
+    if (isAdminLevel) {
+      // RLS scopes the result: super_admins see all collabs; trainer_admins
+      // only see the ones they're assigned to via collaborative_trainers.
       loadCollaboratives()
     } else if (profile.team_id) {
       resolveCollaborative()
@@ -219,7 +221,7 @@ export default function ForumThreadList() {
             cursor: 'pointer', fontSize: '0.9rem'
           }}>&#8592; Back to Dashboard</button>
 
-          {isSuperAdmin && collaboratives.length > 1 && (
+          {isAdminLevel && collaboratives.length > 1 && (
             <select
               value={collaborativeId || ''}
               onChange={(e) => handleCollaborativeChange(e.target.value)}
@@ -333,7 +335,7 @@ export default function ForumThreadList() {
               const authorName = thread.author?.full_name || 'Unknown'
               const teamName = thread.author_team?.teams?.agency_name || ''
               const preview = thread.body.length > 150 ? thread.body.slice(0, 150) + '...' : thread.body
-              const canDelete = isSuperAdmin || thread.created_by === user?.id
+              const canDelete = canAdminCollaborative(collaborativeId) || thread.created_by === user?.id
 
               return (
                 <div key={thread.id} style={{
@@ -379,7 +381,7 @@ export default function ForumThreadList() {
                     {/* Action buttons */}
                     <div style={{ display: 'flex', gap: '0.3rem', flexShrink: 0 }}
                       onClick={(e) => e.stopPropagation()}>
-                      {isSuperAdmin && (
+                      {canAdminCollaborative(collaborativeId) && (
                         <button onClick={() => handlePin(thread)} title={thread.is_pinned ? 'Unpin' : 'Pin'} style={{
                           background: thread.is_pinned ? COLORS.teal : '#f3f4f6',
                           color: thread.is_pinned ? 'white' : '#6b7280',

@@ -17,7 +17,7 @@ export default function SmartieGoals() {
   const { teamId } = useParams()
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
-  const { user } = useAuth()
+  const { user, canAdminCollaborative } = useAuth()
   const [loading, setLoading] = useState(true)
   const [goals, setGoals] = useState([])
   const [team, setTeam] = useState(null)
@@ -182,10 +182,12 @@ export default function SmartieGoals() {
     navigate('/login')
   }
 
-  const canEdit = userProfile?.role === 'super_admin' ||
+  // Trainer admins can edit goals for any team in their collabs; team leaders/
+  // agency admins can edit goals for their own team. Super admins can edit any.
+  const canEdit = canAdminCollaborative(team?.collaborative_id) ||
     (userProfile?.team_id === teamId && ['agency_admin', 'team_leader'].includes(userProfile?.role))
 
-  const isSuperAdmin = userProfile?.role === 'super_admin'
+  const isAdminHere = canAdminCollaborative(team?.collaborative_id)
 
   if (loading) {
     return (

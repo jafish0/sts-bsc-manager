@@ -55,11 +55,12 @@ function AuthRedirectHandler() {
   return null
 }
 
-// Routes agency_admin/team_leader to TeamDashboard, super_admin to AdminDashboard
+// Routes admin-level users (super_admin, trainer_admin) to AdminDashboard;
+// everyone else (agency_admin, team_leader, team_member) lands on TeamDashboard.
 function DashboardRouter() {
   const { profile, loading } = useAuth()
   if (loading) return null
-  if (profile?.role === 'super_admin') return <AdminDashboard />
+  if (profile?.role === 'super_admin' || profile?.role === 'trainer_admin') return <AdminDashboard />
   return <TeamDashboard />
 }
 

@@ -39,7 +39,10 @@ function formatAutoClose(evt) {
 export default function CollaborativeDetail() {
   const { id } = useParams()
   const navigate = useNavigate()
-  const { isSuperAdmin } = useAuth()
+  const { canAdminCollaborative } = useAuth()
+  // True if the current user can administer THIS collaborative (super_admin
+  // OR a trainer assigned to it via collaborative_trainers).
+  const isAdminHere = canAdminCollaborative(id)
   const [collaborative, setCollaborative] = useState(null)
   const [teams, setTeams] = useState([])
   const [loading, setLoading] = useState(true)
@@ -556,7 +559,7 @@ export default function CollaborativeDetail() {
               </span>
             </div>
 
-            {isSuperAdmin && (!isEditing ? (
+            {isAdminHere && (!isEditing ? (
               <button
                 onClick={() => setIsEditing(true)}
                 style={{
@@ -756,7 +759,7 @@ export default function CollaborativeDetail() {
             <h3 style={{ fontSize: '1.5rem', fontWeight: '700', color: '#0E1F56', margin: 0 }}>
               BSC Events
             </h3>
-            {isSuperAdmin && (
+            {isAdminHere && (
               <button onClick={() => setShowAddEvent(!showAddEvent)} style={{
                 background: showAddEvent ? '#e5e7eb' : 'linear-gradient(135deg, #00A79D 0%, #0E1F56 100%)',
                 color: showAddEvent ? '#374151' : 'white',
@@ -837,7 +840,7 @@ export default function CollaborativeDetail() {
                           </span>
                         )}
                       </div>
-                      {isSuperAdmin && (
+                      {isAdminHere && (
                         <button onClick={() => handleDeleteEvent(evt.id)} style={{
                           background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', fontSize: '0.8rem'
                         }}>Delete</button>
@@ -968,7 +971,7 @@ export default function CollaborativeDetail() {
             <h3 style={{ fontSize: '1.5rem', fontWeight: '700', color: '#0E1F56', margin: 0 }}>
               Teams
             </h3>
-            {isSuperAdmin && (
+            {isAdminHere && (
               <button
                 onClick={() => setShowAddTeamModal(true)}
                 style={{
@@ -1082,7 +1085,7 @@ export default function CollaborativeDetail() {
                       >
                         View Report
                       </button>
-                      {isSuperAdmin && (
+                      {isAdminHere && (
                         <button
                           onClick={() => setInviteTeam(team)}
                           style={{

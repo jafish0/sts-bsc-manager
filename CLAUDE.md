@@ -27,10 +27,15 @@ Web app for managing Secondary Traumatic Stress Breakthrough Series Collaborativ
 - `index.css` has been cleaned up from Vite defaults — no flex/place-items on body
 
 ## Roles
-- `super_admin` — CTAC staff, full access, sees AdminDashboard
+- `super_admin` — CTAC director-level (Josh, Ginny). God mode: sees every collaborative, every team, every assessment. Lands on AdminDashboard.
+- `trainer_admin` — CTAC trainer/faculty. Admin-tier access scoped to the collaboratives they're listed on in `collaborative_trainers`. Lands on AdminDashboard but only sees their assigned collabs and their teams' data; cross-collab tools (Strategy Ideas, Change Framework, Staff Directory, STS-PAT Overview, Self-Rating Engagement, Unmatched Attendees) are hidden. Cannot create new collaboratives or modify trainer assignments — only super_admins can.
 - `agency_admin` — Team leaders, sees TeamDashboard, scoped to their team, can invite team members
 - `team_leader` — Same access as agency_admin (legacy name)
 - `team_member` — Read-only dashboard access + resources + forum participation. Cannot edit SMARTIE goals, checklists, or team settings.
+
+### Role helpers
+- DB: `is_super_admin()` and `is_admin_for_collaborative(uuid)` — both `SECURITY DEFINER`. Use the latter in RLS policies that gate per-collab data; it returns true for super_admins (regardless of arg) and for trainer_admins on the given collab. There is also `user_admin_collaborative_ids()` which returns `setof uuid` of the caller's assigned collabs.
+- Frontend: `useAuth()` exposes `isSuperAdmin`, `isTrainerAdmin`, `isAdminLevel` (either), `myAdminCollaborativeIds`, and `canAdminCollaborative(collabId)`. Use `canAdminCollaborative` anywhere a page is scoped to a single collab.
 
 ## User Invitation Flow
 - **Edge Function:** `invite-team-leader` (generalized — handles all role invites)
@@ -47,7 +52,7 @@ Web app for managing Secondary Traumatic Stress Breakthrough Series Collaborativ
 - **RLS helper functions:** `is_super_admin()`, `user_collaborative_id()`, and `user_team_id()` are `SECURITY DEFINER` functions that bypass RLS to avoid recursion.
 - **Teams RLS:** Uses `is_super_admin() OR id = user_team_id()` — works for all roles with a team.
 - **user_profiles RLS:** Users can read own profile + profiles from own team (via `user_team_id()`). Super admins can read all.
-- **Role constraint:** `user_profiles_role_check` CHECK allows: `super_admin`, `agency_admin`, `team_leader`, `senior_leader`, `team_member`
+- **Role constraint:** `user_profiles_role_check` CHECK allows: `super_admin`, `trainer_admin`, `agency_admin`, `team_leader`, `senior_leader`, `team_member`
 - **Gender values:** 'M', 'F', 'NB', 'not_listed' — NOT 'male'/'female'
 - **STSI-OA columns:** Use `item_1` through `item_37` format (not `item_1a`)
 - **Resources domains:** Stored as `TEXT[]` array, e.g. `{'resilience','safety'}`
