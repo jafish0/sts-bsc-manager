@@ -1,9 +1,13 @@
 import { useState, useEffect, useMemo, useCallback } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
+import {
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LabelList, Cell,
+} from 'recharts'
 import { supabase } from '../utils/supabase'
 import { useAuth } from '../contexts/AuthContext'
 import { COLORS, cardStyle, cardHeaderStyle } from '../utils/constants'
 import { PROGRAM_TYPE_COLORS } from '../config/programConfig'
+import { exportEvaluationReportPdf } from '../utils/exportEvaluationPdf'
 
 const ATTENDANCE_REFRESH_MS = 30000
 
@@ -39,6 +43,18 @@ function fmtBytes(n) {
   return `${(n / 1024 / 1024).toFixed(1)} MB`
 }
 
+// Likert items in display order matching the evaluation form / sample PDF.
+const LIKERT_ITEMS = [
+  { key: 'trainer_effective',            label: 'Trainer was effective' },
+  { key: 'content_objective_alignment',  label: 'Content/objective alignment' },
+  { key: 'applicable_to_work',           label: 'Applicable to work' },
+  { key: 'practical_knowledge',          label: 'Practical knowledge & skills' },
+  { key: 'methods_appropriate_audience', label: 'Methods fit audience' },
+  { key: 'methods_appropriate_subject',  label: 'Methods fit subject' },
+]
+// NPS-style colors: detractors red (0–6), passives amber (7–8), promoters green (9–10)
+const NPS_COLOR = (score) => score >= 9 ? '#16a34a' : score >= 7 ? '#f59e0b' : '#ef4444'
+
 export default function EventDetail() {
   const { eventId } = useParams()
   const navigate = useNavigate()
@@ -61,6 +77,8 @@ export default function EventDetail() {
   // Coordinator address (for "Message coordinator" section)
   const [coordinatorEmail, setCoordinatorEmail] = useState(null)
   const [coordinatorName, setCoordinatorName] = useState(null)
+  // Session evaluations (Phase 6)
+  const [evaluations, setEvaluations] = useState([])
 
   // 1. Initial load: event, collaborative, teams in collab, all team_members
   useEffect(() => {
@@ -160,6 +178,50 @@ export default function EventDetail() {
   }, [eventId])
 
   useEffect(() => { fetchDocuments() }, [fetchDocuments])
+
+  // 4. Evaluations (Phase 6 deep-dive)
+  useEffect(() => {
+    let cancelled = false
+    ;(async () => {
+      const { data, error: err } = await supabase
+        .from('session_evaluations')
+        .select('trainer_effective, content_objective_alignment, applicable_to_work, practical_knowledge, methods_appropriate_audience, methods_appropriate_subject, recommend_score, most_helpful, improvements, additional_comments, submitted_at')
+        .eq('bsc_event_id', eventId)
+      if (!cancelled && !err) setEvaluations(data || [])
+    })()
+    return () => { cancelled = true }
+  }, [eventId])
+
+  // Likert item summary: { key, label, mean, n }
+  const likertSummary = useMemo(() => {
+    return LIKERT_ITEMS.map(item => {
+      const vals = evaluations.map(e => e[item.key]).filter(v => v != null)
+      return {
+        key: item.key,
+        label: item.label,
+        n: vals.length,
+        mean: vals.length === 0 ? 0 : vals.reduce((a, b) => a + b, 0) / vals.length,
+      }
+    })
+  }, [evaluations])
+
+  // NPS distribution: 0–10 buckets
+  const npsDistribution = useMemo(() => {
+    const buckets = Array.from({ length: 11 }, (_, i) => ({ score: i, count: 0 }))
+    evaluations.forEach(e => {
+      const s = e.recommend_score
+      if (s != null && s >= 0 && s <= 10) buckets[s].count += 1
+    })
+    return buckets
+  }, [evaluations])
+
+  const npsScore = useMemo(() => {
+    const scores = evaluations.map(e => e.recommend_score).filter(s => s != null)
+    if (scores.length === 0) return null
+    const promoters = scores.filter(s => s >= 9).length
+    const detractors = scores.filter(s => s <= 6).length
+    return Math.round(((promoters - detractors) / scores.length) * 100)
+  }, [evaluations])
 
   const handleUpload = async (e) => {
     const file = e.target.files?.[0]
@@ -472,6 +534,88 @@ export default function EventDetail() {
           })
         )}
 
+        {/* Evaluations deep-dive (Phase 6) */}
+        {evaluations.length > 0 && (
+          <section style={{ ...cardStyle, marginTop: '1.5rem' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.5rem', marginBottom: '0.75rem' }}>
+              <div>
+                <div style={{ fontSize: '1.05rem', fontWeight: 700, color: 'var(--text-heading)' }}>Evaluation Results</div>
+                <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                  {evaluations.length} response{evaluations.length === 1 ? '' : 's'} submitted
+                </div>
+              </div>
+              <button
+                onClick={() => exportEvaluationReportPdf([{
+                  event_date: event.event_date,
+                  title: event.title,
+                  evaluations,
+                }])}
+                style={{ background: COLORS.teal, color: 'white', border: 'none', padding: '0.4rem 0.85rem', borderRadius: '6px', cursor: 'pointer', fontSize: '0.85rem', fontWeight: 500 }}
+              >Download PDF report</button>
+            </div>
+
+            {/* Likert mean scores */}
+            <div style={{ marginTop: '1rem' }}>
+              <div style={{ fontSize: '0.9rem', fontWeight: 600, color: 'var(--text-body)', marginBottom: '0.4rem' }}>
+                Mean rating per item (1 = strongly disagree, 5 = strongly agree)
+              </div>
+              <ResponsiveContainer width="100%" height={260}>
+                <BarChart
+                  data={likertSummary}
+                  layout="vertical"
+                  margin={{ top: 5, right: 30, left: 130, bottom: 5 }}
+                >
+                  <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                  <XAxis type="number" domain={[0, 5]} tick={{ fontSize: 11 }} />
+                  <YAxis type="category" dataKey="label" tick={{ fontSize: 11 }} width={130} />
+                  <Tooltip formatter={(v) => v.toFixed(2)} />
+                  <Bar dataKey="mean" fill={COLORS.teal} radius={[0, 4, 4, 0]}>
+                    <LabelList dataKey="mean" position="right" formatter={(v) => v.toFixed(2)} style={{ fontSize: 11, fill: '#374151' }} />
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+
+            {/* NPS distribution */}
+            {evaluations.some(e => e.recommend_score != null) && (
+              <div style={{ marginTop: '1.25rem' }}>
+                <div style={{ fontSize: '0.9rem', fontWeight: 600, color: 'var(--text-body)', marginBottom: '0.4rem' }}>
+                  Recommend score distribution
+                  {npsScore != null && (
+                    <span style={{ marginLeft: '0.75rem', fontWeight: 400, color: 'var(--text-muted)', fontSize: '0.8rem' }}>
+                      Net Promoter Score: <strong style={{ color: npsScore >= 0 ? COLORS.green : COLORS.red }}>{npsScore}</strong>
+                    </span>
+                  )}
+                </div>
+                <ResponsiveContainer width="100%" height={220}>
+                  <BarChart data={npsDistribution} margin={{ top: 5, right: 20, left: 0, bottom: 5 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                    <XAxis dataKey="score" tick={{ fontSize: 11 }} />
+                    <YAxis allowDecimals={false} tick={{ fontSize: 11 }} />
+                    <Tooltip />
+                    <Bar dataKey="count" radius={[4, 4, 0, 0]}>
+                      {npsDistribution.map((d) => (
+                        <Cell key={d.score} fill={NPS_COLOR(d.score)} />
+                      ))}
+                      <LabelList dataKey="count" position="top" style={{ fontSize: 11, fill: '#374151' }} />
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+                <div style={{ display: 'flex', gap: '1rem', fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '0.25rem' }}>
+                  <span>🟥 0–6 detractors</span>
+                  <span>🟧 7–8 passives</span>
+                  <span>🟩 9–10 promoters</span>
+                </div>
+              </div>
+            )}
+
+            {/* Free-text responses (collapsed by default) */}
+            <FreeTextBlock heading="What part of the training was most helpful?" responses={evaluations.map(e => e.most_helpful)} />
+            <FreeTextBlock heading="What changes would you make to improve this training?" responses={evaluations.map(e => e.improvements)} />
+            <FreeTextBlock heading="Additional comments" responses={evaluations.map(e => e.additional_comments)} />
+          </section>
+        )}
+
         {/* Message Coordinator */}
         <section style={{ ...cardStyle, marginTop: '1rem' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.5rem' }}>
@@ -502,6 +646,32 @@ export default function EventDetail() {
           eventId={eventId}
           onClose={() => setEmailModal(null)}
         />
+      )}
+    </div>
+  )
+}
+
+// Collapsible verbatim free-text responses (collapsed by default)
+function FreeTextBlock({ heading, responses }) {
+  const [open, setOpen] = useState(false)
+  const filtered = (responses || []).filter(r => r && String(r).trim().length > 0)
+  if (filtered.length === 0) return null
+  return (
+    <div style={{ marginTop: '1rem', borderTop: '1px solid var(--border)', paddingTop: '0.75rem' }}>
+      <button
+        onClick={() => setOpen(o => !o)}
+        style={{ background: 'transparent', border: 'none', cursor: 'pointer', padding: 0, fontSize: '0.9rem', fontWeight: 600, color: COLORS.navy, display: 'flex', alignItems: 'center', gap: '0.4rem' }}
+      >
+        <span style={{ display: 'inline-block', transform: open ? 'rotate(90deg)' : 'rotate(0deg)', transition: 'transform 0.15s' }}>▶</span>
+        {heading}
+        <span style={{ color: 'var(--text-muted)', fontWeight: 400, fontSize: '0.8rem' }}>({filtered.length})</span>
+      </button>
+      {open && (
+        <ul style={{ listStyle: 'disc', paddingLeft: '1.5rem', marginTop: '0.5rem' }}>
+          {filtered.map((text, i) => (
+            <li key={i} style={{ fontSize: '0.85rem', color: 'var(--text-body)', marginBottom: '0.4rem', whiteSpace: 'pre-wrap' }}>{text}</li>
+          ))}
+        </ul>
       )}
     </div>
   )
