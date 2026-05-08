@@ -67,6 +67,11 @@ export default function CollaborativeDetail() {
     event_type: 'learning_session', title: '', event_date: '',
     start_time: '', end_time: '', location: 'Virtual', zoom_link: ''
   })
+  // Inline edit panel for an existing event row.
+  // Holds a single event id whose form is currently expanded; null = none open.
+  const [editingEventId, setEditingEventId] = useState(null)
+  const [editingEventDraft, setEditingEventDraft] = useState(null)
+  const [savingEvent, setSavingEvent] = useState(false)
 
   // Session link & report state
   const [sessionLinks, setSessionLinks] = useState({})
@@ -312,6 +317,48 @@ export default function CollaborativeDetail() {
     const { error } = await supabase.from('bsc_events').delete().eq('id', eventId)
     if (error) { alert('Error: ' + error.message); return }
     setEvents(prev => prev.filter(e => e.id !== eventId))
+  }
+
+  const startEditingEvent = (evt) => {
+    setEditingEventId(evt.id)
+    setEditingEventDraft({
+      event_type: evt.event_type,
+      title: evt.title || '',
+      event_date: evt.event_date || '',
+      start_time: evt.start_time ? evt.start_time.slice(0, 5) : '',
+      end_time: evt.end_time ? evt.end_time.slice(0, 5) : '',
+      location: evt.location || '',
+      zoom_link: evt.zoom_link || '',
+    })
+  }
+
+  const cancelEditingEvent = () => {
+    setEditingEventId(null)
+    setEditingEventDraft(null)
+  }
+
+  const saveEditedEvent = async () => {
+    if (!editingEventId || !editingEventDraft) return
+    setSavingEvent(true)
+    const updates = {
+      event_type: editingEventDraft.event_type,
+      title: editingEventDraft.title.trim(),
+      event_date: editingEventDraft.event_date,
+      start_time: editingEventDraft.start_time || null,
+      end_time: editingEventDraft.end_time || null,
+      location: editingEventDraft.location?.trim() || null,
+      zoom_link: editingEventDraft.zoom_link?.trim() || null,
+    }
+    const { data, error } = await supabase
+      .from('bsc_events')
+      .update(updates)
+      .eq('id', editingEventId)
+      .select()
+      .single()
+    setSavingEvent(false)
+    if (error) { alert('Could not save event: ' + error.message); return }
+    setEvents(prev => prev.map(e => e.id === editingEventId ? { ...e, ...data } : e))
+    cancelEditingEvent()
   }
 
   const handleSave = async () => {
@@ -857,11 +904,78 @@ export default function CollaborativeDetail() {
                         )}
                       </div>
                       {isAdminHere && (
-                        <button onClick={() => handleDeleteEvent(evt.id)} style={{
-                          background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', fontSize: '0.8rem'
-                        }}>Delete</button>
+                        <div style={{ display: 'flex', gap: '0.4rem' }}>
+                          <button
+                            onClick={() => editingEventId === evt.id ? cancelEditingEvent() : startEditingEvent(evt)}
+                            style={{
+                              background: 'none', border: 'none',
+                              color: editingEventId === evt.id ? '#6b7280' : '#0E1F56',
+                              cursor: 'pointer', fontSize: '0.8rem', fontWeight: '600',
+                            }}
+                          >{editingEventId === evt.id ? 'Cancel' : 'Edit'}</button>
+                          <button onClick={() => handleDeleteEvent(evt.id)} style={{
+                            background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', fontSize: '0.8rem'
+                          }}>Delete</button>
+                        </div>
                       )}
                     </div>
+
+                    {/* Inline edit panel — admins only, one row at a time */}
+                    {editingEventId === evt.id && editingEventDraft && (
+                      <div style={{
+                        marginTop: '0.5rem', padding: '0.75rem',
+                        background: '#f9fafb', border: '1px solid #e5e7eb',
+                        borderRadius: '6px',
+                      }}>
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem', marginBottom: '0.5rem' }}>
+                          <select
+                            value={editingEventDraft.event_type}
+                            onChange={(e) => setEditingEventDraft(d => ({ ...d, event_type: e.target.value }))}
+                            style={{ padding: '0.4rem', border: '1px solid #e5e7eb', borderRadius: '4px', fontSize: '0.8rem' }}
+                          >
+                            {EVENT_TYPES.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
+                          </select>
+                          <input
+                            type="text"
+                            value={editingEventDraft.title}
+                            onChange={(e) => setEditingEventDraft(d => ({ ...d, title: e.target.value }))}
+                            placeholder="Event title"
+                            style={{ padding: '0.4rem', border: '1px solid #e5e7eb', borderRadius: '4px', fontSize: '0.8rem' }}
+                          />
+                        </div>
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: '0.5rem', marginBottom: '0.5rem' }}>
+                          <input type="date" value={editingEventDraft.event_date}
+                            onChange={(e) => setEditingEventDraft(d => ({ ...d, event_date: e.target.value }))}
+                            style={{ padding: '0.4rem', border: '1px solid #e5e7eb', borderRadius: '4px', fontSize: '0.8rem' }} />
+                          <input type="time" value={editingEventDraft.start_time}
+                            onChange={(e) => setEditingEventDraft(d => ({ ...d, start_time: e.target.value }))}
+                            style={{ padding: '0.4rem', border: '1px solid #e5e7eb', borderRadius: '4px', fontSize: '0.8rem' }} />
+                          <input type="time" value={editingEventDraft.end_time}
+                            onChange={(e) => setEditingEventDraft(d => ({ ...d, end_time: e.target.value }))}
+                            style={{ padding: '0.4rem', border: '1px solid #e5e7eb', borderRadius: '4px', fontSize: '0.8rem' }} />
+                          <input type="text" value={editingEventDraft.location}
+                            onChange={(e) => setEditingEventDraft(d => ({ ...d, location: e.target.value }))}
+                            placeholder="Location"
+                            style={{ padding: '0.4rem', border: '1px solid #e5e7eb', borderRadius: '4px', fontSize: '0.8rem' }} />
+                        </div>
+                        <input
+                          type="url"
+                          value={editingEventDraft.zoom_link}
+                          onChange={(e) => setEditingEventDraft(d => ({ ...d, zoom_link: e.target.value }))}
+                          placeholder="🎦 Zoom link — paste https://zoom.us/j/... (leave blank to remove)"
+                          style={{ width: '100%', padding: '0.4rem', border: '1px solid #e5e7eb', borderRadius: '4px', fontSize: '0.8rem', boxSizing: 'border-box', marginBottom: '0.5rem' }}
+                        />
+                        <button
+                          onClick={saveEditedEvent}
+                          disabled={savingEvent}
+                          style={{
+                            background: '#00A79D', color: 'white', border: 'none', borderRadius: '4px',
+                            padding: '0.4rem 1rem', cursor: savingEvent ? 'wait' : 'pointer',
+                            fontWeight: '600', fontSize: '0.8rem',
+                          }}
+                        >{savingEvent ? 'Saving…' : 'Save changes'}</button>
+                      </div>
+                    )}
 
                     {/* Session management controls for learning sessions */}
                     {isLS && (

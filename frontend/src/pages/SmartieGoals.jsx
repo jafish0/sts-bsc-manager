@@ -13,6 +13,12 @@ const STATUS_COLORS = {
   archived: { bg: '#f3f4f6', text: '#6b7280', label: 'Archived' }
 }
 
+// Feature flag for the trainer-feedback comments thread on each goal card.
+// Code (table, RLS, fetch/post handlers, UI block) is intentionally kept
+// in place — flip this to true to re-enable. Tracked in INFRASTRUCTURE.md
+// open follow-ups; the schema and policies are also still applied.
+const ENABLE_GOAL_COMMENTS = false
+
 export default function SmartieGoals() {
   const { teamId } = useParams()
   const navigate = useNavigate()
@@ -119,22 +125,24 @@ export default function SmartieGoals() {
     }
     setGoals(data || [])
 
-    // Bulk-load trainer feedback comments for these goals (one query, group client-side).
-    const goalIds = (data || []).map(g => g.id)
-    if (goalIds.length > 0) {
-      const { data: cmts } = await supabase
-        .from('smartie_goal_comments')
-        .select('id, goal_id, body, created_at, created_by, user_profiles:created_by ( full_name )')
-        .in('goal_id', goalIds)
-        .order('created_at', { ascending: true })
-      const grouped = {}
-      ;(cmts || []).forEach(c => {
-        if (!grouped[c.goal_id]) grouped[c.goal_id] = []
-        grouped[c.goal_id].push(c)
-      })
-      setCommentsByGoal(grouped)
-    } else {
-      setCommentsByGoal({})
+    // Bulk-load trainer feedback comments — only when the feature is enabled.
+    if (ENABLE_GOAL_COMMENTS) {
+      const goalIds = (data || []).map(g => g.id)
+      if (goalIds.length > 0) {
+        const { data: cmts } = await supabase
+          .from('smartie_goal_comments')
+          .select('id, goal_id, body, created_at, created_by, user_profiles:created_by ( full_name )')
+          .in('goal_id', goalIds)
+          .order('created_at', { ascending: true })
+        const grouped = {}
+        ;(cmts || []).forEach(c => {
+          if (!grouped[c.goal_id]) grouped[c.goal_id] = []
+          grouped[c.goal_id].push(c)
+        })
+        setCommentsByGoal(grouped)
+      } else {
+        setCommentsByGoal({})
+      }
     }
   }
 
@@ -597,8 +605,8 @@ export default function SmartieGoals() {
               )
             })()}
 
-            {/* Trainer feedback comments */}
-            {(() => {
+            {/* Trainer feedback comments — gated behind ENABLE_GOAL_COMMENTS flag (see top of file) */}
+            {ENABLE_GOAL_COMMENTS && (() => {
               const cmts = commentsByGoal[goal.id] || []
               const showCompose = isAdminHere
               if (!showCompose && cmts.length === 0) return null

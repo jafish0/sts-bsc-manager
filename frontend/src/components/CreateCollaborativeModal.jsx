@@ -15,6 +15,7 @@ function buildDefaultEvents(programType) {
     start_time: '',
     end_time: '',
     location: 'Virtual',
+    zoom_link: '',
     sequence_number: d.sequence_number,
     locked: true,
   }))
@@ -160,6 +161,7 @@ function CreateCollaborativeModal({ onClose, onSuccess }) {
       event_type,
       title: `${label} ${count + 1}`,
       event_date: '', start_time: '', end_time: '', location: 'Virtual',
+      zoom_link: '',
       sequence_number: null, locked: false
     }
     setBscEvents(prev => [...prev, newEvt])
@@ -253,6 +255,7 @@ function CreateCollaborativeModal({ onClose, onSuccess }) {
             start_time: evt.start_time || null,
             end_time: evt.end_time || null,
             location: evt.location || null,
+            zoom_link: evt.zoom_link?.trim() || null,
             audience: typeInfo?.audience || 'all_teams',
             sequence_number: evt.sequence_number
           }
@@ -477,6 +480,14 @@ function CreateCollaborativeModal({ onClose, onSuccess }) {
                       style={inputStyle} placeholder="Location" />
                   )}
                 </div>
+                {/* Zoom link (full width below the row) */}
+                <input
+                  type="url"
+                  value={evt.zoom_link || ''}
+                  onChange={(e) => updateEvent(idx, 'zoom_link', e.target.value)}
+                  placeholder="🎦 Zoom link (optional) — paste https://zoom.us/j/..."
+                  style={{ ...inputStyle, marginTop: '0.4rem' }}
+                />
               </div>
             ))}
 

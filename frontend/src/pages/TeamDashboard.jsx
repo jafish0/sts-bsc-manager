@@ -37,6 +37,10 @@ export default function TeamDashboard() {
   const [sessionAttendance, setSessionAttendance] = useState([])
   const [viewAttendanceEvent, setViewAttendanceEvent] = useState(null)
   const [sessionMaterials, setSessionMaterials] = useState([])
+  // Parking lot — participant-side: items for the next upcoming event
+  const [parkingLot, setParkingLot] = useState([])
+  const [parkingLotDraft, setParkingLotDraft] = useState('')
+  const [parkingLotSubmitting, setParkingLotSubmitting] = useState(false)
 
   useEffect(() => {
     if (profile?.team_id) {
@@ -160,6 +164,19 @@ export default function TeamDashboard() {
           .eq('bsc_events.collaborative_id', teamData.collaboratives.id)
           .order('created_at', { ascending: false })
         setSessionMaterials(docData || [])
+
+        // Load Parking Lot items for the next upcoming event (per team member view).
+        // RLS allows reads scoped by user_collaborative_id() so this query naturally
+        // returns only items for events in the team's collaborative.
+        const nextEventId = phase?.nextEvent?.id
+        if (nextEventId) {
+          const { data: plData } = await supabase
+            .from('event_parking_lot_items')
+            .select('id, body, status, created_at, created_by, user_profiles:created_by ( full_name )')
+            .eq('event_id', nextEventId)
+            .order('created_at', { ascending: false })
+          setParkingLot(plData || [])
+        }
       }
     } catch (err) {
       console.error('Error loading team:', err)
@@ -174,6 +191,28 @@ export default function TeamDashboard() {
       .createSignedUrl(doc.storage_path, 3600)
     if (error) { alert('Could not generate download link'); return }
     window.open(data.signedUrl, '_blank')
+  }
+
+  const submitParkingLotItem = async () => {
+    const body = parkingLotDraft.trim()
+    if (!body || !phaseInfo?.nextEvent?.id) return
+    setParkingLotSubmitting(true)
+    const { data: inserted, error } = await supabase
+      .from('event_parking_lot_items')
+      .insert({ event_id: phaseInfo.nextEvent.id, body, created_by: user?.id || null })
+      .select('id, body, status, created_at, created_by, user_profiles:created_by ( full_name )')
+      .single()
+    setParkingLotSubmitting(false)
+    if (error) { alert('Could not submit: ' + error.message); return }
+    setParkingLot(prev => [inserted, ...prev])
+    setParkingLotDraft('')
+  }
+
+  const deleteOwnParkingLotItem = async (itemId) => {
+    if (!window.confirm('Remove this item?')) return
+    const { error } = await supabase.from('event_parking_lot_items').delete().eq('id', itemId)
+    if (error) { alert('Could not delete: ' + error.message); return }
+    setParkingLot(prev => prev.filter(p => p.id !== itemId))
   }
 
   const loadChecklist = async (teamId, phase) => {
@@ -793,6 +832,87 @@ export default function TeamDashboard() {
             onClick={() => navigate('/admin/staff')}
           />
         </div>
+
+        {/* Parking Lot — submit a question or comment for the next session */}
+        {phaseInfo?.nextEvent && (
+          <div style={{
+            background: 'var(--bg-card)',
+            borderRadius: '0.75rem',
+            padding: '1.5rem',
+            boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
+            marginBottom: '1.5rem',
+          }}>
+            <h3 style={{ margin: '0 0 0.25rem', color: COLORS.navy, fontSize: '1.1rem' }}>
+              🅿️ Parking Lot — questions or comments for the next session
+            </h3>
+            <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '0.75rem' }}>
+              Have something you want raised at <strong>{phaseInfo.nextEvent.title}</strong>? Drop it here and the trainer will see it.
+            </div>
+            <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.75rem' }}>
+              <input
+                type="text"
+                value={parkingLotDraft}
+                onChange={(e) => setParkingLotDraft(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Enter') submitParkingLotItem() }}
+                placeholder="What would you like to ask or share?"
+                disabled={parkingLotSubmitting}
+                style={{
+                  flex: 1, padding: '0.5rem 0.75rem',
+                  border: '1px solid var(--border)', borderRadius: '6px',
+                  background: 'var(--bg-card)', color: 'var(--text-body)',
+                  fontSize: '0.9rem',
+                }}
+              />
+              <button
+                onClick={submitParkingLotItem}
+                disabled={parkingLotSubmitting || !parkingLotDraft.trim()}
+                style={{
+                  background: COLORS.teal, color: 'white', border: 'none',
+                  padding: '0.5rem 1rem', borderRadius: '6px',
+                  cursor: parkingLotSubmitting ? 'wait' : 'pointer',
+                  fontSize: '0.85rem', fontWeight: 600,
+                }}
+              >Submit</button>
+            </div>
+            {parkingLot.length === 0 ? (
+              <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>No questions yet.</div>
+            ) : (
+              <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
+                {parkingLot.map(item => (
+                  <li
+                    key={item.id}
+                    style={{
+                      display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between',
+                      gap: '0.5rem', padding: '0.5rem 0.75rem', marginBottom: '0.4rem',
+                      background: 'var(--bg-card-alt, #f9fafb)', borderRadius: '6px',
+                      borderLeft: `3px solid ${item.status === 'addressed' ? '#16a34a' : item.status === 'dropped' ? '#9ca3af' : COLORS.teal}`,
+                      opacity: item.status === 'open' ? 1 : 0.7,
+                    }}
+                  >
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{
+                        fontSize: '0.85rem', color: 'var(--text-body)',
+                        textDecoration: item.status === 'dropped' ? 'line-through' : 'none',
+                      }}>{item.body}</div>
+                      <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>
+                        {item.user_profiles?.full_name || 'Someone'}
+                        {' · '}{new Date(item.created_at).toLocaleDateString()}
+                        {item.status !== 'open' && <> · <strong>{item.status}</strong></>}
+                      </div>
+                    </div>
+                    {item.created_by === user?.id && item.status === 'open' && (
+                      <button
+                        onClick={() => deleteOwnParkingLotItem(item.id)}
+                        title="Remove"
+                        style={{ background: 'transparent', color: COLORS.red, border: 'none', cursor: 'pointer', fontSize: '0.85rem' }}
+                      >🗑</button>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        )}
 
         {/* Session Materials */}
         {sessionMaterials.length > 0 && (
