@@ -6,6 +6,7 @@ import AddTeamModal from '../components/AddTeamModal'
 import InviteTeamLeaderModal from '../components/InviteTeamLeaderModal'
 import AttendanceReport from '../components/AttendanceReport'
 import EvaluationReport from '../components/EvaluationReport'
+import QrCodeModal from '../components/QrCodeModal'
 import { PROGRAM_TYPE_COLORS, getProgramBranding } from '../config/programConfig'
 import ctacLogo from '../assets/CTAC_white.png'
 
@@ -237,6 +238,8 @@ export default function CollaborativeDetail() {
   }
 
   const [evalLinkCopied, setEvalLinkCopied] = useState(null)
+  // { url, title, subtitle, filename } | null — drives the QR code modal
+  const [qrModal, setQrModal] = useState(null)
 
   const copySessionLink = async (token) => {
     const url = `https://bsc.ctac.app/session/${token}`
@@ -852,6 +855,22 @@ export default function CollaborativeDetail() {
                               {linkCopied === link.token ? 'Copied!' : 'Copy Sign-In Link'}
                             </button>
 
+                            {/* Sign-in QR */}
+                            <button
+                              onClick={() => setQrModal({
+                                url: `https://bsc.ctac.app/session/${link.token}`,
+                                title: 'Sign-In QR Code',
+                                subtitle: `${evt.title} · ${evt.event_date}`,
+                                filename: `signin_${evt.event_date}_${evt.title}`,
+                              })}
+                              title="Show downloadable QR code for the sign-in link"
+                              style={{
+                                padding: '0.25rem 0.5rem', background: '#e0f2fe', color: '#0369a1',
+                                border: '1px solid #bae6fd', borderRadius: '4px', cursor: 'pointer',
+                                fontSize: '0.7rem', fontWeight: '600',
+                              }}
+                            >📱 QR</button>
+
                             {/* Copy eval & sign-out link */}
                             <button onClick={() => copyEvalLink(link.token)} style={{
                               padding: '0.25rem 0.6rem', background: '#FEF3C7', color: '#92400E',
@@ -859,6 +878,22 @@ export default function CollaborativeDetail() {
                             }}>
                               {evalLinkCopied === link.token ? 'Copied!' : 'Copy Eval & Sign-Out Link'}
                             </button>
+
+                            {/* Eval QR */}
+                            <button
+                              onClick={() => setQrModal({
+                                url: `https://bsc.ctac.app/session/${link.token}/eval`,
+                                title: 'Evaluation & Sign-Out QR Code',
+                                subtitle: `${evt.title} · ${evt.event_date}`,
+                                filename: `eval_${evt.event_date}_${evt.title}`,
+                              })}
+                              title="Show downloadable QR code for the evaluation/sign-out link"
+                              style={{
+                                padding: '0.25rem 0.5rem', background: '#FEF3C7', color: '#92400E',
+                                border: '1px solid #fde68a', borderRadius: '4px', cursor: 'pointer',
+                                fontSize: '0.7rem', fontWeight: '600',
+                              }}
+                            >📱 QR</button>
 
                             {/* Close session */}
                             {linkActive && (
@@ -1153,6 +1188,17 @@ export default function CollaborativeDetail() {
             />
           </div>
         </div>
+      )}
+
+      {/* QR Code Modal */}
+      {qrModal && (
+        <QrCodeModal
+          url={qrModal.url}
+          title={qrModal.title}
+          subtitle={qrModal.subtitle}
+          filename={qrModal.filename}
+          onClose={() => setQrModal(null)}
+        />
       )}
 
       {/* Add Team Modal */}
