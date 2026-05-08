@@ -642,8 +642,8 @@ export default function EventDetail() {
                       <thead>
                         <tr style={{ borderBottom: '2px solid var(--border)', background: 'var(--bg-card-alt)' }}>
                           <th style={{ textAlign: 'center', padding: '0.4rem 0.5rem', width: '3rem' }}>Status</th>
-                          <th style={{ textAlign: 'left', padding: '0.4rem 0.5rem' }}>Name</th>
-                          <th style={{ textAlign: 'left', padding: '0.4rem 0.5rem' }}>Email</th>
+                          <th style={{ textAlign: 'left', padding: '0.4rem 0.5rem' }}>Name &amp; Email</th>
+                          <th style={{ textAlign: 'left', padding: '0.4rem 0.5rem', width: '5rem' }}>Copy</th>
                           <th style={{ textAlign: 'left', padding: '0.4rem 0.5rem' }}>Role</th>
                           <th style={{ textAlign: 'left', padding: '0.4rem 0.5rem' }}>Agency</th>
                         </tr>
@@ -663,11 +663,27 @@ export default function EventDetail() {
                                   <span title="Absent" style={{ color: 'var(--text-faint)', fontSize: '1.1rem', fontWeight: 700 }}>✕</span>
                                 )}
                               </td>
-                              <td style={{ padding: '0.4rem 0.5rem', fontWeight: 500 }}>{m.full_name}</td>
+                              <td style={{ padding: '0.4rem 0.5rem' }}>
+                                <div style={{ fontWeight: 500 }}>{m.full_name}</div>
+                                {m.email && (
+                                  <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                                    <a href={`mailto:${m.email}`} style={{ color: 'var(--text-muted)', textDecoration: 'none' }}>{m.email}</a>
+                                  </div>
+                                )}
+                              </td>
                               <td style={{ padding: '0.4rem 0.5rem' }}>
                                 {m.email ? (
-                                  <a href={`mailto:${m.email}`} style={{ color: COLORS.navy, textDecoration: 'none' }}>{m.email}</a>
-                                ) : '—'}
+                                  <button
+                                    onClick={() => { navigator.clipboard.writeText(m.email).catch(() => {}) }}
+                                    title="Copy email to clipboard"
+                                    style={{
+                                      background: '#e0f2fe', color: '#0369a1',
+                                      border: 'none', padding: '0.25rem 0.55rem',
+                                      borderRadius: '4px', cursor: 'pointer',
+                                      fontSize: '0.7rem', fontWeight: 600,
+                                    }}
+                                  >📋 Copy</button>
+                                ) : <span style={{ color: 'var(--text-faint)', fontSize: '0.78rem' }}>—</span>}
                               </td>
                               <td style={{ padding: '0.4rem 0.5rem', color: 'var(--text-muted)' }}>{ROLE_LABEL[m.role] || m.role}</td>
                               <td style={{ padding: '0.4rem 0.5rem', color: 'var(--text-muted)' }}>{team.agency_name}</td>

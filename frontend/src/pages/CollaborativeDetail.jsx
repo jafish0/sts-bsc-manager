@@ -75,6 +75,13 @@ export default function CollaborativeDetail() {
   const [editingEventDraft, setEditingEventDraft] = useState(null)
   const [savingEvent, setSavingEvent] = useState(false)
 
+  // Team rosters (full member list per team) — shown in a collapsible section
+  // below the Teams card so Dr. Sprang can grab emails fast during sessions.
+  const [teamMembers, setTeamMembers] = useState({}) // { team_id: [{id, full_name, email, role}, ...] }
+  const [showAllRosters, setShowAllRosters] = useState(false)
+  const [expandedRosterTeamIds, setExpandedRosterTeamIds] = useState(new Set())
+  const [copiedEmail, setCopiedEmail] = useState(null)
+
   // Registration links state — Create lives on /admin/registrations now;
   // CollaborativeDetail keeps the per-collab list + Edit + View Roster.
   const [registrationLinks, setRegistrationLinks] = useState([])
@@ -94,10 +101,50 @@ export default function CollaborativeDetail() {
     fetchCollaborative()
     fetchTeams()
     fetchTeamLeaders()
+    fetchTeamMembers()
     fetchEvents()
     fetchTrainers()
     fetchRegistrationLinks()
   }, [id])
+
+  // Pull every active member of every team in this collab, so the Team
+  // Rosters section can render with one fetch.
+  const fetchTeamMembers = async () => {
+    const { data: collabTeams } = await supabase
+      .from('teams').select('id').eq('collaborative_id', id)
+    if (!collabTeams?.length) { setTeamMembers({}); return }
+    const teamIds = collabTeams.map(t => t.id)
+    const { data: members } = await supabase
+      .from('user_profiles')
+      .select('id, full_name, email, team_id, role, agency_role, is_active')
+      .in('team_id', teamIds)
+      .eq('is_active', true)
+      .order('full_name')
+    const grouped = {}
+    ;(members || []).forEach(m => {
+      if (!grouped[m.team_id]) grouped[m.team_id] = []
+      grouped[m.team_id].push(m)
+    })
+    setTeamMembers(grouped)
+  }
+
+  const toggleRosterTeam = (teamId) => {
+    setExpandedRosterTeamIds(prev => {
+      const next = new Set(prev)
+      if (next.has(teamId)) next.delete(teamId); else next.add(teamId)
+      return next
+    })
+  }
+
+  const copyEmailToClipboard = async (email) => {
+    try {
+      await navigator.clipboard.writeText(email)
+      setCopiedEmail(email)
+      setTimeout(() => setCopiedEmail(null), 2000)
+    } catch (err) {
+      console.warn('Clipboard write failed:', err)
+    }
+  }
 
   // Pull all registration links + status counts for this collaborative.
   const fetchRegistrationLinks = async () => {
@@ -1423,6 +1470,92 @@ export default function CollaborativeDetail() {
             </div>
           )}
         </div>
+
+        {/* Team Rosters — collapsible, all teams in this collab with leaders + members + emails + copy buttons */}
+        {teams.length > 0 && (
+          <div style={{
+            background: 'white', borderRadius: '12px', padding: '2rem',
+            marginTop: '2rem', boxShadow: '0 4px 12px rgba(0, 0, 0, 0.1)'
+          }}>
+            <button
+              onClick={() => setShowAllRosters(s => !s)}
+              style={{
+                width: '100%', display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                background: 'transparent', border: 'none', padding: 0, cursor: 'pointer', textAlign: 'left',
+              }}
+            >
+              <div>
+                <h3 style={{ fontSize: '1.5rem', fontWeight: '700', color: '#0E1F56', margin: 0 }}>
+                  👥 Team Rosters
+                </h3>
+                <div style={{ fontSize: '0.85rem', color: '#6b7280', marginTop: '0.25rem' }}>
+                  Quick lookup for leader + member emails across all {teams.length} team{teams.length === 1 ? '' : 's'}.
+                </div>
+              </div>
+              <span style={{ fontSize: '1.4rem', color: '#0E1F56', transform: showAllRosters ? 'rotate(90deg)' : 'rotate(0deg)', transition: 'transform 0.15s' }}>▶</span>
+            </button>
+
+            {showAllRosters && (
+              <div style={{ marginTop: '1.25rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                {teams.map(team => {
+                  const isOpen = expandedRosterTeamIds.has(team.id)
+                  const leaders = teamLeaders[team.id] || []
+                  const allMembers = teamMembers[team.id] || []
+                  // Members minus those already shown as leaders.
+                  const leaderIds = new Set(leaders.map(l => l.id))
+                  const otherMembers = allMembers.filter(m => !leaderIds.has(m.id))
+                  const totalCount = leaders.length + otherMembers.length
+
+                  return (
+                    <div key={team.id} style={{ border: '1px solid #e5e7eb', borderRadius: '8px', background: '#f9fafb' }}>
+                      <button
+                        onClick={() => toggleRosterTeam(team.id)}
+                        style={{
+                          width: '100%', display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                          background: 'transparent', border: 'none', cursor: 'pointer', padding: '0.75rem 1rem', textAlign: 'left',
+                        }}
+                      >
+                        <div>
+                          <div style={{ fontWeight: 600, color: '#0E1F56' }}>{team.team_name || team.agency_name}</div>
+                          <div style={{ fontSize: '0.78rem', color: '#6b7280' }}>{team.agency_name} · {totalCount} {totalCount === 1 ? 'person' : 'people'}</div>
+                        </div>
+                        <span style={{ color: '#0E1F56', fontSize: '1.1rem', transform: isOpen ? 'rotate(90deg)' : 'rotate(0deg)', transition: 'transform 0.15s' }}>▶</span>
+                      </button>
+
+                      {isOpen && (
+                        <div style={{ padding: '0 1rem 1rem' }}>
+                          {leaders.length > 0 && (
+                            <div style={{ marginBottom: '0.5rem' }}>
+                              <div style={{ fontSize: '0.72rem', fontWeight: 700, color: '#0E1F56', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: '0.3rem' }}>Leaders</div>
+                              <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
+                                {leaders.map(l => (
+                                  <RosterRow key={l.id} person={l} copiedEmail={copiedEmail} onCopy={copyEmailToClipboard} />
+                                ))}
+                              </ul>
+                            </div>
+                          )}
+                          {otherMembers.length > 0 && (
+                            <div>
+                              <div style={{ fontSize: '0.72rem', fontWeight: 700, color: '#0E1F56', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: '0.3rem' }}>Members</div>
+                              <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
+                                {otherMembers.map(m => (
+                                  <RosterRow key={m.id} person={m} copiedEmail={copiedEmail} onCopy={copyEmailToClipboard} />
+                                ))}
+                              </ul>
+                            </div>
+                          )}
+                          {totalCount === 0 && (
+                            <div style={{ fontSize: '0.85rem', color: '#9ca3af' }}>No members yet.</div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Attendance Report Modal */}
@@ -1518,5 +1651,41 @@ export default function CollaborativeDetail() {
         />
       )}
     </div>
+  )
+}
+
+// Roster row used by the Team Rosters card. Shows name + email + 📋 copy button.
+function RosterRow({ person, copiedEmail, onCopy }) {
+  const isCopied = copiedEmail === person.email
+  return (
+    <li style={{
+      display: 'grid', gridTemplateColumns: '1fr auto auto',
+      gap: '0.5rem', alignItems: 'center',
+      padding: '0.4rem 0.5rem', borderBottom: '1px solid #e5e7eb', background: 'white',
+    }}>
+      <div>
+        <div style={{ fontSize: '0.88rem', color: '#0E1F56', fontWeight: 500 }}>{person.full_name || '—'}</div>
+        {person.email && (
+          <a href={`mailto:${person.email}`} style={{ fontSize: '0.78rem', color: '#6b7280', textDecoration: 'none' }}>
+            {person.email}
+          </a>
+        )}
+      </div>
+      <span style={{ fontSize: '0.72rem', color: '#9ca3af', textTransform: 'capitalize' }}>
+        {(person.role || '').replace('_', ' ')}
+      </span>
+      {person.email ? (
+        <button
+          onClick={() => onCopy(person.email)}
+          title="Copy email"
+          style={{
+            background: isCopied ? '#dcfce7' : '#e0f2fe',
+            color: isCopied ? '#166534' : '#0369a1',
+            border: 'none', padding: '0.3rem 0.6rem', borderRadius: '6px',
+            cursor: 'pointer', fontSize: '0.72rem', fontWeight: 600, whiteSpace: 'nowrap',
+          }}
+        >{isCopied ? '✓ Copied' : '📋 Copy'}</button>
+      ) : <span />}
+    </li>
   )
 }
