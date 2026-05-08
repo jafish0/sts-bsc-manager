@@ -130,10 +130,12 @@ export function generateRecommendations(reportData, timepoint) {
   }
 
   // --- ProQOL Analysis ---
+  // STS subscale removed 2026-05-08 per Dr. Sprang's feedback. STSS provides
+  // this measurement more rigorously, so we no longer surface ProQOL STS
+  // classifications even on historical rows that have the score populated.
   if (tp.proqol && tp.proqol.n > 0) {
     const csClass = classifyProQOLCS(tp.proqol.cs.mean)
     const burnoutClass = classifyProQOLBurnout(tp.proqol.burnout.mean)
-    const stsClass = classifyProQOLSTS(tp.proqol.sts.mean)
 
     // Compassion Satisfaction
     if (csClass.level === 'high') {
@@ -186,30 +188,9 @@ export function generateRecommendations(reportData, timepoint) {
       })
     }
 
-    // Secondary Trauma (ProQOL)
-    if (stsClass.level === 'low') {
-      strengths.push({
-        source: 'proqol',
-        label: 'Low Secondary Trauma (ProQOL)',
-        score: tp.proqol.sts.mean.toFixed(1),
-        interpretation: 'The ProQOL secondary trauma subscale indicates low levels of work-related trauma symptoms.',
-        leverageAdvice: 'Current trauma-informed practices appear effective. Continue and reinforce them.'
-      })
-    } else if (stsClass.level === 'high') {
-      growthAreas.push({
-        source: 'proqol',
-        label: 'High Secondary Trauma (ProQOL)',
-        score: `${tp.proqol.sts.mean.toFixed(1)} / 50`,
-        severity: 'high',
-        interpretation: 'The ProQOL secondary trauma subscale is elevated, confirming significant trauma-related distress among staff.',
-        suggestedDomains: ['safety', 'resilience'],
-        suggestedActions: [
-          'Implement trauma-specific coping strategies and debriefing',
-          'Ensure access to EAP and mental health support',
-          'Train supervisors in recognizing and responding to STS'
-        ]
-      })
-    }
+    // ProQOL STS subscale-based recommendations removed 2026-05-08 — STSS
+    // already provides this signal more rigorously and is its own
+    // recommendation source elsewhere in this file.
   }
 
   // --- STSI-OA Domain Analysis ---
@@ -309,12 +290,11 @@ export function generateRecommendations(reportData, timepoint) {
     }
   }
 
-  // Build summary
+  // Build summary. proqolSTS removed 2026-05-08 per Dr. Sprang's feedback.
   const summary = {
     stssTotal: tp.stss ? { mean: tp.stss.total.mean, ...classifySTSSTotal(tp.stss.total.mean) } : null,
     proqolCS: tp.proqol ? { mean: tp.proqol.cs.mean, ...classifyProQOLCS(tp.proqol.cs.mean) } : null,
     proqolBurnout: tp.proqol ? { mean: tp.proqol.burnout.mean, ...classifyProQOLBurnout(tp.proqol.burnout.mean) } : null,
-    proqolSTS: tp.proqol ? { mean: tp.proqol.sts.mean, ...classifyProQOLSTS(tp.proqol.sts.mean) } : null,
     stsioaTotal: tp.stsioa ? {
       mean: tp.stsioa.total.mean,
       pct: ((tp.stsioa.total.mean / STSIOA_TOTAL_MAX) * 100),

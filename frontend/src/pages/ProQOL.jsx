@@ -64,19 +64,18 @@ function ProQOL() {
       return rawScore
     }
 
-    // Calculate subscale scores
+    // Calculate subscale scores. STS subscale dropped 2026-05-08; we leave
+    // secondary_trauma_score out of the payload so the column stays NULL on
+    // new rows. Historical rows retain their values.
     const compassionItems = PROQOL_ITEMS.filter(item => item.subscale === 'compassion_satisfaction')
     const burnoutItems = PROQOL_ITEMS.filter(item => item.subscale === 'burnout')
-    const traumaItems = PROQOL_ITEMS.filter(item => item.subscale === 'secondary_trauma')
 
     const compassionScore = compassionItems.reduce((sum, item) => sum + getScore(item.id), 0)
     const burnoutScore = burnoutItems.reduce((sum, item) => sum + getScore(item.id), 0)
-    const traumaScore = traumaItems.reduce((sum, item) => sum + getScore(item.id), 0)
 
     return {
       compassion_satisfaction_score: compassionScore,
-      burnout_score: burnoutScore,
-      secondary_trauma_score: traumaScore
+      burnout_score: burnoutScore
     }
   }
 

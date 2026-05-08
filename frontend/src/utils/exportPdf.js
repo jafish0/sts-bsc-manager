@@ -159,10 +159,13 @@ export async function exportTeamReportPdf(report) {
     doc.autoTable({
       startY: y,
       margin: { left: margin, right: margin },
-      head: [['Timepoint', 'n', 'Compassion Satisfaction M(SD)', 'Burnout M(SD)', 'Secondary Trauma M(SD)']],
+      // STS subscale removed 2026-05-08 per Dr. Sprang's feedback (STSS measures
+      // this more rigorously). Historical rows still have d.sts populated but
+      // we no longer surface it.
+      head: [['Timepoint', 'n', 'Compassion Satisfaction M(SD)', 'Burnout M(SD)']],
       body: proqolTimepoints.map(tp => {
         const d = tpData[tp].proqol
-        return [TIMEPOINT_LABELS[tp], String(d.n), msd(d.cs), msd(d.burnout), msd(d.sts)]
+        return [TIMEPOINT_LABELS[tp], String(d.n), msd(d.cs), msd(d.burnout)]
       }),
       theme: 'grid',
       headStyles: { fillColor: [14, 31, 86], fontSize: 8, fontStyle: 'bold' },

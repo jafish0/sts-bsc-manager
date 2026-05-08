@@ -354,7 +354,9 @@ export default function TeamReport() {
             {proqolLineData.length > 0 && (
               <div style={{ ...cardStyle, marginBottom: '1.5rem' }}>
                 <div style={cardHeaderStyle}>Professional Quality of Life (ProQOL 5) — Longitudinal</div>
-                <div style={subtitleStyle}>Three subscales • CS: higher = better • Burnout/STS: lower = better</div>
+                {/* STS subscale dropped 2026-05-08 per Dr. Sprang's feedback —
+                    STSS provides this measurement more rigorously. */}
+                <div style={subtitleStyle}>Two subscales • CS: higher = better • Burnout: lower = better</div>
 
                 <ResponsiveContainer width="100%" height={280}>
                   <LineChart data={proqolLineData} margin={{ top: 10, right: 20, left: 0, bottom: 5 }}>
@@ -365,7 +367,6 @@ export default function TeamReport() {
                     <Legend wrapperStyle={{ fontSize: '0.8rem' }} />
                     <Line type="monotone" dataKey="cs" name="Compassion Satisfaction" stroke={COLORS.green} strokeWidth={2} dot={{ r: 5 }} connectNulls={false} />
                     <Line type="monotone" dataKey="burnout" name="Burnout" stroke={COLORS.amber} strokeWidth={2} dot={{ r: 5 }} connectNulls={false} />
-                    <Line type="monotone" dataKey="sts" name="Secondary Traumatic Stress" stroke={COLORS.red} strokeWidth={2} dot={{ r: 5 }} connectNulls={false} />
                   </LineChart>
                 </ResponsiveContainer>
 
@@ -377,7 +378,6 @@ export default function TeamReport() {
                       <th style={{ textAlign: 'center', padding: '0.4rem 0.5rem' }}>n</th>
                       <th style={{ textAlign: 'center', padding: '0.4rem 0.5rem' }}>CS M (SD)</th>
                       <th style={{ textAlign: 'center', padding: '0.4rem 0.5rem' }}>Burnout M (SD)</th>
-                      <th style={{ textAlign: 'center', padding: '0.4rem 0.5rem' }}>STS M (SD)</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -390,7 +390,6 @@ export default function TeamReport() {
                           <td style={{ textAlign: 'center', padding: '0.4rem 0.5rem' }}>{d.n}</td>
                           <td style={{ textAlign: 'center', padding: '0.4rem 0.5rem' }}>{formatMSD(d.cs)}</td>
                           <td style={{ textAlign: 'center', padding: '0.4rem 0.5rem' }}>{formatMSD(d.burnout)}</td>
-                          <td style={{ textAlign: 'center', padding: '0.4rem 0.5rem' }}>{formatMSD(d.sts)}</td>
                         </tr>
                       )
                     })}

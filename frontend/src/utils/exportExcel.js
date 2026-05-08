@@ -170,7 +170,7 @@ export function exportDataVizExcel(data, filters) {
     rows.push(['Subscale', 'Mean', 'SD'])
     rows.push(['Compassion Satisfaction', round(data.proqol.cs.mean), round(data.proqol.cs.sd)])
     rows.push(['Burnout', round(data.proqol.burnout.mean), round(data.proqol.burnout.sd)])
-    rows.push(['Secondary Traumatic Stress', round(data.proqol.sts.mean), round(data.proqol.sts.sd)])
+    // STS subscale removed 2026-05-08 per Dr. Sprang's feedback (STSS covers this).
     rows.push([])
   }
 

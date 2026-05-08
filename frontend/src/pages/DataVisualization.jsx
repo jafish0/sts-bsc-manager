@@ -635,15 +635,16 @@ export default function DataVisualization() {
             {/* ProQOL - All 3 Subscales */}
             <div style={cardStyle}>
               <div style={cardHeaderStyle}>Professional Quality of Life (ProQOL 5)</div>
-              <div style={subtitleStyle}>Three subscales (n={data.proqol?.n || 0})</div>
+              {/* STS subscale dropped 2026-05-08 per Dr. Sprang's feedback —
+                  STSS provides this measurement more rigorously. */}
+              <div style={subtitleStyle}>Two subscales (n={data.proqol?.n || 0})</div>
               {data.proqol ? (
                 <>
                   <ResponsiveContainer width="100%" height={250}>
                     <BarChart
                       data={[
                         { name: 'Compassion\nSatisfaction', value: data.proqol.cs.mean },
-                        { name: 'Burnout', value: data.proqol.burnout.mean },
-                        { name: 'Secondary\nTraumatic Stress', value: data.proqol.sts.mean }
+                        { name: 'Burnout', value: data.proqol.burnout.mean }
                       ]}
                       margin={{ top: 10, right: 10, left: 0, bottom: 20 }}
                     >
@@ -654,14 +655,12 @@ export default function DataVisualization() {
                       <Bar dataKey="value" radius={[4, 4, 0, 0]}>
                         <Cell fill={COLORS.green} />
                         <Cell fill={COLORS.amber} />
-                        <Cell fill={COLORS.red} />
                       </Bar>
                     </BarChart>
                   </ResponsiveContainer>
                   <div style={{ fontSize: '0.75rem', lineHeight: '1.6', marginTop: '0.5rem' }}>
                     <div><strong>CS:</strong> M={data.proqol.cs.mean.toFixed(2)}, SD={data.proqol.cs.sd.toFixed(2)} (higher = better)</div>
                     <div><strong>BO:</strong> M={data.proqol.burnout.mean.toFixed(2)}, SD={data.proqol.burnout.sd.toFixed(2)} ({data.proqol.burnout.mean <= 22 ? 'Low' : data.proqol.burnout.mean <= 41 ? 'Average' : 'High'})</div>
-                    <div><strong>STS:</strong> M={data.proqol.sts.mean.toFixed(2)}, SD={data.proqol.sts.sd.toFixed(2)} (lower = better)</div>
                   </div>
                 </>
               ) : (
