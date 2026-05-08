@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../utils/supabase'
+import { useAuth } from '../contexts/AuthContext'
 import { PROGRAM_TYPE_COLORS, getProgramBranding } from '../config/programConfig'
 
 // Build the locked, pre-populated event list for a given program type.
@@ -40,12 +41,20 @@ function addDays(dateStr, days) {
 }
 
 function CreateCollaborativeModal({ onClose, onSuccess }) {
+  const { user } = useAuth()
   const [formData, setFormData] = useState({
     name: '',
     description: '',
     status: 'active',
     program_type: 'sts_bsc'
   })
+
+  // CTAC trainer/coordinator assignment. Pre-populates the current user as both
+  // trainer and coordinator (whoever is creating the collaborative). Other
+  // super_admins can be added in the multi-select.
+  const [superAdmins, setSuperAdmins] = useState([])
+  const [trainerIds, setTrainerIds] = useState(() => user?.id ? [user.id] : [])
+  const [coordinatorId, setCoordinatorId] = useState(() => user?.id || '')
 
   // Pre-populate the standard schedule for the selected program type.
   // Default events are sourced from each program's welcome packet / agenda — see programConfig.js.
@@ -67,6 +76,31 @@ function CreateCollaborativeModal({ onClose, onSuccess }) {
   useEffect(() => {
     setBscEvents(buildDefaultEvents(formData.program_type))
   }, [formData.program_type])
+
+  // Load all active super_admins for the trainer/coordinator pickers.
+  useEffect(() => {
+    let cancelled = false
+    supabase
+      .from('user_profiles')
+      .select('id, full_name, email')
+      .eq('role', 'super_admin')
+      .eq('is_active', true)
+      .order('full_name')
+      .then(({ data, error }) => {
+        if (cancelled) return
+        if (error) {
+          console.error('Failed to load super_admins:', error)
+          return
+        }
+        setSuperAdmins(data || [])
+      })
+    return () => { cancelled = true }
+  }, [])
+
+  // Toggle a super_admin in/out of the trainerIds set.
+  const toggleTrainer = (uid) => {
+    setTrainerIds(prev => prev.includes(uid) ? prev.filter(id => id !== uid) : [...prev, uid])
+  }
 
   // Helper: get first and last Learning Sessions by sequence_number (program-agnostic).
   const learningSessions = bscEvents
@@ -166,6 +200,18 @@ function CreateCollaborativeModal({ onClose, onSuccess }) {
       return
     }
 
+    // Validate at least one trainer + a coordinator
+    if (!coordinatorId) {
+      setError('Please select an event coordinator')
+      setLoading(false)
+      return
+    }
+    if (trainerIds.length === 0 && !coordinatorId) {
+      setError('Please assign at least one trainer')
+      setLoading(false)
+      return
+    }
+
     // Derive start/end from first LS and follow-up window
     const startDate = addDays(firstLs.event_date, -30) // 30 days before first LS
     const endDate = assessmentDates.followup_12mo_end_date || addDays(lastLs.event_date, 400)
@@ -217,6 +263,21 @@ function CreateCollaborativeModal({ onClose, onSuccess }) {
           .from('bsc_events')
           .insert(eventsToInsert)
         if (eventsError) console.error('Error inserting events:', eventsError)
+      }
+
+      // Insert trainer + coordinator assignments. Coordinator is implicitly a
+      // trainer too — union the sets.
+      const trainerUserIds = Array.from(new Set([...trainerIds, coordinatorId])).filter(Boolean)
+      if (trainerUserIds.length > 0) {
+        const trainerRows = trainerUserIds.map(uid => ({
+          collaborative_id: data.id,
+          user_id: uid,
+          is_coordinator: uid === coordinatorId,
+        }))
+        const { error: trainersError } = await supabase
+          .from('collaborative_trainers')
+          .insert(trainerRows)
+        if (trainersError) console.error('Error inserting trainers:', trainersError)
       }
 
       onSuccess()
@@ -300,6 +361,78 @@ function CreateCollaborativeModal({ onClose, onSuccess }) {
               style={{ width: '100%', padding: '0.75rem', border: '2px solid #e5e7eb', borderRadius: '8px', fontSize: '1rem', boxSizing: 'border-box', fontFamily: 'inherit', resize: 'vertical', transition: 'border-color 0.2s' }}
               onFocus={(e) => e.target.style.borderColor = '#00A79D'}
               onBlur={(e) => e.target.style.borderColor = '#e5e7eb'} />
+          </div>
+
+          {/* CTAC Trainers + Event Coordinator */}
+          <div style={{ background: '#eff6ff', padding: '1.25rem', borderRadius: '8px', marginBottom: '1.25rem', border: '1px solid #bfdbfe' }}>
+            <h3 style={{ color: '#0E1F56', fontSize: '1rem', marginTop: 0, marginBottom: '0.25rem' }}>
+              CTAC Trainers & Coordinator *
+            </h3>
+            <p style={{ color: '#6b7280', fontSize: '0.8rem', marginBottom: '0.75rem' }}>
+              Assign which CTAC admins are running this collaborative. The coordinator is the named contact for participant questions; they're automatically included as a trainer.
+            </p>
+
+            {/* Coordinator dropdown */}
+            <div style={{ marginBottom: '0.75rem' }}>
+              <label style={{ display: 'block', color: '#374151', fontSize: '0.85rem', fontWeight: '600', marginBottom: '0.3rem' }}>
+                Event Coordinator
+              </label>
+              <select
+                value={coordinatorId}
+                onChange={(e) => setCoordinatorId(e.target.value)}
+                style={{ ...inputStyle, padding: '0.6rem', fontSize: '0.9rem', background: 'white' }}
+                required
+              >
+                <option value="">— Select a coordinator —</option>
+                {superAdmins.map(sa => (
+                  <option key={sa.id} value={sa.id}>{sa.full_name} ({sa.email})</option>
+                ))}
+              </select>
+            </div>
+
+            {/* Trainer multi-select (checkboxes) */}
+            <div>
+              <label style={{ display: 'block', color: '#374151', fontSize: '0.85rem', fontWeight: '600', marginBottom: '0.3rem' }}>
+                Additional Trainers
+              </label>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.4rem' }}>
+                {superAdmins.map(sa => {
+                  const isCoord = sa.id === coordinatorId
+                  const checked = isCoord || trainerIds.includes(sa.id)
+                  return (
+                    <label
+                      key={sa.id}
+                      style={{
+                        display: 'flex', alignItems: 'center', gap: '0.5rem',
+                        background: checked ? '#dbeafe' : 'white',
+                        border: `1px solid ${checked ? '#2563eb' : '#e5e7eb'}`,
+                        borderRadius: '6px', padding: '0.5rem 0.6rem',
+                        cursor: isCoord ? 'not-allowed' : 'pointer',
+                        opacity: isCoord ? 0.7 : 1,
+                        fontSize: '0.85rem'
+                      }}
+                      title={isCoord ? 'Coordinator is automatically a trainer' : ''}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        disabled={isCoord}
+                        onChange={() => toggleTrainer(sa.id)}
+                        style={{ accentColor: '#2563eb', flexShrink: 0 }}
+                      />
+                      <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                        {sa.full_name}{isCoord && ' (Coordinator)'}
+                      </span>
+                    </label>
+                  )
+                })}
+              </div>
+              {superAdmins.length === 0 && (
+                <p style={{ fontSize: '0.8rem', color: '#9ca3af', fontStyle: 'italic', margin: 0 }}>
+                  No active super_admins found.
+                </p>
+              )}
+            </div>
           </div>
 
           {/* BSC Schedule — Required, moved up */}

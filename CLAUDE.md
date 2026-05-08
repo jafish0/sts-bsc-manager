@@ -53,6 +53,7 @@ Web app for managing Secondary Traumatic Stress Breakthrough Series Collaborativ
 - **Resources domains:** Stored as `TEXT[]` array, e.g. `{'resilience','safety'}`
 - **Forum threads:** Scoped per collaborative via `collaborative_id` FK
 - **user_profiles columns:** `id`, `email`, `full_name`, `role`, `team_id`, `is_active`, `agency_role`, `is_senior_leader`, `invite_accepted_at`, `created_at`, `updated_at`
+- **collaborative_trainers** join table for who's a trainer/coordinator on a collaborative. Columns: `id`, `collaborative_id`, `user_id`, `is_coordinator`. Unique partial index `WHERE is_coordinator = true` enforces one coordinator per collab. Source of truth for the Trainer Dashboard.
 
 ## Supabase Project
 - Project ref: `jhnquklmwoubpbbmnrjf`

@@ -30,6 +30,7 @@ export default function CollaborativeDetail() {
   const [showAddTeamModal, setShowAddTeamModal] = useState(false)
   const [inviteTeam, setInviteTeam] = useState(null)
   const [teamLeaders, setTeamLeaders] = useState({})
+  const [trainers, setTrainers] = useState([])  // [{ user_id, full_name, email, is_coordinator }]
   const [editForm, setEditForm] = useState({
     name: '',
     description: '',
@@ -59,7 +60,26 @@ export default function CollaborativeDetail() {
     fetchTeams()
     fetchTeamLeaders()
     fetchEvents()
+    fetchTrainers()
   }, [id])
+
+  // Fetch CTAC trainers + coordinator assigned to this collaborative.
+  const fetchTrainers = async () => {
+    const { data, error } = await supabase
+      .from('collaborative_trainers')
+      .select('user_id, is_coordinator, user_profiles(full_name, email)')
+      .eq('collaborative_id', id)
+    if (error) {
+      console.error('Failed to load trainers:', error)
+      return
+    }
+    setTrainers((data || []).map(r => ({
+      user_id: r.user_id,
+      is_coordinator: r.is_coordinator,
+      full_name: r.user_profiles?.full_name || 'Unknown',
+      email: r.user_profiles?.email || '',
+    })))
+  }
 
   const fetchCollaborative = async () => {
     try {
@@ -681,6 +701,25 @@ export default function CollaborativeDetail() {
                   <div style={{ fontSize: '0.875rem', color: '#6b7280', marginBottom: '0.25rem' }}>Teams</div>
                   <div style={{ fontSize: '1.125rem', fontWeight: '600', color: '#00A79D' }}>
                     {teams.length}
+                  </div>
+                </div>
+                <div>
+                  <div style={{ fontSize: '0.875rem', color: '#6b7280', marginBottom: '0.25rem' }}>Coordinator</div>
+                  <div style={{ fontSize: '1rem', fontWeight: '600', color: '#0E1F56' }}>
+                    {(() => {
+                      const c = trainers.find(t => t.is_coordinator)
+                      return c
+                        ? <span>{c.full_name}<span style={{ fontWeight: 400, fontSize: '0.85rem', color: '#6b7280' }}> ({c.email})</span></span>
+                        : <span style={{ fontWeight: 400, color: '#9ca3af', fontStyle: 'italic' }}>None assigned</span>
+                    })()}
+                  </div>
+                </div>
+                <div style={{ gridColumn: '1 / -1' }}>
+                  <div style={{ fontSize: '0.875rem', color: '#6b7280', marginBottom: '0.25rem' }}>Trainers</div>
+                  <div style={{ fontSize: '0.95rem', color: '#0E1F56' }}>
+                    {trainers.length > 0
+                      ? trainers.map(t => t.full_name).join(', ')
+                      : <span style={{ color: '#9ca3af', fontStyle: 'italic' }}>None assigned</span>}
                   </div>
                 </div>
               </div>
