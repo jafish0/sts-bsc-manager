@@ -122,6 +122,27 @@ Authentication → URL Configuration:
 
 ## Open follow-ups
 
+- **Invite Ginny Sprang as super_admin.** In Supabase Auth dashboard → Invite User → `sprang@uky.edu`. After she sets her password and `user_profiles` auto-creates, run:
+  ```sql
+  UPDATE user_profiles SET role = 'super_admin', is_active = true
+  WHERE email = 'sprang@uky.edu';
+  ```
+- **Stand up a test `trainer_admin` and verify the role works end-to-end.** Same invite flow as above, then:
+  ```sql
+  UPDATE user_profiles SET role = 'trainer_admin', is_active = true
+  WHERE email = '<test_trainer_email>';
+
+  INSERT INTO collaborative_trainers (collaborative_id, user_id)
+  SELECT 'aa91e6ec-c3a5-4eaf-a1ad-4af8af984299',  -- Demo 2026
+         id
+  FROM user_profiles WHERE email = '<test_trainer_email>';
+  ```
+  Then sign in as that user and confirm:
+  - `/admin/collaboratives` shows **only** their assigned collabs
+  - Cross-collab tiles are hidden on AdminDashboard (Change Framework, Strategy Ideas, STS-PAT Results, Self-Rating Engagement, Project Staff, Unmatched Attendees)
+  - "Create New Collaborative" button is **not** visible
+  - On their collab's detail page, they can edit events/teams/goals (Edit/+Add/Delete buttons render)
+  - On a collab they aren't assigned to, navigating directly to `/admin/collaboratives/<other-id>` returns no data (RLS blocks it)
 - **`ctac.app` apex routing.** Currently serves BSC-Manager directly. When a CTAC landing page exists (or other programs come online), either remove the apex attachment or 307-redirect to the new project.
 - **DMARC tightening.** After ~4 weeks of clean sending, change the Vercel `_dmarc` TXT record to `v=DMARC1; p=quarantine; pct=100;`. Eventually `p=reject` once confident.
 - **Inbox placement monitoring.** First invite landed in UKY Outlook Junk (new-domain reputation). Trajectory should improve as recipients mark "Not Junk." If it doesn't, consider Postmark DMARC Digest or Dmarcian for aggregate report visibility.
