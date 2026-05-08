@@ -155,6 +155,37 @@ export default function AdminDashboard() {
         <h2 style={{ color: 'var(--text-heading)', marginBottom: '1rem' }}>Admin Tools</h2>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '1.5rem' }}>
           <button
+            onClick={() => navigate('/admin/trainer')}
+            style={{
+              padding: '2rem',
+              background: 'var(--bg-card)',
+              border: '2px solid var(--border-light)',
+              borderRadius: '0.75rem',
+              cursor: 'pointer',
+              transition: 'all 0.2s',
+              textAlign: 'left'
+            }}
+            onMouseOver={(e) => {
+              e.currentTarget.style.borderColor = '#00A79D'
+              e.currentTarget.style.transform = 'translateY(-2px)'
+              e.currentTarget.style.boxShadow = '0 4px 6px rgba(0,0,0,0.1)'
+            }}
+            onMouseOut={(e) => {
+              e.currentTarget.style.borderColor = '#d1d5db'
+              e.currentTarget.style.transform = 'translateY(0)'
+              e.currentTarget.style.boxShadow = 'none'
+            }}
+          >
+            <div style={{ fontSize: '2rem', marginBottom: '0.5rem' }}>👨‍🏫</div>
+            <div style={{ color: 'var(--text-heading)', fontSize: '1.25rem', fontWeight: '600', marginBottom: '0.5rem' }}>
+              Trainer Dashboard
+            </div>
+            <div style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>
+              My collaboratives, upcoming events, and recent evaluations
+            </div>
+          </button>
+
+          <button
             onClick={() => navigate('/admin/collaboratives')}
             style={{
               padding: '2rem',

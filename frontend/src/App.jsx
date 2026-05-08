@@ -36,6 +36,7 @@ import ResourceMapping from './pages/ResourceMapping'
 import SessionSignIn from './pages/SessionSignIn'
 import SessionEvaluation from './pages/SessionEvaluation'
 import SessionSignOut from './pages/SessionSignOut'
+import TrainerDashboard from './pages/TrainerDashboard'
 
 // Detect invite/recovery tokens in URL hash and redirect to /set-password
 function AuthRedirectHandler() {
@@ -113,6 +114,11 @@ function App() {
           <Route path="/admin/team-report/:teamId" element={
             <ProtectedRoute>
               <TeamReport />
+            </ProtectedRoute>
+          } />
+          <Route path="/admin/trainer" element={
+            <ProtectedRoute>
+              <TrainerDashboard />
             </ProtectedRoute>
           } />
           <Route path="/admin/smartie-goals/:teamId" element={
