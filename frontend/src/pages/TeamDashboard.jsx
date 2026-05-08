@@ -1054,7 +1054,7 @@ function ActionCard({ icon, title, description, borderColor, onClick }) {
         e.currentTarget.style.boxShadow = '0 4px 6px rgba(0,0,0,0.1)'
       }}
       onMouseOut={(e) => {
-        e.currentTarget.style.borderColor = '#d1d5db'
+        e.currentTarget.style.borderColor = 'var(--border-light)'
         e.currentTarget.style.transform = 'translateY(0)'
         e.currentTarget.style.boxShadow = 'none'
       }}

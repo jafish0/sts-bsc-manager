@@ -74,6 +74,12 @@ button {
 [data-theme="dark"] input[type="text"],
 [data-theme="dark"] input[type="email"],
 [data-theme="dark"] input[type="password"],
+[data-theme="dark"] input[type="url"],
+[data-theme="dark"] input[type="number"],
+[data-theme="dark"] input[type="tel"],
+[data-theme="dark"] input[type="date"],
+[data-theme="dark"] input[type="time"],
+[data-theme="dark"] input[type="datetime-local"],
 [data-theme="dark"] textarea {
   background: var(--bg-input) !important;
   color: var(--text-primary) !important;
@@ -91,3 +97,87 @@ button {
 [data-theme="dark"] table td {
   color: var(--text-primary) !important;
 }
+
+/*
+ * Dark-mode catch-all overrides for inline styles using hardcoded colors.
+ * These rules use attribute substring selectors to retroactively map common
+ * hex/named colors from inline styles to theme variables. They prevent the
+ * white-card-on-dark-page contrast bugs Dr. Sprang flagged during demo
+ * without requiring every inline style to be rewritten.
+ *
+ * Limit: doesn't catch mixed declarations like `background: white;` inside a
+ * larger style string with other backgrounds (last-write-wins). For those,
+ * fix the inline style directly. Doesn't apply to <a> color via `color:
+ * inherit` — handled separately.
+ */
+
+/* Card and page backgrounds */
+[data-theme="dark"] [style*="background: white"],
+[data-theme="dark"] [style*="background:white"],
+[data-theme="dark"] [style*="background: '#fff'"],
+[data-theme="dark"] [style*="background: '#ffffff'"] {
+  background: var(--bg-card) !important;
+}
+
+[data-theme="dark"] [style*="background: #f9fafb"],
+[data-theme="dark"] [style*="background:#f9fafb"] {
+  background: var(--bg-card-alt) !important;
+}
+
+[data-theme="dark"] [style*="background: #f3f4f6"],
+[data-theme="dark"] [style*="background:#f3f4f6"] {
+  background: var(--bg-page) !important;
+}
+
+/* Text colors — common hardcoded values mapped to theme variables.
+   Hardcoded brand navy (#0E1F56) is treated as a heading color; in dark mode
+   it becomes the readable light-indigo --text-heading. */
+[data-theme="dark"] [style*="color: #0E1F56"],
+[data-theme="dark"] [style*="color:#0E1F56"],
+[data-theme="dark"] [style*="color: '#0E1F56'"] {
+  color: var(--text-heading) !important;
+}
+
+[data-theme="dark"] [style*="color: #1f2937"],
+[data-theme="dark"] [style*="color:#1f2937"] {
+  color: var(--text-primary) !important;
+}
+
+[data-theme="dark"] [style*="color: #374151"],
+[data-theme="dark"] [style*="color:#374151"] {
+  color: var(--text-secondary) !important;
+}
+
+[data-theme="dark"] [style*="color: #6b7280"],
+[data-theme="dark"] [style*="color:#6b7280"] {
+  color: var(--text-muted) !important;
+}
+
+[data-theme="dark"] [style*="color: #9ca3af"],
+[data-theme="dark"] [style*="color:#9ca3af"] {
+  color: var(--text-faint) !important;
+}
+
+/* Borders — convert the two most common hardcoded greys */
+[data-theme="dark"] [style*="border: 1px solid #e5e7eb"],
+[data-theme="dark"] [style*="border:1px solid #e5e7eb"],
+[data-theme="dark"] [style*="border-bottom: 1px solid #e5e7eb"],
+[data-theme="dark"] [style*="border-top: 1px solid #e5e7eb"],
+[data-theme="dark"] [style*="border-left: 1px solid #e5e7eb"],
+[data-theme="dark"] [style*="border-right: 1px solid #e5e7eb"] {
+  border-color: var(--border) !important;
+}
+
+[data-theme="dark"] [style*="border: 1px solid #d1d5db"],
+[data-theme="dark"] [style*="border:1px solid #d1d5db"],
+[data-theme="dark"] [style*="border: 2px solid #d1d5db"] {
+  border-color: var(--border-light) !important;
+}
+
+/* Subtle "alt" backgrounds used inline for table rows etc. */
+[data-theme="dark"] tr[style*="background: #f9fafb"],
+[data-theme="dark"] tr[style*="background:#f9fafb"] {
+  background: var(--bg-card-alt) !important;
+}
+
+/* Modal overlays use rgba(0,0,0,0.5) which works fine in dark mode; no override needed. */
