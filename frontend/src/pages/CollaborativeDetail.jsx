@@ -19,6 +19,23 @@ const EVENT_TYPES = [
   { value: 'other', label: 'Other', audience: 'all_teams' }
 ]
 
+// Compute the local time at which the pg_cron job will auto-close this session
+// (event_date + end_time + 30 minutes, interpreted in the event's stored timezone).
+// Returns a short human-readable label like "5:30pm" or "5:30pm tomorrow".
+function formatAutoClose(evt) {
+  if (!evt?.end_time || !evt?.event_date) return ''
+  const closeAt = new Date(`${evt.event_date}T${evt.end_time}`)
+  closeAt.setMinutes(closeAt.getMinutes() + 30)
+  const opts = { hour: 'numeric', minute: '2-digit', hour12: true }
+  const time = closeAt.toLocaleTimeString('en-US', opts).replace(' ', '').toLowerCase()
+  const today = new Date()
+  const sameDay = closeAt.toDateString() === today.toDateString()
+  if (sameDay) return `at ${time}`
+  // Different day — render the short date too.
+  const date = closeAt.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+  return `at ${time} on ${date}`
+}
+
 export default function CollaborativeDetail() {
   const { id } = useParams()
   const navigate = useNavigate()
@@ -895,12 +912,25 @@ export default function CollaborativeDetail() {
                               }}
                             >📱 QR</button>
 
-                            {/* Close session */}
+                            {/* Close session — auto-closes at end_time + 30 min via pg_cron */}
                             {linkActive && (
-                              <button onClick={() => closeSession(evt)} style={{
-                                padding: '0.25rem 0.6rem', background: '#FEE2E2', color: '#991B1B',
-                                border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '0.7rem', fontWeight: '600'
-                              }}>Close Session</button>
+                              <>
+                                <button
+                                  onClick={() => closeSession(evt)}
+                                  title={evt.end_time
+                                    ? `Auto-closes ${formatAutoClose(evt)} (${evt.timezone || 'America/New_York'}). Click to close now.`
+                                    : 'No end time set — auto-close disabled. Click to close now.'}
+                                  style={{
+                                    padding: '0.25rem 0.6rem', background: '#FEE2E2', color: '#991B1B',
+                                    border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '0.7rem', fontWeight: '600'
+                                  }}
+                                >Close now</button>
+                                <span style={{ fontSize: '0.65rem', color: '#6b7280' }}>
+                                  {evt.end_time
+                                    ? `auto-closes ${formatAutoClose(evt)}`
+                                    : 'no auto-close (set end time)'}
+                                </span>
+                              </>
                             )}
                           </>
                         )}

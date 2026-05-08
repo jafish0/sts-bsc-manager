@@ -36,6 +36,12 @@ export default function SessionEvaluation() {
       return
     }
 
+    if (!link.is_active) {
+      setError('This session has been closed.')
+      setLoading(false)
+      return
+    }
+
     setEventInfo(link.bsc_events)
     setLoading(false)
   }

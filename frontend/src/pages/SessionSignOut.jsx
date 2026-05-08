@@ -20,11 +20,19 @@ export default function SessionSignOut() {
       // Get event title for display
       const { data: link } = await supabase
         .from('session_links')
-        .select('bsc_events(title)')
+        .select('is_active, bsc_events(title)')
         .eq('token', token)
         .single()
 
       setEventTitle(link?.bsc_events?.title || 'this session')
+
+      // If the session has been closed (auto-close at end_time + 30 min, or
+      // manually by an admin), the cron job has already stamped signed_out_at
+      // for everyone still open. Show a friendly thank-you instead of writing.
+      if (link && link.is_active === false) {
+        sessionStorage.removeItem(`attendance_${token}`)
+        return
+      }
 
       // Sign out if not already handled by evaluation submission
       const attendanceId = sessionStorage.getItem(`attendance_${token}`)

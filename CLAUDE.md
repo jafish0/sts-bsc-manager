@@ -54,6 +54,7 @@ Web app for managing Secondary Traumatic Stress Breakthrough Series Collaborativ
 - **Forum threads:** Scoped per collaborative via `collaborative_id` FK
 - **user_profiles columns:** `id`, `email`, `full_name`, `role`, `team_id`, `is_active`, `agency_role`, `is_senior_leader`, `invite_accepted_at`, `created_at`, `updated_at`
 - **collaborative_trainers** join table for who's a trainer/coordinator on a collaborative. Columns: `id`, `collaborative_id`, `user_id`, `is_coordinator`. Unique partial index `WHERE is_coordinator = true` enforces one coordinator per collab. Source of truth for the Trainer Dashboard.
+- **`pg_cron` is enabled.** A job named `close-expired-sessions` runs every minute and calls `public.close_expired_sessions()`, which deactivates `session_links` for any event whose `end_time + 30 min` (computed in the event's stored timezone, default `America/New_York`) has passed and bulk-stamps `session_attendance.signed_out_at` for stragglers. The "Close now" button on `CollaborativeDetail.jsx` runs the same logic on demand. Sessions without `end_time` never auto-close; UI surfaces this.
 
 ## Supabase Project
 - Project ref: `jhnquklmwoubpbbmnrjf`
