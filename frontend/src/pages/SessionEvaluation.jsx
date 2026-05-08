@@ -80,8 +80,18 @@ export default function SessionEvaluation() {
         .insert(payload)
 
       if (insertErr) throw insertErr
+    } catch (err) {
+      // Insert failed — surface the error and let the user retry.
+      console.error('Evaluation submit error:', err)
+      alert('Error submitting evaluation: ' + err.message)
+      setSubmitting(false)
+      return
+    }
 
-      // Sign out if attendance was recorded in this browser
+    // Attendance sign-out is best-effort — never block the post-submit
+    // navigation on it. (Earlier bug: if this throws, the user got stuck on
+    // the form with no feedback after a successful eval insert.)
+    try {
       const attendanceId = sessionStorage.getItem(`attendance_${token}`)
       if (attendanceId) {
         await supabase
@@ -93,14 +103,13 @@ export default function SessionEvaluation() {
           .eq('id', attendanceId)
         sessionStorage.removeItem(`attendance_${token}`)
       }
-
-      navigate(`/session/${token}/signout`)
     } catch (err) {
-      console.error('Evaluation submit error:', err)
-      alert('Error submitting evaluation: ' + err.message)
-    } finally {
-      setSubmitting(false)
+      console.warn('Attendance sign-out failed (eval was saved OK):', err)
     }
+
+    // Always navigate — the eval is in. SessionSignOut renders the unified
+    // thank-you screen.
+    navigate(`/session/${token}/signout`)
   }
 
   if (loading) {
