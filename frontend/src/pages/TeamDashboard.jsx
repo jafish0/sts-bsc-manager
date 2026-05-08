@@ -35,6 +35,7 @@ export default function TeamDashboard() {
   const [lastSelfRatingDate, setLastSelfRatingDate] = useState(null)
   const [sessionAttendance, setSessionAttendance] = useState([])
   const [viewAttendanceEvent, setViewAttendanceEvent] = useState(null)
+  const [sessionMaterials, setSessionMaterials] = useState([])
 
   useEffect(() => {
     if (profile?.team_id) {
@@ -150,12 +151,28 @@ export default function TeamDashboard() {
             teamAttendees: attCounts[e.id] || 0
           })))
         }
+
+        // Load Session Materials (event documents) for this collaborative
+        const { data: docData } = await supabase
+          .from('bsc_event_documents')
+          .select('id, file_name, file_size, mime_type, storage_path, created_at, bsc_events!inner ( id, title, event_date, collaborative_id )')
+          .eq('bsc_events.collaborative_id', teamData.collaboratives.id)
+          .order('created_at', { ascending: false })
+        setSessionMaterials(docData || [])
       }
     } catch (err) {
       console.error('Error loading team:', err)
     } finally {
       setLoading(false)
     }
+  }
+
+  const handleMaterialDownload = async (doc) => {
+    const { data, error } = await supabase.storage
+      .from('event-documents')
+      .createSignedUrl(doc.storage_path, 3600)
+    if (error) { alert('Could not generate download link'); return }
+    window.open(data.signedUrl, '_blank')
   }
 
   const loadChecklist = async (teamId, phase) => {
@@ -746,6 +763,53 @@ export default function TeamDashboard() {
             onClick={() => navigate('/admin/staff')}
           />
         </div>
+
+        {/* Session Materials */}
+        {sessionMaterials.length > 0 && (
+          <div style={{
+            background: 'var(--bg-card)',
+            borderRadius: '0.75rem',
+            padding: '1.5rem',
+            boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
+            marginBottom: '1.5rem'
+          }}>
+            <h3 style={{ margin: '0 0 1rem', color: COLORS.navy, fontSize: '1.1rem' }}>
+              Session Materials
+            </h3>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+              {sessionMaterials.map(d => (
+                <div key={d.id} style={{
+                  display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                  padding: '0.6rem 0.75rem', borderRadius: '0.5rem',
+                  background: '#f9fafb', border: '1px solid #e5e7eb', gap: '0.75rem'
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', minWidth: 0, flex: 1 }}>
+                    <span style={{ fontSize: '1.1rem' }}>📄</span>
+                    <div style={{ minWidth: 0 }}>
+                      <div style={{ fontWeight: 600, color: COLORS.navy, fontSize: '0.9rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {d.file_name}
+                      </div>
+                      <div style={{ fontSize: '0.72rem', color: '#6b7280' }}>
+                        {d.bsc_events?.title}
+                        {d.bsc_events?.event_date && (
+                          <span> · {new Date(d.bsc_events.event_date + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => handleMaterialDownload(d)}
+                    style={{
+                      padding: '0.3rem 0.7rem', background: COLORS.navy, color: 'white',
+                      border: 'none', borderRadius: '4px', cursor: 'pointer',
+                      fontSize: '0.78rem', fontWeight: 600
+                    }}
+                  >Download</button>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* Session Attendance Section */}
         {sessionAttendance.length > 0 && (

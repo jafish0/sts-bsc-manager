@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo, useCallback } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { supabase } from '../utils/supabase'
+import { useAuth } from '../contexts/AuthContext'
 import { COLORS, cardStyle, cardHeaderStyle } from '../utils/constants'
 import { PROGRAM_TYPE_COLORS } from '../config/programConfig'
 
@@ -31,9 +32,17 @@ const ROLE_LABEL = {
   team_member: 'Team Member',
 }
 
+function fmtBytes(n) {
+  if (n == null) return ''
+  if (n < 1024) return `${n} B`
+  if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`
+  return `${(n / 1024 / 1024).toFixed(1)} MB`
+}
+
 export default function EventDetail() {
   const { eventId } = useParams()
   const navigate = useNavigate()
+  const { isSuperAdmin, user } = useAuth()
 
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
@@ -44,6 +53,9 @@ export default function EventDetail() {
   const [attendance, setAttendance] = useState([])   // raw session_attendance rows for this event
   const [attRefreshing, setAttRefreshing] = useState(false)
   const [lastRefreshAt, setLastRefreshAt] = useState(null)
+  const [documents, setDocuments] = useState([])
+  const [uploading, setUploading] = useState(false)
+  const [uploadError, setUploadError] = useState(null)
 
   // 1. Initial load: event, collaborative, teams in collab, all team_members
   useEffect(() => {
@@ -119,6 +131,70 @@ export default function EventDetail() {
     const id = setInterval(fetchAttendance, ATTENDANCE_REFRESH_MS)
     return () => clearInterval(id)
   }, [fetchAttendance])
+
+  // 3. Documents
+  const fetchDocuments = useCallback(async () => {
+    const { data, error: err } = await supabase
+      .from('bsc_event_documents')
+      .select('id, file_name, file_size, mime_type, storage_path, created_at, uploaded_by, user_profiles:uploaded_by ( full_name )')
+      .eq('event_id', eventId)
+      .order('created_at', { ascending: false })
+    if (!err) setDocuments(data || [])
+  }, [eventId])
+
+  useEffect(() => { fetchDocuments() }, [fetchDocuments])
+
+  const handleUpload = async (e) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setUploadError(null)
+    setUploading(true)
+    try {
+      const ext = file.name.includes('.') ? file.name.split('.').pop() : 'bin'
+      const storagePath = `${eventId}/${crypto.randomUUID()}.${ext}`
+      const { error: upErr } = await supabase.storage
+        .from('event-documents')
+        .upload(storagePath, file, { contentType: file.type || 'application/octet-stream' })
+      if (upErr) throw upErr
+
+      const { error: insErr } = await supabase.from('bsc_event_documents').insert({
+        event_id: eventId,
+        storage_path: storagePath,
+        file_name: file.name,
+        file_size: file.size,
+        mime_type: file.type || null,
+        uploaded_by: user?.id || null,
+      })
+      if (insErr) {
+        // Roll back the storage object
+        await supabase.storage.from('event-documents').remove([storagePath])
+        throw insErr
+      }
+      await fetchDocuments()
+    } catch (err) {
+      setUploadError(err.message || String(err))
+    } finally {
+      setUploading(false)
+      // Reset input so same file can be uploaded again if needed
+      if (e.target) e.target.value = ''
+    }
+  }
+
+  const handleDocumentDownload = async (doc) => {
+    const { data, error: err } = await supabase.storage
+      .from('event-documents')
+      .createSignedUrl(doc.storage_path, 3600)
+    if (err) { alert('Could not generate download link'); return }
+    window.open(data.signedUrl, '_blank')
+  }
+
+  const handleDocumentDelete = async (doc) => {
+    if (!window.confirm(`Delete "${doc.file_name}"? This cannot be undone.`)) return
+    await supabase.storage.from('event-documents').remove([doc.storage_path])
+    const { error: err } = await supabase.from('bsc_event_documents').delete().eq('id', doc.id)
+    if (err) { alert('Error deleting document'); return }
+    setDocuments(prev => prev.filter(d => d.id !== doc.id))
+  }
 
   // Build attendance lookup: user_profile_id → row, OR fallback by lowercase email
   const attendanceByMember = useMemo(() => {
@@ -221,6 +297,60 @@ export default function EventDetail() {
             </button>
           </div>
         </div>
+
+        {/* Session Materials */}
+        <section style={{ ...cardStyle, marginBottom: '1.5rem' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.5rem', marginBottom: '0.75rem' }}>
+            <div>
+              <div style={{ fontSize: '1.05rem', fontWeight: 700, color: 'var(--text-heading)' }}>Session Materials</div>
+              <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                {documents.length === 0 ? 'No documents uploaded yet.' : `${documents.length} document${documents.length === 1 ? '' : 's'}`}
+              </div>
+            </div>
+            {isSuperAdmin && (
+              <label style={{ background: COLORS.teal, color: 'white', padding: '0.45rem 0.9rem', borderRadius: '6px', cursor: uploading ? 'wait' : 'pointer', fontSize: '0.85rem', fontWeight: 500 }}>
+                {uploading ? 'Uploading…' : '+ Upload document'}
+                <input type="file" onChange={handleUpload} disabled={uploading} style={{ display: 'none' }} />
+              </label>
+            )}
+          </div>
+          {uploadError && (
+            <div style={{ background: '#fef2f2', color: '#991b1b', padding: '0.5rem 0.75rem', borderRadius: '6px', fontSize: '0.8rem', marginBottom: '0.5rem' }}>
+              Upload failed: {uploadError}
+            </div>
+          )}
+          {documents.length > 0 && (
+            <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
+              {documents.map(d => (
+                <li key={d.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.75rem', padding: '0.5rem 0', borderTop: '1px solid var(--border)' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', minWidth: 0, flex: 1 }}>
+                    <span style={{ fontSize: '1.1rem' }}>📄</span>
+                    <div style={{ minWidth: 0 }}>
+                      <div style={{ fontWeight: 500, color: 'var(--text-body)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{d.file_name}</div>
+                      <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
+                        {fmtBytes(d.file_size)}
+                        {d.user_profiles?.full_name && <span> · uploaded by {d.user_profiles.full_name}</span>}
+                        {d.created_at && <span> · {new Date(d.created_at).toLocaleDateString()}</span>}
+                      </div>
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', gap: '0.4rem' }}>
+                    <button
+                      onClick={() => handleDocumentDownload(d)}
+                      style={{ background: COLORS.navy, color: 'white', border: 'none', padding: '0.3rem 0.7rem', borderRadius: '6px', cursor: 'pointer', fontSize: '0.78rem' }}
+                    >Download</button>
+                    {isSuperAdmin && (
+                      <button
+                        onClick={() => handleDocumentDelete(d)}
+                        style={{ background: 'transparent', color: COLORS.red, border: `1px solid ${COLORS.red}`, padding: '0.3rem 0.6rem', borderRadius: '6px', cursor: 'pointer', fontSize: '0.78rem' }}
+                      >Delete</button>
+                    )}
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
 
         {/* Per-team roster */}
         {membersByTeam.length === 0 ? (
