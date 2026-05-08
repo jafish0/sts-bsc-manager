@@ -114,9 +114,17 @@ function CreateCollaborativeModal({ onClose, onSuccess }) {
   }, [firstLs?.event_date, lastLs?.event_date])
 
   const addEvent = () => {
+    // Per-program default label + type for the newly-added event row.
+    // (TIC LC and TIPE LC default to "Implementation Session"; STS-BSC and FourC
+    //  default to "All-Team Call".) Defined in programConfig.js.
+    const branding = getProgramBranding(formData.program_type)
+    const { label, event_type } = branding.addEventDefault || { label: 'All-Team Call', event_type: 'all_team_call' }
+    // Number additions independently from pre-populated events: count rows whose
+    // title already starts with this label so successive clicks produce 1, 2, 3...
+    const count = bscEvents.filter(e => typeof e.title === 'string' && e.title.startsWith(label)).length
     const newEvt = {
-      event_type: 'all_team_call',
-      title: `All-Team Call ${bscEvents.filter(e => e.event_type === 'all_team_call').length + 1}`,
+      event_type,
+      title: `${label} ${count + 1}`,
       event_date: '', start_time: '', end_time: '', location: 'Virtual',
       sequence_number: null, locked: false
     }

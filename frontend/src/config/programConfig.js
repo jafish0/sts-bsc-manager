@@ -36,6 +36,10 @@ export const PROGRAM_BRANDING = {
       { event_type: 'all_team_call', title: 'All-Team Call 2', sequence_number: 2 },
       { event_type: 'all_team_call', title: 'All-Team Call 3', sequence_number: 3 },
     ],
+    // Used by the "+ Add Additional Event" button to seed the new row with a
+    // sensible per-program default (label + event_type). The admin can still
+    // change the type/title afterward.
+    addEventDefault: { label: 'All-Team Call', event_type: 'all_team_call' },
   },
   tic_lc: {
     key: 'tic_lc',
@@ -69,6 +73,7 @@ export const PROGRAM_BRANDING = {
       { event_type: 'all_team_call', title: 'Coaching Call 3', sequence_number: 4 },
       { event_type: 'all_team_call', title: 'Coaching Call 4', sequence_number: 5 },
     ],
+    addEventDefault: { label: 'Implementation Session', event_type: 'all_team_call' },
   },
   tipe_lc: {
     key: 'tipe_lc',
@@ -95,6 +100,7 @@ export const PROGRAM_BRANDING = {
       { event_type: 'all_team_call', title: 'Learning Call 2', sequence_number: 2 },
       { event_type: 'all_team_call', title: 'Learning Call 3', sequence_number: 3 },
     ],
+    addEventDefault: { label: 'Implementation Session', event_type: 'all_team_call' },
   },
   fourc: {
     key: 'fourc',
@@ -116,6 +122,7 @@ export const PROGRAM_BRANDING = {
       { event_type: 'learning_session', title: 'Session 2: Cognitive Coping', sequence_number: 2 },
       { event_type: 'learning_session', title: 'Session 3: Connections', sequence_number: 3 },
     ],
+    addEventDefault: { label: 'All-Team Call', event_type: 'all_team_call' },
   },
 }
 
