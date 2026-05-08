@@ -80,6 +80,11 @@ export default function EventDetail() {
   const [coordinatorName, setCoordinatorName] = useState(null)
   // Session evaluations (Phase 6)
   const [evaluations, setEvaluations] = useState([])
+  // Parking Lot — off-topic ideas/questions logged during the session.
+  // Admins-only feature; the row-level RLS already restricts to admins.
+  const [parkingLot, setParkingLot] = useState([])
+  const [parkingLotDraft, setParkingLotDraft] = useState('')
+  const [parkingLotSubmitting, setParkingLotSubmitting] = useState(false)
 
   // 1. Initial load: event, collaborative, teams in collab, all team_members
   useEffect(() => {
@@ -164,9 +169,26 @@ export default function EventDetail() {
 
   useEffect(() => {
     fetchAttendance()
+
+    // Realtime subscription on session_attendance for this event. The 30s
+    // polling fallback stays in place for environments where the websocket
+    // can't connect (and as a periodic re-sync that picks up any events the
+    // channel might have missed during transient drops).
+    const channel = supabase
+      .channel(`session_attendance:${eventId}`)
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'session_attendance', filter: `bsc_event_id=eq.${eventId}` },
+        () => fetchAttendance()
+      )
+      .subscribe()
+
     const id = setInterval(fetchAttendance, ATTENDANCE_REFRESH_MS)
-    return () => clearInterval(id)
-  }, [fetchAttendance])
+    return () => {
+      clearInterval(id)
+      supabase.removeChannel(channel)
+    }
+  }, [fetchAttendance, eventId])
 
   // 3. Documents
   const fetchDocuments = useCallback(async () => {
@@ -180,7 +202,52 @@ export default function EventDetail() {
 
   useEffect(() => { fetchDocuments() }, [fetchDocuments])
 
-  // 4. Evaluations (Phase 6 deep-dive)
+  // 4. Parking lot — off-topic ideas tracked during the session
+  const fetchParkingLot = useCallback(async () => {
+    const { data, error: err } = await supabase
+      .from('event_parking_lot_items')
+      .select('id, body, status, created_at, resolved_at, resolution_notes, created_by, user_profiles:created_by ( full_name )')
+      .eq('event_id', eventId)
+      .order('created_at', { ascending: false })
+    if (!err) setParkingLot(data || [])
+  }, [eventId])
+
+  useEffect(() => { fetchParkingLot() }, [fetchParkingLot])
+
+  const addParkingLotItem = async () => {
+    const body = parkingLotDraft.trim()
+    if (!body) return
+    setParkingLotSubmitting(true)
+    const { error: err } = await supabase.from('event_parking_lot_items').insert({
+      event_id: eventId, body, created_by: user?.id || null,
+    })
+    setParkingLotSubmitting(false)
+    if (err) { alert('Could not add to parking lot: ' + err.message); return }
+    setParkingLotDraft('')
+    await fetchParkingLot()
+  }
+
+  const updateParkingLotStatus = async (id, status) => {
+    const patch = { status }
+    if (status === 'addressed' || status === 'dropped') {
+      patch.resolved_at = new Date().toISOString()
+    } else {
+      patch.resolved_at = null
+    }
+    const { error: err } = await supabase
+      .from('event_parking_lot_items')
+      .update(patch).eq('id', id)
+    if (err) { alert('Could not update item: ' + err.message); return }
+    await fetchParkingLot()
+  }
+
+  const deleteParkingLotItem = async (id) => {
+    if (!window.confirm('Delete this parking lot item?')) return
+    await supabase.from('event_parking_lot_items').delete().eq('id', id)
+    setParkingLot(prev => prev.filter(p => p.id !== id))
+  }
+
+  // 5. Evaluations (Phase 6 deep-dive)
   useEffect(() => {
     let cancelled = false
     ;(async () => {
@@ -407,7 +474,7 @@ export default function EventDetail() {
           </div>
           <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap' }}>
             <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-              Last refresh: {lastRefreshAt ? lastRefreshAt.toLocaleTimeString() : '—'} (auto every 30s)
+              Last refresh: {lastRefreshAt ? lastRefreshAt.toLocaleTimeString() : '—'} <span title="Live via Supabase Realtime — also resyncs every 30s as a safety net" style={{ marginLeft: '0.25rem' }}>● live</span>
             </span>
             <button
               onClick={fetchAttendance}
@@ -695,6 +762,112 @@ export default function EventDetail() {
             <FreeTextBlock heading="What part of the training was most helpful?" responses={evaluations.map(e => e.most_helpful)} />
             <FreeTextBlock heading="What changes would you make to improve this training?" responses={evaluations.map(e => e.improvements)} />
             <FreeTextBlock heading="Additional comments" responses={evaluations.map(e => e.additional_comments)} />
+          </section>
+        )}
+
+        {/* Parking Lot — admin-only off-topic tracker */}
+        {canAdminCollaborative(event?.collaborative_id) && (
+          <section style={{ ...cardStyle, marginTop: '1rem' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.5rem', marginBottom: '0.5rem' }}>
+              <div>
+                <div style={{ fontSize: '1.05rem', fontWeight: 700, color: 'var(--text-heading)' }}>🅿️ Parking Lot</div>
+                <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                  Capture off-topic questions or tangents to revisit on the next call. Admins-only — participants don't see this.
+                </div>
+              </div>
+              <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
+                {parkingLot.filter(p => p.status === 'open').length} open ·{' '}
+                {parkingLot.filter(p => p.status === 'addressed').length} addressed ·{' '}
+                {parkingLot.filter(p => p.status === 'dropped').length} dropped
+              </div>
+            </div>
+
+            {/* Compose */}
+            <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.75rem' }}>
+              <input
+                type="text"
+                value={parkingLotDraft}
+                onChange={(e) => setParkingLotDraft(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Enter') addParkingLotItem() }}
+                placeholder="What just came up that we'll table for later?"
+                disabled={parkingLotSubmitting}
+                style={{
+                  flex: 1, padding: '0.5rem 0.75rem',
+                  border: '1px solid var(--border)', borderRadius: '6px',
+                  background: 'var(--bg-card)', color: 'var(--text-body)',
+                  fontSize: '0.9rem',
+                }}
+              />
+              <button
+                onClick={addParkingLotItem}
+                disabled={parkingLotSubmitting || !parkingLotDraft.trim()}
+                style={{
+                  background: COLORS.teal, color: 'white', border: 'none',
+                  padding: '0.5rem 1rem', borderRadius: '6px',
+                  cursor: parkingLotSubmitting ? 'wait' : 'pointer',
+                  fontSize: '0.85rem', fontWeight: 600,
+                }}
+              >Add</button>
+            </div>
+
+            {/* List */}
+            {parkingLot.length === 0 ? (
+              <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>Nothing here yet.</div>
+            ) : (
+              <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
+                {parkingLot.map(item => (
+                  <li
+                    key={item.id}
+                    style={{
+                      display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between',
+                      gap: '0.5rem', padding: '0.5rem 0',
+                      borderTop: '1px solid var(--border)',
+                      opacity: item.status === 'open' ? 1 : 0.6,
+                    }}
+                  >
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{
+                        fontSize: '0.9rem', color: 'var(--text-body)',
+                        textDecoration: item.status === 'dropped' ? 'line-through' : 'none',
+                      }}>{item.body}</div>
+                      <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>
+                        {item.user_profiles?.full_name || 'Unknown'}
+                        {' · '}{new Date(item.created_at).toLocaleString()}
+                        {' · '}<strong>{item.status}</strong>
+                      </div>
+                    </div>
+                    <div style={{ display: 'flex', gap: '0.3rem', flexShrink: 0 }}>
+                      {item.status !== 'addressed' && (
+                        <button
+                          onClick={() => updateParkingLotStatus(item.id, 'addressed')}
+                          title="Mark as addressed"
+                          style={{ background: 'transparent', color: '#16a34a', border: '1px solid #16a34a', padding: '0.2rem 0.5rem', borderRadius: '4px', cursor: 'pointer', fontSize: '0.72rem' }}
+                        >✓</button>
+                      )}
+                      {item.status !== 'dropped' && (
+                        <button
+                          onClick={() => updateParkingLotStatus(item.id, 'dropped')}
+                          title="Drop"
+                          style={{ background: 'transparent', color: 'var(--text-muted)', border: '1px solid var(--border)', padding: '0.2rem 0.5rem', borderRadius: '4px', cursor: 'pointer', fontSize: '0.72rem' }}
+                        >✕</button>
+                      )}
+                      {item.status !== 'open' && (
+                        <button
+                          onClick={() => updateParkingLotStatus(item.id, 'open')}
+                          title="Reopen"
+                          style={{ background: 'transparent', color: COLORS.navy, border: `1px solid ${COLORS.navy}`, padding: '0.2rem 0.5rem', borderRadius: '4px', cursor: 'pointer', fontSize: '0.72rem' }}
+                        >↺</button>
+                      )}
+                      <button
+                        onClick={() => deleteParkingLotItem(item.id)}
+                        title="Delete"
+                        style={{ background: 'transparent', color: COLORS.red, border: 'none', padding: '0.2rem 0.4rem', cursor: 'pointer', fontSize: '0.85rem' }}
+                      >🗑</button>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            )}
           </section>
         )}
 

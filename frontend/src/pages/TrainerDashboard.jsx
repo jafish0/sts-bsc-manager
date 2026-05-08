@@ -52,6 +52,8 @@ export default function TrainerDashboard() {
   const [recentEvalSessions, setRecentEvalSessions] = useState([])  // sessions with at least 1 evaluation, newest first
   const [showAllEvaluations, setShowAllEvaluations] = useState(false)
   const [evalSearch, setEvalSearch] = useState('')
+  const [brightSpots, setBrightSpots] = useState([])  // completed SMARTIE goals across teams in my collabs
+  const [disengagedTeams, setDisengagedTeams] = useState([])  // teams idle 14+ days
 
   useEffect(() => {
     if (!user?.id) return
@@ -146,6 +148,72 @@ export default function TrainerDashboard() {
         }))
         .sort((a, b) => (b.event_date || '').localeCompare(a.event_date || ''))
       setRecentEvalSessions(sessions)
+
+      // 4. Teams in my collabs (used for bright spots + disengagement)
+      const { data: teamsInMyCollabs } = await supabase
+        .from('teams')
+        .select('id, team_name, agency_name, collaborative_id')
+        .in('collaborative_id', collabIds)
+      const teamIds = (teamsInMyCollabs || []).map(t => t.id)
+      const teamById = Object.fromEntries((teamsInMyCollabs || []).map(t => [t.id, t]))
+
+      // 5. Bright Spots — completed SMARTIE goals across my teams, newest first.
+      if (teamIds.length > 0) {
+        const { data: completedGoals } = await supabase
+          .from('smartie_goals')
+          .select('id, team_id, what_specific, completed_at, status, created_at')
+          .in('team_id', teamIds)
+          .eq('status', 'completed')
+          .order('completed_at', { ascending: false, nullsFirst: false })
+          .limit(20)
+        if (!cancelled) {
+          setBrightSpots((completedGoals || []).map(g => ({
+            ...g,
+            team: teamById[g.team_id],
+            collaborative_name: collabById[teamById[g.team_id]?.collaborative_id]?.name || '',
+          })))
+        }
+      }
+
+      // 6. Disengagement — teams whose latest activity is older than 14 days.
+      // "Activity" = max(created_at) across smartie_goals, pdsa_cycles, checklist_items.completed_at,
+      // sts_pat_assessments.created_at. We approximate with smartie_goals + pdsa_cycles since
+      // those are the most user-driven and the data shape is uniform.
+      if (teamIds.length > 0) {
+        const fourteenAgo = new Date(Date.now() - 14 * 24 * 60 * 60 * 1000).toISOString()
+
+        const [goals, cycles] = await Promise.all([
+          supabase.from('smartie_goals').select('team_id, created_at').in('team_id', teamIds),
+          supabase.from('pdsa_cycles').select('team_id, created_at').in('team_id', teamIds),
+        ])
+        const lastByTeam = new Map()
+        const update = (rows) => (rows || []).forEach(r => {
+          const t = lastByTeam.get(r.team_id)
+          if (!t || (r.created_at && r.created_at > t)) lastByTeam.set(r.team_id, r.created_at)
+        })
+        update(goals.data)
+        update(cycles.data)
+
+        const flagged = (teamsInMyCollabs || [])
+          .map(t => ({ ...t, last_activity_at: lastByTeam.get(t.id) || null }))
+          .filter(t => !t.last_activity_at || t.last_activity_at < fourteenAgo)
+          .map(t => ({
+            ...t,
+            collaborative_name: collabById[t.collaborative_id]?.name || '',
+            days_idle: t.last_activity_at
+              ? Math.floor((Date.now() - new Date(t.last_activity_at).getTime()) / (24 * 60 * 60 * 1000))
+              : null,
+          }))
+          .sort((a, b) => {
+            // Teams with no activity first, then by oldest activity
+            if (a.last_activity_at == null && b.last_activity_at != null) return -1
+            if (a.last_activity_at != null && b.last_activity_at == null) return 1
+            return (a.last_activity_at || '').localeCompare(b.last_activity_at || '')
+          })
+
+        if (!cancelled) setDisengagedTeams(flagged)
+      }
+
       setLoading(false)
     }
 
@@ -392,6 +460,111 @@ export default function TrainerDashboard() {
                 </>
               )}
             </section>
+
+            {/* Bright Spots — completed goals across my teams */}
+            {brightSpots.length > 0 && (
+              <section style={{ ...cardStyle, marginBottom: '1.5rem' }}>
+                <div style={cardHeaderStyle}>
+                  ✨ Bright Spots
+                  <span style={{ fontWeight: 400, fontSize: '0.85rem', color: 'var(--text-muted)', marginLeft: '0.5rem' }}>
+                    completed goals you can ask teams to share
+                  </span>
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', marginTop: '0.5rem' }}>
+                  {brightSpots.slice(0, 8).map(g => (
+                    <div
+                      key={g.id}
+                      style={{
+                        padding: '0.6rem 0.85rem',
+                        border: '1px solid var(--border-light)',
+                        borderLeft: '4px solid #16a34a',
+                        borderRadius: '6px',
+                        background: 'var(--bg-card)',
+                        display: 'grid',
+                        gridTemplateColumns: '1fr auto',
+                        gap: '0.5rem',
+                      }}
+                    >
+                      <div>
+                        <div style={{ fontSize: '0.9rem', fontWeight: 500, color: 'var(--text-body)' }}>
+                          {g.what_specific || 'Goal'}
+                        </div>
+                        <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                          {g.team?.team_name || g.team?.agency_name || 'Unknown team'}
+                          {g.collaborative_name && ` · ${g.collaborative_name}`}
+                          {g.completed_at && ` · completed ${new Date(g.completed_at).toLocaleDateString()}`}
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => navigate(`/admin/smartie-goals/${g.team_id}`)}
+                        style={{
+                          background: 'transparent', color: COLORS.navy,
+                          border: `1px solid ${COLORS.navy}`,
+                          padding: '0.3rem 0.7rem', borderRadius: '4px',
+                          cursor: 'pointer', fontSize: '0.78rem', alignSelf: 'center',
+                        }}
+                      >View</button>
+                    </div>
+                  ))}
+                </div>
+              </section>
+            )}
+
+            {/* Disengagement Alerts — teams with no activity in 14+ days */}
+            {disengagedTeams.length > 0 && (
+              <section style={{ ...cardStyle, marginBottom: '1.5rem' }}>
+                <div style={cardHeaderStyle}>
+                  ⚠️ Teams that may need a nudge
+                  <span style={{ fontWeight: 400, fontSize: '0.85rem', color: 'var(--text-muted)', marginLeft: '0.5rem' }}>
+                    no goal/PDSA activity in 14+ days
+                  </span>
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', marginTop: '0.5rem' }}>
+                  {disengagedTeams.map(t => (
+                    <div
+                      key={t.id}
+                      style={{
+                        padding: '0.6rem 0.85rem',
+                        border: '1px solid var(--border-light)',
+                        borderLeft: '4px solid #f59e0b',
+                        borderRadius: '6px',
+                        background: 'var(--bg-card)',
+                        display: 'grid',
+                        gridTemplateColumns: '1fr auto auto',
+                        gap: '0.5rem',
+                        alignItems: 'center',
+                      }}
+                    >
+                      <div>
+                        <div style={{ fontSize: '0.9rem', fontWeight: 500 }}>
+                          {t.team_name || t.agency_name}
+                        </div>
+                        <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                          {t.agency_name}
+                          {t.collaborative_name && ` · ${t.collaborative_name}`}
+                        </div>
+                      </div>
+                      <span style={{
+                        fontSize: '0.75rem', color: '#92400e',
+                        background: '#fef3c7', borderRadius: '999px',
+                        padding: '0.15rem 0.55rem', fontWeight: 600,
+                      }}>
+                        {t.last_activity_at == null ? 'no activity' : `${t.days_idle}d idle`}
+                      </span>
+                      <button
+                        onClick={() => navigate(`/admin/team-report/${t.id}`)}
+                        style={{
+                          background: 'transparent', color: COLORS.navy,
+                          border: `1px solid ${COLORS.navy}`,
+                          padding: '0.3rem 0.7rem', borderRadius: '4px',
+                          cursor: 'pointer', fontSize: '0.78rem',
+                        }}
+                      >Open</button>
+                    </div>
+                  ))}
+                </div>
+              </section>
+            )}
           </>
         )}
       </div>

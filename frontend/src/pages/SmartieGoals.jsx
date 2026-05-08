@@ -27,6 +27,9 @@ export default function SmartieGoals() {
   const [expandedGoal, setExpandedGoal] = useState(null)
   const [userProfile, setUserProfile] = useState(null)
   const [cyclesByGoal, setCyclesByGoal] = useState({})
+  // Trainer feedback comments on goals: { [goalId]: [{ id, body, created_at, created_by, user_profiles:{full_name} }] }
+  const [commentsByGoal, setCommentsByGoal] = useState({})
+  const [commentDrafts, setCommentDrafts] = useState({})
   const [queuedGoals, setQueuedGoals] = useState([])
   const [showQueued, setShowQueued] = useState(false)
   const [reviewIndex, setReviewIndex] = useState(0)
@@ -115,6 +118,51 @@ export default function SmartieGoals() {
       return
     }
     setGoals(data || [])
+
+    // Bulk-load trainer feedback comments for these goals (one query, group client-side).
+    const goalIds = (data || []).map(g => g.id)
+    if (goalIds.length > 0) {
+      const { data: cmts } = await supabase
+        .from('smartie_goal_comments')
+        .select('id, goal_id, body, created_at, created_by, user_profiles:created_by ( full_name )')
+        .in('goal_id', goalIds)
+        .order('created_at', { ascending: true })
+      const grouped = {}
+      ;(cmts || []).forEach(c => {
+        if (!grouped[c.goal_id]) grouped[c.goal_id] = []
+        grouped[c.goal_id].push(c)
+      })
+      setCommentsByGoal(grouped)
+    } else {
+      setCommentsByGoal({})
+    }
+  }
+
+  const submitComment = async (goalId) => {
+    const body = (commentDrafts[goalId] || '').trim()
+    if (!body) return
+    const { data: inserted, error } = await supabase
+      .from('smartie_goal_comments')
+      .insert({ goal_id: goalId, body, created_by: user?.id || null })
+      .select('id, goal_id, body, created_at, created_by, user_profiles:created_by ( full_name )')
+      .single()
+    if (error) { alert('Could not post comment: ' + error.message); return }
+    setCommentsByGoal(prev => ({
+      ...prev,
+      [goalId]: [...(prev[goalId] || []), inserted],
+    }))
+    setCommentDrafts(prev => ({ ...prev, [goalId]: '' }))
+  }
+
+  const deleteComment = async (goalId, commentId) => {
+    if (!window.confirm('Delete this comment?')) return
+    const { error } = await supabase
+      .from('smartie_goal_comments').delete().eq('id', commentId)
+    if (error) { alert('Could not delete: ' + error.message); return }
+    setCommentsByGoal(prev => ({
+      ...prev,
+      [goalId]: (prev[goalId] || []).filter(c => c.id !== commentId),
+    }))
   }
 
   const handleSave = async (formData) => {
@@ -544,6 +592,78 @@ export default function SmartieGoals() {
                     </div>
                   ) : (
                     <p style={{ margin: 0, fontSize: '0.8rem', color: 'var(--text-faint)' }}>No PDSA cycles yet</p>
+                  )}
+                </div>
+              )
+            })()}
+
+            {/* Trainer feedback comments */}
+            {(() => {
+              const cmts = commentsByGoal[goal.id] || []
+              const showCompose = isAdminHere
+              if (!showCompose && cmts.length === 0) return null
+              return (
+                <div style={{ marginTop: '1rem', paddingTop: '0.75rem', borderTop: '1px solid var(--border)' }}>
+                  <strong style={{ fontSize: '0.85rem', color: COLORS.navy }}>
+                    💬 Trainer Feedback
+                    {cmts.length > 0 && <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginLeft: '0.4rem' }}>({cmts.length})</span>}
+                  </strong>
+
+                  {cmts.length > 0 && (
+                    <ul style={{ listStyle: 'none', padding: 0, margin: '0.5rem 0 0' }}>
+                      {cmts.map(c => (
+                        <li
+                          key={c.id}
+                          style={{
+                            padding: '0.5rem 0.75rem', marginBottom: '0.4rem',
+                            background: 'var(--bg-card-alt)', borderRadius: '6px',
+                            borderLeft: `3px solid ${COLORS.teal}`,
+                          }}
+                        >
+                          <div style={{ fontSize: '0.85rem', color: 'var(--text-body)', whiteSpace: 'pre-wrap' }}>
+                            {c.body}
+                          </div>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '0.25rem' }}>
+                            <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>
+                              {c.user_profiles?.full_name || 'Unknown'} · {new Date(c.created_at).toLocaleDateString()}
+                            </span>
+                            {c.created_by === user?.id && (
+                              <button
+                                onClick={() => deleteComment(goal.id, c.id)}
+                                style={{ background: 'transparent', color: COLORS.red, border: 'none', cursor: 'pointer', fontSize: '0.72rem' }}
+                              >Delete</button>
+                            )}
+                          </div>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+
+                  {showCompose && (
+                    <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.5rem' }}>
+                      <textarea
+                        value={commentDrafts[goal.id] || ''}
+                        onChange={(e) => setCommentDrafts(prev => ({ ...prev, [goal.id]: e.target.value }))}
+                        placeholder="Add coaching feedback for this team…"
+                        rows={2}
+                        style={{
+                          flex: 1, padding: '0.5rem 0.75rem',
+                          border: '1px solid var(--border)', borderRadius: '6px',
+                          background: 'var(--bg-card)', color: 'var(--text-body)',
+                          fontSize: '0.85rem', resize: 'vertical', fontFamily: 'inherit',
+                        }}
+                      />
+                      <button
+                        onClick={() => submitComment(goal.id)}
+                        disabled={!(commentDrafts[goal.id] || '').trim()}
+                        style={{
+                          background: COLORS.teal, color: 'white', border: 'none',
+                          padding: '0.5rem 1rem', borderRadius: '6px',
+                          cursor: 'pointer', fontSize: '0.85rem', fontWeight: 600,
+                          alignSelf: 'flex-start',
+                        }}
+                      >Post</button>
+                    </div>
                   )}
                 </div>
               )
