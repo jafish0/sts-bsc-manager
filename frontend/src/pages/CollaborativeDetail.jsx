@@ -65,7 +65,7 @@ export default function CollaborativeDetail() {
   const [showAddEvent, setShowAddEvent] = useState(false)
   const [newEvent, setNewEvent] = useState({
     event_type: 'learning_session', title: '', event_date: '',
-    start_time: '', end_time: '', location: 'Virtual'
+    start_time: '', end_time: '', location: 'Virtual', zoom_link: ''
   })
 
   // Session link & report state
@@ -297,12 +297,13 @@ export default function CollaborativeDetail() {
         start_time: newEvent.start_time || null,
         end_time: newEvent.end_time || null,
         location: newEvent.location || null,
+        zoom_link: newEvent.zoom_link?.trim() || null,
         audience: typeInfo?.audience || 'all_teams',
         sequence_number: newEvent.event_type === 'learning_session' ? lsCount + 1 : null
       })
     if (error) { alert('Error adding event: ' + error.message); return }
     setShowAddEvent(false)
-    setNewEvent({ event_type: 'learning_session', title: '', event_date: '', start_time: '', end_time: '', location: 'Virtual' })
+    setNewEvent({ event_type: 'learning_session', title: '', event_date: '', start_time: '', end_time: '', location: 'Virtual', zoom_link: '' })
     fetchEvents()
   }
 
@@ -789,6 +790,9 @@ export default function CollaborativeDetail() {
                 <input type="text" value={newEvent.location} onChange={(e) => setNewEvent({ ...newEvent, location: e.target.value })}
                   placeholder="Location" style={{ padding: '0.5rem', border: '1px solid #e5e7eb', borderRadius: '6px', fontSize: '0.85rem' }} />
               </div>
+              <input type="url" value={newEvent.zoom_link} onChange={(e) => setNewEvent({ ...newEvent, zoom_link: e.target.value })}
+                placeholder="Zoom link (optional) — https://zoom.us/j/..."
+                style={{ width: '100%', padding: '0.5rem', border: '1px solid #e5e7eb', borderRadius: '6px', fontSize: '0.85rem', marginBottom: '0.75rem', boxSizing: 'border-box' }} />
               <button onClick={handleAddEvent} style={{
                 background: '#00A79D', color: 'white', border: 'none', borderRadius: '6px',
                 padding: '0.5rem 1.25rem', cursor: 'pointer', fontWeight: '600', fontSize: '0.85rem'
@@ -829,6 +833,18 @@ export default function CollaborativeDetail() {
                           {evt.start_time && ` at ${evt.start_time.slice(0,5)}`}
                         </span>
                         {evt.location && <span style={{ color: '#9ca3af', fontSize: '0.8rem' }}>({evt.location})</span>}
+                        {evt.zoom_link && (
+                          <a
+                            href={evt.zoom_link}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            style={{
+                              background: '#2563eb', color: 'white', textDecoration: 'none',
+                              padding: '0.15rem 0.5rem', borderRadius: '4px',
+                              fontSize: '0.7rem', fontWeight: '600',
+                            }}
+                          >🎦 Join Zoom</a>
+                        )}
                         {isLS && attCount > 0 && (
                           <span style={{ background: '#d1fae5', color: '#166534', padding: '0.1rem 0.4rem', borderRadius: '4px', fontSize: '0.7rem', fontWeight: '600' }}>
                             {attCount} attended

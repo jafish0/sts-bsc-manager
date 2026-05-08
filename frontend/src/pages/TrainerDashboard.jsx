@@ -92,7 +92,7 @@ export default function TrainerDashboard() {
 
       const { data: events } = await supabase
         .from('bsc_events')
-        .select('id, collaborative_id, event_type, title, event_date, start_time, end_time, location')
+        .select('id, collaborative_id, event_type, title, event_date, start_time, end_time, location, zoom_link')
         .in('collaborative_id', collabIds)
         .gte('event_date', todayStr)
         .lte('event_date', futureStr)
@@ -276,7 +276,22 @@ export default function TrainerDashboard() {
                         <div style={{ fontWeight: 600 }}>{ev.title} {PROGRAM_BADGE(ev.program_type)}</div>
                         <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>{ev.collaborative_name}{ev.location ? ` · ${ev.location}` : ''}</div>
                       </div>
-                      <div style={{ color: COLORS.teal, fontSize: '1.2rem' }}>›</div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                        {ev.zoom_link && (
+                          <a
+                            href={ev.zoom_link}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            onClick={(e) => e.stopPropagation()}
+                            style={{
+                              background: '#2563eb', color: 'white', textDecoration: 'none',
+                              padding: '0.25rem 0.55rem', borderRadius: '4px',
+                              fontSize: '0.7rem', fontWeight: 600,
+                            }}
+                          >🎦 Zoom</a>
+                        )}
+                        <span style={{ color: COLORS.teal, fontSize: '1.2rem' }}>›</span>
+                      </div>
                     </button>
                   ))}
                 </div>

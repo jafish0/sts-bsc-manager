@@ -7,6 +7,7 @@ import { getProgramBranding } from '../config/programConfig'
 import { calculatePhase, PHASES, getPhaseGuidance, phaseToChecklistKey } from '../utils/phaseCalculator'
 import { detectChecklistCompletion } from '../utils/checklistAutoDetect'
 import AttendanceReport from '../components/AttendanceReport'
+import AgendaBanner from '../components/AgendaBanner'
 
 export default function TeamDashboard() {
   const navigate = useNavigate()
@@ -155,7 +156,7 @@ export default function TeamDashboard() {
         // Load Session Materials (event documents) for this collaborative
         const { data: docData } = await supabase
           .from('bsc_event_documents')
-          .select('id, file_name, file_size, mime_type, storage_path, created_at, bsc_events!inner ( id, title, event_date, collaborative_id )')
+          .select('id, file_name, file_size, mime_type, storage_path, document_type, created_at, bsc_events!inner ( id, title, event_date, collaborative_id )')
           .eq('bsc_events.collaborative_id', teamData.collaboratives.id)
           .order('created_at', { ascending: false })
         setSessionMaterials(docData || [])
@@ -405,6 +406,22 @@ export default function TeamDashboard() {
       {/* Dashboard Content */}
       <div style={{ maxWidth: '1200px', margin: '2rem auto', padding: '0 1rem' }}>
 
+        {/* Agenda banner for the next event, if an admin has uploaded one */}
+        {phaseInfo?.nextEvent && (() => {
+          const nextEventAgenda = sessionMaterials.find(
+            d => d.document_type === 'agenda' && d.bsc_events?.id === phaseInfo.nextEvent.id
+          )
+          if (!nextEventAgenda) return null
+          return (
+            <AgendaBanner
+              agenda={nextEventAgenda}
+              eventTitle={phaseInfo.nextEvent.title}
+              eventDate={new Date(phaseInfo.nextEvent.event_date + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+              onDownload={handleMaterialDownload}
+            />
+          )
+        })()}
+
         {/* Phase Timeline Banner */}
         {phaseInfo && (
           <div style={{
@@ -448,6 +465,19 @@ export default function TeamDashboard() {
                       </span>
                     )}
                   </div>
+                  {phaseInfo.nextEvent.zoom_link && (
+                    <a
+                      href={phaseInfo.nextEvent.zoom_link}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      style={{
+                        display: 'inline-block', marginTop: '0.4rem',
+                        background: '#2563eb', color: 'white', textDecoration: 'none',
+                        padding: '0.3rem 0.7rem', borderRadius: '5px',
+                        fontSize: '0.75rem', fontWeight: 600,
+                      }}
+                    >🎦 Join Zoom</a>
+                  )}
                 </div>
               )}
             </div>

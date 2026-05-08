@@ -8,6 +8,7 @@ import { useAuth } from '../contexts/AuthContext'
 import { COLORS, cardStyle, cardHeaderStyle } from '../utils/constants'
 import { PROGRAM_TYPE_COLORS } from '../config/programConfig'
 import { exportEvaluationReportPdf } from '../utils/exportEvaluationPdf'
+import AgendaBanner from '../components/AgendaBanner'
 
 const ATTENDANCE_REFRESH_MS = 30000
 
@@ -171,7 +172,7 @@ export default function EventDetail() {
   const fetchDocuments = useCallback(async () => {
     const { data, error: err } = await supabase
       .from('bsc_event_documents')
-      .select('id, file_name, file_size, mime_type, storage_path, created_at, uploaded_by, user_profiles:uploaded_by ( full_name )')
+      .select('id, file_name, file_size, mime_type, storage_path, document_type, created_at, uploaded_by, user_profiles:uploaded_by ( full_name )')
       .eq('event_id', eventId)
       .order('created_at', { ascending: false })
     if (!err) setDocuments(data || [])
@@ -223,8 +224,10 @@ export default function EventDetail() {
     return Math.round(((promoters - detractors) / scores.length) * 100)
   }, [evaluations])
 
-  const handleUpload = async (e) => {
-    const file = e.target.files?.[0]
+  // Upload one file to Supabase Storage + insert the bsc_event_documents row.
+  // documentType: 'general' (default) or 'agenda' — agendas get surfaced in
+  // a banner on participant dashboards.
+  const uploadFile = async (file, documentType = 'general') => {
     if (!file) return
     setUploadError(null)
     setUploading(true)
@@ -242,10 +245,10 @@ export default function EventDetail() {
         file_name: file.name,
         file_size: file.size,
         mime_type: file.type || null,
+        document_type: documentType,
         uploaded_by: user?.id || null,
       })
       if (insErr) {
-        // Roll back the storage object
         await supabase.storage.from('event-documents').remove([storagePath])
         throw insErr
       }
@@ -254,9 +257,35 @@ export default function EventDetail() {
       setUploadError(err.message || String(err))
     } finally {
       setUploading(false)
-      // Reset input so same file can be uploaded again if needed
-      if (e.target) e.target.value = ''
     }
+  }
+
+  // Upload many files in sequence (drag-drop or multi-select).
+  const uploadFiles = async (files, documentType = 'general') => {
+    for (const file of files) {
+      // Sequential — keeps the spinner state honest and avoids storage rate limits.
+      // eslint-disable-next-line no-await-in-loop
+      await uploadFile(file, documentType)
+    }
+  }
+
+  // Wrapper for <input onChange={...}> (supports multi-select).
+  const handleUpload = async (e, documentType = 'general') => {
+    const files = Array.from(e.target.files || [])
+    if (files.length === 0) return
+    await uploadFiles(files, documentType)
+    if (e.target) e.target.value = ''
+  }
+
+  // Drag-and-drop wiring
+  const [dragActive, setDragActive] = useState(false)
+  const onDragOver = (e) => { e.preventDefault(); setDragActive(true) }
+  const onDragLeave = (e) => { e.preventDefault(); setDragActive(false) }
+  const onDrop = async (e) => {
+    e.preventDefault()
+    setDragActive(false)
+    const files = Array.from(e.dataTransfer?.files || [])
+    if (files.length > 0) await uploadFiles(files, 'general')
   }
 
   const handleDocumentDownload = async (doc) => {
@@ -340,6 +369,19 @@ export default function EventDetail() {
                 {event.location && <span> · {event.location}</span>}
                 {collaborative?.name && <span> · {collaborative.name}</span>}
               </p>
+              {event.zoom_link && (
+                <a
+                  href={event.zoom_link}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={{
+                    display: 'inline-block', marginTop: '0.5rem',
+                    background: '#2563eb', color: 'white', textDecoration: 'none',
+                    padding: '0.4rem 0.85rem', borderRadius: '6px',
+                    fontSize: '0.85rem', fontWeight: 600,
+                  }}
+                >🎦 Join Zoom</a>
+              )}
             </div>
           </div>
         </div>
@@ -386,6 +428,15 @@ export default function EventDetail() {
           </div>
         </div>
 
+        {/* Agenda banner — collapsible, surfaced on team dashboards too */}
+        {documents.some(d => d.document_type === 'agenda') && (
+          <AgendaBanner
+            agenda={documents.find(d => d.document_type === 'agenda')}
+            onDownload={handleDocumentDownload}
+            onDelete={canAdminCollaborative(event?.collaborative_id) ? handleDocumentDelete : null}
+          />
+        )}
+
         {/* Session Materials */}
         <section style={{ ...cardStyle, marginBottom: '1.5rem' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.5rem', marginBottom: '0.75rem' }}>
@@ -396,12 +447,43 @@ export default function EventDetail() {
               </div>
             </div>
             {canAdminCollaborative(event?.collaborative_id) && (
-              <label style={{ background: COLORS.teal, color: 'white', padding: '0.45rem 0.9rem', borderRadius: '6px', cursor: uploading ? 'wait' : 'pointer', fontSize: '0.85rem', fontWeight: 500 }}>
-                {uploading ? 'Uploading…' : '+ Upload document'}
-                <input type="file" onChange={handleUpload} disabled={uploading} style={{ display: 'none' }} />
-              </label>
+              <div style={{ display: 'flex', gap: '0.5rem' }}>
+                <label style={{ background: '#0E1F56', color: 'white', padding: '0.45rem 0.9rem', borderRadius: '6px', cursor: uploading ? 'wait' : 'pointer', fontSize: '0.85rem', fontWeight: 500 }}>
+                  {uploading ? 'Uploading…' : '📋 Upload agenda'}
+                  <input type="file" onChange={(e) => handleUpload(e, 'agenda')} disabled={uploading} style={{ display: 'none' }} />
+                </label>
+                <label style={{ background: COLORS.teal, color: 'white', padding: '0.45rem 0.9rem', borderRadius: '6px', cursor: uploading ? 'wait' : 'pointer', fontSize: '0.85rem', fontWeight: 500 }}>
+                  {uploading ? 'Uploading…' : '+ Upload material'}
+                  <input type="file" multiple onChange={handleUpload} disabled={uploading} style={{ display: 'none' }} />
+                </label>
+              </div>
             )}
           </div>
+
+          {/* Drag-and-drop zone (admins only) */}
+          {canAdminCollaborative(event?.collaborative_id) && (
+            <div
+              onDragOver={onDragOver}
+              onDragLeave={onDragLeave}
+              onDrop={onDrop}
+              style={{
+                border: `2px dashed ${dragActive ? COLORS.teal : 'var(--border)'}`,
+                background: dragActive ? `${COLORS.teal}10` : 'transparent',
+                borderRadius: '8px',
+                padding: '1rem',
+                marginBottom: '0.75rem',
+                textAlign: 'center',
+                fontSize: '0.85rem',
+                color: 'var(--text-muted)',
+                transition: 'all 0.15s',
+              }}
+            >
+              {dragActive
+                ? 'Drop to upload'
+                : 'Drag and drop files here to upload as session materials'}
+            </div>
+          )}
+
           {uploadError && (
             <div style={{ background: '#fef2f2', color: '#991b1b', padding: '0.5rem 0.75rem', borderRadius: '6px', fontSize: '0.8rem', marginBottom: '0.5rem' }}>
               Upload failed: {uploadError}
