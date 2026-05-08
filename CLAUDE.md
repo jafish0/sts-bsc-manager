@@ -4,6 +4,8 @@
 Web app for managing Secondary Traumatic Stress Breakthrough Series Collaboratives. Built for CTAC (Center on Trauma and Children) at the University of Kentucky. Collects assessments from frontline workers, provides dashboards/reports for team leaders, and admin tools for CTAC staff.
 
 > **See [`INFRASTRUCTURE.md`](INFRASTRUCTURE.md)** for the live production stack — domains, DNS, email pipeline, hosting, and operational gotchas. Update that doc when infrastructure changes.
+>
+> **See [`WORKING_NOTES.md`](WORKING_NOTES.md)** for a running log of recently shipped features (so you don't have to re-read git log) and a drafts section where Josh + Claude Code can hand off prompts to Claude.ai for implementation. Append-only — read it on session start, append to it as features ship or ideas crystallize.
 
 ## Tech Stack
 - **Frontend:** React 19 + Vite, inline styles (no CSS framework), Recharts for charts
