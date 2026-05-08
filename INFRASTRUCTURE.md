@@ -122,6 +122,7 @@ Authentication → URL Configuration:
 
 ## Open follow-ups
 
+- **Roster modal: admin "cancel registration" doesn't trigger waitlist promotion.** In `frontend/src/components/RegistrationRosterModal.jsx`, the `cancelRegistrationAdmin` handler currently does a direct `supabase.from('event_registrations').update({ status: 'cancelled', cancelled_at })`. That marks the row cancelled but doesn't auto-promote the top waitlister or send the cancellation/promotion emails — unlike the public `/cancel-registration/:token` flow which calls the `cancel-registration` edge function. **One-line fix:** swap the direct UPDATE for a `fetch('/functions/v1/cancel-registration', { body: JSON.stringify({ cancel_token: row.cancel_token }) })` call (the row's `cancel_token` is already in the SELECT). Worth doing before relying on this in production with a real waitlist.
 - **Store the service-role key in Vault for reminder cron jobs.** The pg_cron jobs `day-before-reminders` and `week-before-reminders` call the `send-event-reminder` edge function via `pg_net.http_post` and need to authenticate as service-role. Until the key is stored, the cron functions log a NOTICE and silently no-op (they will not fail). To enable:
   ```sql
   -- In Supabase SQL editor, with the secret key copied from Project Settings → API:
