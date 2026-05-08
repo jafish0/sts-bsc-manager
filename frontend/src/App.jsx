@@ -42,6 +42,7 @@ import RsvpPage from './pages/RsvpPage'
 import UnsubscribePage from './pages/UnsubscribePage'
 import RegisterPage from './pages/RegisterPage'
 import CancelRegistrationPage from './pages/CancelRegistrationPage'
+import RegistrationsAdmin from './pages/RegistrationsAdmin'
 
 // Detect invite/recovery tokens in URL hash and redirect to /set-password
 function AuthRedirectHandler() {
@@ -138,6 +139,11 @@ function App() {
           <Route path="/admin/event/:eventId" element={
             <ProtectedRoute>
               <EventDetail />
+            </ProtectedRoute>
+          } />
+          <Route path="/admin/registrations" element={
+            <ProtectedRoute>
+              <RegistrationsAdmin />
             </ProtectedRoute>
           } />
           <Route path="/admin/smartie-goals/:teamId" element={
