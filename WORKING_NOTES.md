@@ -42,4 +42,4 @@ A bidirectional scratchpad shared between Josh, Claude Cowork (Claude desktop ch
 
 <!-- Add new drafts BELOW this line, newest at the bottom so Claude Code works through them in submission order. -->
 
-_(none — most recent draft "Polish batch from Dr. Sprang's demo feedback" shipped 2026-05-08 across `0d284cb`, `913a076`, `646616f`, `3f47132`. Full draft preserved in git history; run `git log --all -p -- WORKING_NOTES.md` to recover the original spec text.)_
+_(none — most recent draft "Polish batch from Dr. Sprang's demo feedback" shipped 2026-05-08 across `0d284cb`, `913a076`, `646616f`, `3f47132`. **Note for next time:** that draft was edited into the working tree without being committed first, so it isn't recoverable from `git log` — the four commit messages above are the only persisted record. Going forward, drafts should be committed to `WORKING_NOTES.md` when added, not just before they ship, so the spec text survives in git history.)_
