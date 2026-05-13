@@ -122,6 +122,19 @@ Authentication → URL Configuration:
 
 ## Open follow-ups
 
+- **2026-10-30 Supabase Data API grants change.** Supabase is removing the auto-grant of new `public`-schema tables to the Data API roles (`anon`, `authenticated`, `service_role`). **Existing tables keep their grants** — verified via audit on 2026-05-08 that all 41 public tables in this project are fully granted on all three roles, so nothing in production breaks at the cutover. The forward-looking change matters: every new `apply_migration` creating a `public` table that `supabase-js` (PostgREST / GraphQL / Realtime) touches must include explicit `GRANT` statements alongside RLS, otherwise `42501` errors. Pattern documented in `CLAUDE.md` → "Future migrations: explicit Data API grants" section. Re-run this audit query at any point to confirm current state:
+  ```sql
+  SELECT c.relname AS table_name,
+         COALESCE(string_agg(DISTINCT
+           CASE WHEN g.grantee IN ('anon','authenticated','service_role')
+                THEN g.grantee || ':' || g.privilege_type END, ', '), '(none)') AS data_api_grants
+  FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
+  LEFT JOIN information_schema.role_table_grants g
+    ON g.table_schema = n.nspname AND g.table_name = c.relname
+   AND g.grantee IN ('anon','authenticated','service_role')
+  WHERE n.nspname = 'public' AND c.relkind = 'r'
+  GROUP BY c.relname ORDER BY c.relname;
+  ```
 - **Registration capacity decrease guard not enforced.** The spec called for blocking capacity reductions below the current registered count ("Cannot reduce capacity below current registered count (N). Cancel registrations first to free room."). The `RegistrationLinkModal.jsx` save handler currently accepts any positive integer for capacity, including values smaller than the existing registered count. **Fix:** in `handleSave()` after building `payload`, if `editingLink && payload.capacity != null`, query `event_registrations` count for that link with `status='registered'` and reject if the new capacity is lower. Show inline error in the existing `error` state.
 - **Registration confirmation email failures are silent.** The `mint-registration` edge function fires `send-registration-email` async (fire-and-forget) so the registrant doesn't wait for SMTP. If the email send silently fails (bad RESEND_API_KEY, Resend rate limit, bounced address), the registration row is created but no email goes out — and there's no retry queue or admin alert. **Mitigations to consider:** (1) await the email send and surface the error to the user; (2) add a `confirmation_sent_at` column on `event_registrations` and a manual "resend confirmation" button on the roster row; (3) log failures into a `notification_failures` table.
 - **No "Create Registration" affordance on EventDetail.** The original draft expected the create button in two places (CollaborativeDetail + EventDetail). With the May 8 redesign, creation lives only on `/admin/registrations`. If trainers expect to spin up a registration link while looking at an event detail page, add a small "Create registration link for this collaborative" link on EventDetail that just navigates to `/admin/registrations?prefill_collab=<event.collaborative_id>` — and have RegistrationsAdmin read that query param to prefill the dropdown.

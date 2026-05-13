@@ -69,6 +69,39 @@ Web app for managing Secondary Traumatic Stress Breakthrough Series Collaborativ
 - **`event_rsvps`, `event_reminder_log`, `event_parking_lot_items`, `smartie_goal_comments`** — auxiliary tables for the May 8 feature batch (RSVP buttons in reminder emails, idempotent reminder dispatch, per-event off-topic tracker, trainer feedback on goals). All RLS-scoped via `is_admin_for_collaborative` except `event_rsvps`, which has public SELECT/UPDATE policies so anonymous email recipients can flip their status by `rsvp_token`.
 - **`user_profiles.unsubscribe_token` / `notifications_unsubscribed_at`** — every user gets a stable hex token (16 bytes); the `/unsubscribe/:token` public page sets `notifications_unsubscribed_at` and the reminder/email edge functions skip those users.
 
+## Future migrations: explicit Data API grants
+
+> **Deadline: 2026-10-30.** Supabase is removing auto-grants to the Data API roles (`anon`, `authenticated`, `service_role`) for new `public`-schema tables. Existing tables keep their grants — verified via audit 2026-05-08, all 41 public tables fully granted on all three roles. The forward-looking change is the only thing that matters for this codebase.
+
+Every `apply_migration` that creates a new `public`-schema table touched by `supabase-js` (PostgREST / GraphQL / Realtime) **must include explicit `GRANT` statements alongside the `CREATE TABLE` and RLS policies**, or after the cutover those tables will return `42501` to the frontend even with correct RLS.
+
+RLS still does the actual access gating. Grants are the visibility layer the Data API needs to see the table at all.
+
+**Standard pattern for full-CRUD tables** (most app-data tables fit here):
+
+```sql
+CREATE TABLE public.your_table (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  ...
+);
+
+GRANT SELECT                         ON public.your_table TO anon;
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.your_table TO authenticated;
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.your_table TO service_role;
+
+ALTER TABLE public.your_table ENABLE ROW LEVEL SECURITY;
+CREATE POLICY ...
+  ON public.your_table FOR ...
+  USING (...);
+```
+
+**Tune verbs per table:**
+- Write-only intake from anon (e.g. an assessment-response table the public assessment flow inserts into): `GRANT INSERT ON ... TO anon` only — no SELECT to anon means nobody can scrape submissions.
+- Public read by token (e.g. RSVP / cancel-registration tokens): `GRANT SELECT, UPDATE ON ... TO PUBLIC` (or to `anon` specifically) — RLS filters by token.
+- Admin-only / service-role-only (e.g. queue or audit tables that only edge functions touch): `GRANT ALL ON ... TO service_role` and nothing else.
+
+If unsure, default to the "Standard pattern" above. RLS will refuse anything the policy doesn't allow — over-granting on the Data API layer without matching RLS is safe; under-granting silently breaks.
+
 ## Supabase Project
 - Project ref: `jhnquklmwoubpbbmnrjf`
 - Edge Functions deployed with `--no-verify-jwt` (gateway JWT check disabled)
