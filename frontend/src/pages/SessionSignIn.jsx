@@ -46,7 +46,7 @@ export default function SessionSignIn() {
     try {
       const { data: link, error: linkErr } = await supabase
         .from('session_links')
-        .select('*, bsc_events(id, title, event_date, start_time, end_time, location, collaborative_id)')
+        .select('*, bsc_events(id, title, event_date, start_time, end_time, location, collaborative_id, kind, hub_token)')
         .eq('token', token)
         .single()
 
@@ -122,6 +122,16 @@ export default function SessionSignIn() {
       } catch (linkErr) {
         // Non-fatal — sign-in already succeeded; registration linkage is bonus.
         console.warn('Could not link registration to attendance:', linkErr)
+      }
+
+      // Standalone training: set the hub gate flag and redirect to the hub.
+      // Soft gate — the sessionStorage flag is per-device and bypassable via
+      // dev tools, but it's enough to prevent casual material access before
+      // a participant actually shows up.
+      if (eventInfo?.kind === 'standalone_training' && eventInfo?.hub_token) {
+        sessionStorage.setItem(`signedInForEvent_${eventInfo.id}`, 'true')
+        navigate(`/training/${eventInfo.hub_token}`)
+        return
       }
     } catch (err) {
       console.error('Sign-in error:', err)

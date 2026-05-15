@@ -160,7 +160,7 @@ export default function EventDetail() {
     setAttRefreshing(true)
     const { data, error: err } = await supabase
       .from('session_attendance')
-      .select('user_profile_id, attendee_email, signed_in_at, signed_out_at')
+      .select('id, user_profile_id, attendee_name, attendee_email, attendee_role, signed_in_at, signed_out_at')
       .eq('bsc_event_id', eventId)
     if (!err) setAttendance(data || [])
     setLastRefreshAt(new Date())
@@ -589,8 +589,12 @@ export default function EventDetail() {
           )}
         </section>
 
-        {/* Per-team roster */}
-        {membersByTeam.length === 0 ? (
+        {/* Per-team roster — collaborative events only. For standalone
+            trainings the participant list comes from session_attendance directly
+            (rendered below in the Live Attendance section). */}
+        {event.kind === 'standalone_training' ? (
+          <StandaloneAttendanceList attendance={attendance} />
+        ) : membersByTeam.length === 0 ? (
           <div style={{ ...cardStyle, textAlign: 'center', color: 'var(--text-muted)' }}>
             No teams in this collaborative yet.
           </div>
@@ -887,28 +891,32 @@ export default function EventDetail() {
           </section>
         )}
 
-        {/* Message Coordinator */}
-        <section style={{ ...cardStyle, marginTop: '1rem' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.5rem' }}>
-            <div>
-              <div style={{ fontSize: '1.05rem', fontWeight: 700, color: 'var(--text-heading)' }}>Coordinator</div>
-              <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
-                {coordinatorEmail
-                  ? <>The named contact for this collaborative is <strong>{coordinatorName}</strong> ({coordinatorEmail}).</>
-                  : 'No coordinator assigned to this collaborative yet.'}
+        {/* Message Coordinator — collaborative events only.
+            Standalone trainings have a single trainer (creator), not a separate
+            coordinator role, so this section is hidden. */}
+        {event.kind !== 'standalone_training' && (
+          <section style={{ ...cardStyle, marginTop: '1rem' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.5rem' }}>
+              <div>
+                <div style={{ fontSize: '1.05rem', fontWeight: 700, color: 'var(--text-heading)' }}>Coordinator</div>
+                <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
+                  {coordinatorEmail
+                    ? <>The named contact for this collaborative is <strong>{coordinatorName}</strong> ({coordinatorEmail}).</>
+                    : 'No coordinator assigned to this collaborative yet.'}
+                </div>
               </div>
+              {coordinatorEmail && (
+                <button
+                  onClick={() => setEmailModal({
+                    recipientsType: 'coordinator',
+                    defaultSubject: `Question about ${event.title}`,
+                  })}
+                  style={{ background: COLORS.navy, color: 'white', border: 'none', padding: '0.4rem 0.85rem', borderRadius: '6px', cursor: 'pointer', fontSize: '0.85rem' }}
+                >Message coordinator</button>
+              )}
             </div>
-            {coordinatorEmail && (
-              <button
-                onClick={() => setEmailModal({
-                  recipientsType: 'coordinator',
-                  defaultSubject: `Question about ${event.title}`,
-                })}
-                style={{ background: COLORS.navy, color: 'white', border: 'none', padding: '0.4rem 0.85rem', borderRadius: '6px', cursor: 'pointer', fontSize: '0.85rem' }}
-              >Message coordinator</button>
-            )}
-          </div>
-        </section>
+          </section>
+        )}
       </div>
 
       {emailModal && (
@@ -923,6 +931,82 @@ export default function EventDetail() {
 }
 
 // Collapsible verbatim free-text responses (collapsed by default)
+// Standalone-training attendance list — flat (no team grouping).
+// Pulls from session_attendance rows tied to this event. Walks-ins (no
+// user_profile match) and registered participants are both included.
+function StandaloneAttendanceList({ attendance }) {
+  const rows = (attendance || []).slice().sort((a, b) =>
+    (b.signed_in_at || '').localeCompare(a.signed_in_at || '')
+  )
+
+  if (rows.length === 0) {
+    return (
+      <section style={{ ...cardStyle, textAlign: 'center', color: 'var(--text-muted)' }}>
+        Nobody has signed in yet. Share the sign-in link or QR code at the venue and they'll appear here.
+      </section>
+    )
+  }
+
+  const present = rows.filter(r => r.signed_in_at && !r.signed_out_at).length
+  const signedOut = rows.filter(r => r.signed_out_at).length
+
+  return (
+    <section style={{ ...cardStyle, marginBottom: '1rem' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem', flexWrap: 'wrap', gap: '0.5rem' }}>
+        <div>
+          <div style={{ fontSize: '1.1rem', fontWeight: 700, color: 'var(--text-heading)' }}>
+            Attendance ({rows.length})
+          </div>
+          <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
+            <strong style={{ color: '#16a34a' }}>{present}</strong> currently signed in · <strong style={{ color: 'var(--text-muted)' }}>{signedOut}</strong> signed out
+          </div>
+        </div>
+      </div>
+
+      <div style={{ overflowX: 'auto' }}>
+        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
+          <thead>
+            <tr style={{ borderBottom: '2px solid var(--border)', background: 'var(--bg-card-alt)' }}>
+              <th style={{ textAlign: 'left', padding: '0.4rem 0.5rem' }}>Status</th>
+              <th style={{ textAlign: 'left', padding: '0.4rem 0.5rem' }}>Name &amp; Email</th>
+              <th style={{ textAlign: 'left', padding: '0.4rem 0.5rem' }}>Role</th>
+              <th style={{ textAlign: 'left', padding: '0.4rem 0.5rem' }}>Signed in</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map(r => {
+              const isPresent = r.signed_in_at && !r.signed_out_at
+              return (
+                <tr key={r.id} style={{ borderBottom: '1px solid var(--border)' }}>
+                  <td style={{ textAlign: 'center', padding: '0.4rem 0.5rem' }}>
+                    {isPresent ? (
+                      <span title="Signed in" style={{ color: COLORS.green, fontSize: '1.1rem', fontWeight: 700 }}>✓</span>
+                    ) : (
+                      <span title="Signed out" style={{ color: 'var(--text-faint)', fontSize: '0.9rem' }}>out</span>
+                    )}
+                  </td>
+                  <td style={{ padding: '0.4rem 0.5rem' }}>
+                    <div style={{ fontWeight: 500 }}>{r.attendee_name || '—'}</div>
+                    {r.attendee_email && (
+                      <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                        <a href={`mailto:${r.attendee_email}`} style={{ color: 'var(--text-muted)', textDecoration: 'none' }}>{r.attendee_email}</a>
+                      </div>
+                    )}
+                  </td>
+                  <td style={{ padding: '0.4rem 0.5rem', color: 'var(--text-muted)' }}>{r.attendee_role || '—'}</td>
+                  <td style={{ padding: '0.4rem 0.5rem', color: 'var(--text-muted)', fontSize: '0.78rem' }}>
+                    {r.signed_in_at ? new Date(r.signed_in_at).toLocaleTimeString() : '—'}
+                  </td>
+                </tr>
+              )
+            })}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  )
+}
+
 function FreeTextBlock({ heading, responses }) {
   const [open, setOpen] = useState(false)
   const filtered = (responses || []).filter(r => r && String(r).trim().length > 0)

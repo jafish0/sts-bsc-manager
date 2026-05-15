@@ -43,6 +43,8 @@ import UnsubscribePage from './pages/UnsubscribePage'
 import RegisterPage from './pages/RegisterPage'
 import CancelRegistrationPage from './pages/CancelRegistrationPage'
 import RegistrationsAdmin from './pages/RegistrationsAdmin'
+import TrainingsAdmin from './pages/TrainingsAdmin'
+import TrainingHub from './pages/TrainingHub'
 
 // Detect invite/recovery tokens in URL hash and redirect to /set-password
 function AuthRedirectHandler() {
@@ -98,6 +100,9 @@ function App() {
           <Route path="/register/:token" element={<RegisterPage />} />
           <Route path="/cancel-registration/:token" element={<CancelRegistrationPage />} />
 
+          {/* Public training hub — gated by hub_token + sessionStorage sign-in flag */}
+          <Route path="/training/:hub_token" element={<TrainingHub />} />
+
           {/* Auth Routes */}
           <Route path="/login" element={<Login />} />
           <Route path="/set-password" element={<SetPassword />} />
@@ -144,6 +149,11 @@ function App() {
           <Route path="/admin/registrations" element={
             <ProtectedRoute>
               <RegistrationsAdmin />
+            </ProtectedRoute>
+          } />
+          <Route path="/admin/trainings" element={
+            <ProtectedRoute>
+              <TrainingsAdmin />
             </ProtectedRoute>
           } />
           <Route path="/admin/smartie-goals/:teamId" element={
