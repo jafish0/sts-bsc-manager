@@ -132,13 +132,15 @@ export default function TeamDashboard() {
         .single()
       setLastSelfRatingDate(latestSelfRating?.completed_at || null)
 
-      // Load session attendance for this team's collaborative
+      // Load session attendance for this team's collaborative.
+      // Includes Learning Sessions + Learning Calls (all-team / senior-leader),
+      // matching the set that has sign-in tracking on CollaborativeDetail.
       if (teamData.collaboratives?.id) {
         const { data: lsEvents } = await supabase
           .from('bsc_events')
-          .select('id, title, event_date')
+          .select('id, title, event_date, event_type')
           .eq('collaborative_id', teamData.collaboratives.id)
-          .eq('event_type', 'learning_session')
+          .in('event_type', ['learning_session', 'all_team_call', 'senior_leader_call'])
           .order('event_date', { ascending: false })
 
         if (lsEvents && lsEvents.length > 0) {

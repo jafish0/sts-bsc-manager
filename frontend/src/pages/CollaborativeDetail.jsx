@@ -938,6 +938,14 @@ export default function CollaborativeDetail() {
               {events.map(evt => {
                 const link = sessionLinks[evt.id]
                 const isLS = evt.event_type === 'learning_session'
+                // Events that need sign-in / sign-out / evaluation tracking.
+                // Includes Learning Sessions (the multi-hour intensives) plus
+                // the shorter Learning Calls (all-team and senior-leader),
+                // which CTAC also tracks attendance for. assessment_window,
+                // team_consultation, and 'other' don't get session links.
+                const hasSignIn = isLS
+                  || evt.event_type === 'all_team_call'
+                  || evt.event_type === 'senior_leader_call'
                 const attCount = attendanceCounts[evt.id] || 0
                 const evCount = evalCounts[evt.id] || 0
                 const isExpired = link && new Date(link.expires_at) < new Date()
@@ -974,12 +982,12 @@ export default function CollaborativeDetail() {
                             }}
                           >🎦 Join Zoom</a>
                         )}
-                        {isLS && attCount > 0 && (
+                        {hasSignIn && attCount > 0 && (
                           <span style={{ background: '#d1fae5', color: '#166534', padding: '0.1rem 0.4rem', borderRadius: '4px', fontSize: '0.7rem', fontWeight: '600' }}>
                             {attCount} attended
                           </span>
                         )}
-                        {isLS && evCount > 0 && (
+                        {hasSignIn && evCount > 0 && (
                           <span style={{ background: '#EFF6FF', color: '#1E40AF', padding: '0.1rem 0.4rem', borderRadius: '4px', fontSize: '0.7rem', fontWeight: '600' }}>
                             {evCount} evals
                           </span>
@@ -1059,8 +1067,8 @@ export default function CollaborativeDetail() {
                       </div>
                     )}
 
-                    {/* Session management controls for learning sessions */}
-                    {isLS && (
+                    {/* Session management controls for Learning Sessions + Learning Calls */}
+                    {hasSignIn && (
                       <div style={{ marginTop: '0.5rem', display: 'flex', gap: '0.4rem', flexWrap: 'wrap', alignItems: 'center' }}>
                         {!link ? (
                           <button onClick={() => generateSessionLink(evt)} style={{
