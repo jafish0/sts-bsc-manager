@@ -160,7 +160,7 @@ export default function EventDetail() {
     setAttRefreshing(true)
     const { data, error: err } = await supabase
       .from('session_attendance')
-      .select('id, user_profile_id, attendee_name, attendee_email, attendee_role, signed_in_at, signed_out_at')
+      .select('id, user_profile_id, attendee_name, attendee_email, attendee_role, attendee_agency, signed_in_at, signed_out_at')
       .eq('bsc_event_id', eventId)
     if (!err) setAttendance(data || [])
     setLastRefreshAt(new Date())
@@ -969,6 +969,7 @@ function StandaloneAttendanceList({ attendance }) {
             <tr style={{ borderBottom: '2px solid var(--border)', background: 'var(--bg-card-alt)' }}>
               <th style={{ textAlign: 'left', padding: '0.4rem 0.5rem' }}>Status</th>
               <th style={{ textAlign: 'left', padding: '0.4rem 0.5rem' }}>Name &amp; Email</th>
+              <th style={{ textAlign: 'left', padding: '0.4rem 0.5rem' }}>Agency</th>
               <th style={{ textAlign: 'left', padding: '0.4rem 0.5rem' }}>Role</th>
               <th style={{ textAlign: 'left', padding: '0.4rem 0.5rem' }}>Signed in</th>
             </tr>
@@ -993,6 +994,7 @@ function StandaloneAttendanceList({ attendance }) {
                       </div>
                     )}
                   </td>
+                  <td style={{ padding: '0.4rem 0.5rem', color: 'var(--text-muted)' }}>{r.attendee_agency || '—'}</td>
                   <td style={{ padding: '0.4rem 0.5rem', color: 'var(--text-muted)' }}>{r.attendee_role || '—'}</td>
                   <td style={{ padding: '0.4rem 0.5rem', color: 'var(--text-muted)', fontSize: '0.78rem' }}>
                     {r.signed_in_at ? new Date(r.signed_in_at).toLocaleTimeString() : '—'}

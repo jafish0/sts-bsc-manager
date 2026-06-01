@@ -73,10 +73,11 @@ export default function AttendanceReport({ eventId, eventTitle, eventDate, colla
 
     doc.autoTable({
       startY: y,
-      head: [['Name', 'Email', 'Role', 'Team', 'Sign In', 'Sign Out', 'Duration', 'Matched']],
+      head: [['Name', 'Email', 'Agency', 'Role', 'Team', 'Sign In', 'Sign Out', 'Duration', 'Matched']],
       body: attendance.map(a => [
         a.attendee_name,
         a.attendee_email,
+        a.attendee_agency || '—',
         a.attendee_role || '—',
         a.teams?.team_name || 'Unmatched',
         formatTime(a.signed_in_at),
@@ -97,6 +98,7 @@ export default function AttendanceReport({ eventId, eventTitle, eventDate, colla
     const rows = attendance.map(a => ({
       Name: a.attendee_name,
       Email: a.attendee_email,
+      Agency: a.attendee_agency || '',
       Role: a.attendee_role || '',
       Team: a.teams?.team_name || 'Unmatched',
       'Sign In': a.signed_in_at ? new Date(a.signed_in_at).toLocaleString() : '',
@@ -107,7 +109,7 @@ export default function AttendanceReport({ eventId, eventTitle, eventDate, colla
 
     const wb = XLSX.utils.book_new()
     const ws = XLSX.utils.json_to_sheet(rows)
-    ws['!cols'] = [{ wch: 25 }, { wch: 30 }, { wch: 15 }, { wch: 20 }, { wch: 18 }, { wch: 18 }, { wch: 10 }, { wch: 8 }]
+    ws['!cols'] = [{ wch: 25 }, { wch: 30 }, { wch: 20 }, { wch: 15 }, { wch: 20 }, { wch: 18 }, { wch: 18 }, { wch: 10 }, { wch: 8 }]
     XLSX.utils.book_append_sheet(wb, ws, 'Attendance')
     XLSX.writeFile(wb, `Attendance_${eventTitle || 'Session'}_${eventDate || ''}.xlsx`)
   }
@@ -150,7 +152,7 @@ export default function AttendanceReport({ eventId, eventTitle, eventDate, colla
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem' }}>
             <thead>
               <tr style={{ background: NAVY, color: 'white' }}>
-                {['Name', 'Email', 'Role', 'Team', 'Sign In', 'Sign Out', 'Duration'].map(h => (
+                {['Name', 'Email', 'Agency', 'Role', 'Team', 'Sign In', 'Sign Out', 'Duration'].map(h => (
                   <th key={h} style={{ padding: '0.5rem 0.6rem', textAlign: 'left', fontWeight: '600', fontSize: '0.75rem' }}>{h}</th>
                 ))}
               </tr>
@@ -160,6 +162,7 @@ export default function AttendanceReport({ eventId, eventTitle, eventDate, colla
                 <tr key={a.id} style={{ background: i % 2 === 0 ? '#f9fafb' : 'white', borderBottom: '1px solid #e5e7eb' }}>
                   <td style={{ padding: '0.5rem 0.6rem', fontWeight: '500' }}>{a.attendee_name}</td>
                   <td style={{ padding: '0.5rem 0.6rem' }}>{a.attendee_email}</td>
+                  <td style={{ padding: '0.5rem 0.6rem' }}>{a.attendee_agency || '—'}</td>
                   <td style={{ padding: '0.5rem 0.6rem' }}>{a.attendee_role || '—'}</td>
                   <td style={{ padding: '0.5rem 0.6rem' }}>
                     {a.teams?.team_name || (

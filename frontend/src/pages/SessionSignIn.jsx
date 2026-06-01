@@ -5,6 +5,13 @@ import { supabase } from '../utils/supabase'
 const NAVY = '#0E1F56'
 const TEAL = '#00A79D'
 
+// Temporary hardcode for the public demo collaborative (created 2026-06-01).
+// While we're in "expose one feature at a time" demo mode for the live LC,
+// sign-in on this collaborative should NOT auto-redirect participants to the
+// staff login (they have no app access). Easy to find/remove or replace with
+// an `is_demo` flag on the collaboratives table later.
+const DEMO_COLLABORATIVE_ID = 'd82cab03-3025-47b7-98e1-e893d6f522ae'
+
 export default function SessionSignIn() {
   const { token } = useParams()
   const navigate = useNavigate()
@@ -19,8 +26,11 @@ export default function SessionSignIn() {
   const [form, setForm] = useState({
     name: '',
     email: '',
+    agency: '',
     role: ''
   })
+
+  const isDemoCollaborative = eventInfo?.collaborative_id === DEMO_COLLABORATIVE_ID
 
   useEffect(() => {
     validateToken()
@@ -32,15 +42,17 @@ export default function SessionSignIn() {
     }
   }, [token])
 
-  // Auto-redirect to login after sign-in
+  // Auto-redirect to login after sign-in — skipped for the demo collaborative
+  // because demo participants don't have app accounts and the redirect just
+  // dumps them on a confusing login screen.
   useEffect(() => {
-    if (signedIn) {
+    if (signedIn && !isDemoCollaborative) {
       const timer = setTimeout(() => {
         navigate('/login')
       }, 4000)
       return () => clearTimeout(timer)
     }
-  }, [signedIn, navigate])
+  }, [signedIn, navigate, isDemoCollaborative])
 
   const validateToken = async () => {
     try {
@@ -77,7 +89,7 @@ export default function SessionSignIn() {
 
   const handleSubmit = async (e) => {
     e.preventDefault()
-    if (!form.name.trim() || !form.email.trim()) return
+    if (!form.name.trim() || !form.email.trim() || !form.agency.trim()) return
     setSubmitting(true)
 
     try {
@@ -88,7 +100,8 @@ export default function SessionSignIn() {
         p_collaborative_id: eventInfo.collaborative_id,
         p_attendee_name: form.name.trim(),
         p_attendee_email: form.email.trim(),
-        p_attendee_role: form.role || null
+        p_attendee_role: form.role || null,
+        p_attendee_agency: form.agency.trim() || null
       })
 
       if (rpcErr) throw rpcErr
@@ -175,21 +188,25 @@ export default function SessionSignIn() {
           </p>
           <div style={{
             background: '#F0FDF4', border: '1px solid #BBF7D0', borderRadius: '0.5rem',
-            padding: '1rem', marginBottom: '1.5rem', fontSize: '0.85rem', color: '#166534'
+            padding: '1rem', marginBottom: isDemoCollaborative ? 0 : '1.5rem', fontSize: '0.85rem', color: '#166534'
           }}>
-            Thank you! Your attendance has been recorded. Redirecting you to sign in...
+            {isDemoCollaborative
+              ? 'Thank you! Your attendance has been recorded.'
+              : 'Thank you! Your attendance has been recorded. Redirecting you to sign in...'}
           </div>
-          <button
-            onClick={() => navigate('/login')}
-            style={{
-              display: 'block', width: '100%', padding: '0.85rem',
-              background: TEAL, color: 'white', border: 'none',
-              borderRadius: '0.5rem', fontSize: '1rem', fontWeight: '600',
-              cursor: 'pointer'
-            }}
-          >
-            Go to Dashboard Sign-In
-          </button>
+          {!isDemoCollaborative && (
+            <button
+              onClick={() => navigate('/login')}
+              style={{
+                display: 'block', width: '100%', padding: '0.85rem',
+                background: TEAL, color: 'white', border: 'none',
+                borderRadius: '0.5rem', fontSize: '1rem', fontWeight: '600',
+                cursor: 'pointer'
+              }}
+            >
+              Go to Dashboard Sign-In
+            </button>
+          )}
         </div>
       </div>
     )
@@ -238,6 +255,22 @@ export default function SessionSignIn() {
               value={form.email}
               onChange={(e) => setForm({ ...form, email: e.target.value })}
               placeholder="your.email@example.com"
+              style={{
+                width: '100%', padding: '0.65rem', border: '1px solid #d1d5db',
+                borderRadius: '0.375rem', fontSize: '0.9rem', boxSizing: 'border-box'
+              }}
+            />
+          </div>
+          <div style={{ marginBottom: '1rem' }}>
+            <label style={{ display: 'block', fontWeight: '600', color: '#374151', marginBottom: '0.35rem', fontSize: '0.9rem' }}>
+              Agency <span style={{ color: '#DC2626' }}>*</span>
+            </label>
+            <input
+              type="text"
+              required
+              value={form.agency}
+              onChange={(e) => setForm({ ...form, agency: e.target.value })}
+              placeholder="Your organization or agency"
               style={{
                 width: '100%', padding: '0.65rem', border: '1px solid #d1d5db',
                 borderRadius: '0.375rem', fontSize: '0.9rem', boxSizing: 'border-box'
