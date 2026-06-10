@@ -1,41 +1,31 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import JSZip from 'jszip'
+import * as XLSX from 'xlsx'
 import { supabase } from '../utils/supabase'
 import { useAuth } from '../contexts/AuthContext'
 import { COLORS, cardStyle, cardHeaderStyle } from '../utils/constants'
-import {
-  buildApprovalsText, buildLcAttendance, buildAttendanceHtml,
-  dateRange, eventHours, fetchCertificateTemplate, fmtHours, mergeCertificate,
-} from '../utils/ceu'
+import { buildLcAttendance, eventHours, fmtHours } from '../utils/ceu'
 
-// CEU certificate issuance for one learning collaborative.
-// Three steps on one page: Configure (eligible sessions + approval bodies),
-// Review (per-participant hours with manual overrides), Generate (merged
-// .docx certificates — bulk ZIP download and/or per-participant email).
-// Ported from the desktop tool; see utils/ceu.js for provenance.
+// CEU roster for one learning collaborative.
+// 2026-06-10 course-correction: the app no longer generates certificates —
+// it computes WHO qualifies (strict credit rule, see utils/ceu.js) and
+// exports an Excel roster that the desktop Training Manager tool consumes
+// to issue uneditable PDF certificates locally.
+//
+// Three steps: Configure (mark CEU-eligible sessions), Review
+// (per-participant hours with manual overrides), Export (.xlsx roster).
 export default function CeuManager() {
   const { collaborativeId } = useParams()
   const navigate = useNavigate()
-  const { user, canAdminCollaborative } = useAuth()
+  const { canAdminCollaborative } = useAuth()
 
   const [loading, setLoading] = useState(true)
   const [collaborative, setCollaborative] = useState(null)
   const [events, setEvents] = useState([])
   const [attendanceRows, setAttendanceRows] = useState([])
-  const [config, setConfig] = useState({
-    ceu_sw: false, ceu_psych: false, ceu_lpcc: false,
-    ceu_aswb: false, aswb_period: '',
-    ceu_eila: false, eila_number: '',
-    ceu_frsky: false, frsky_number: '',
-    location: '', trainer_name: '',
-  })
-  const [savingConfig, setSavingConfig] = useState(false)
-  const [excluded, setExcluded] = useState(new Set())        // emails excluded from issuance
+  const [excluded, setExcluded] = useState(new Set())        // emails excluded from the roster
   const [overrides, setOverrides] = useState(new Set())      // `${email}|${eventId}` force-counted
   const [expandedEmail, setExpandedEmail] = useState(null)
-  const [working, setWorking] = useState(null)               // progress message during generate/email
-  const [issuedLog, setIssuedLog] = useState([])
 
   const load = async () => {
     setLoading(true)
@@ -60,18 +50,6 @@ export default function CeuManager() {
     } else {
       setAttendanceRows([])
     }
-
-    const { data: cfg } = await supabase
-      .from('collaborative_ceu_config').select('*').eq('collaborative_id', collaborativeId).maybeSingle()
-    if (cfg) setConfig(cfg)
-
-    const { data: issued } = await supabase
-      .from('ceu_certificates')
-      .select('attendee_email, attendee_name, hours_awarded, issued_at, emailed_at')
-      .eq('collaborative_id', collaborativeId)
-      .order('issued_at', { ascending: false })
-    setIssuedLog(issued || [])
-
     setLoading(false)
   }
 
@@ -111,126 +89,30 @@ export default function CeuManager() {
     await load()
   }
 
-  const saveConfig = async () => {
-    setSavingConfig(true)
-    const { error } = await supabase.from('collaborative_ceu_config').upsert({
-      collaborative_id: collaborativeId,
-      ceu_sw: config.ceu_sw, ceu_psych: config.ceu_psych, ceu_lpcc: config.ceu_lpcc,
-      ceu_aswb: config.ceu_aswb, aswb_period: config.aswb_period || null,
-      ceu_eila: config.ceu_eila, eila_number: config.eila_number || null,
-      ceu_frsky: config.ceu_frsky, frsky_number: config.frsky_number || null,
-      location: config.location || null, trainer_name: config.trainer_name || null,
-      updated_at: new Date().toISOString(),
-    })
-    setSavingConfig(false)
-    if (error) alert('Could not save config: ' + error.message)
-  }
-
-  const certMapping = (p) => ({
-    '<<NAME>>': p.name,
-    '<<TRAINING>>': collaborative?.name || '',
-    '<<HOURS>>': fmtHours(p.hoursAwarded),
-    '<<TOTALHOURS>>': fmtHours(hoursTotal),
-    '<<TRAINER>>': config.trainer_name || '',
-    '<<DATE>>': dateRange(eligibleEvents),
-    '<<LOCATION>>': config.location || '',
-    '<<CEU_APPROVALS>>': buildApprovalsText(config, hoursTotal),
-  })
-
-  const recordIssued = async (p) => {
-    const { data } = await supabase.from('ceu_certificates').insert({
-      collaborative_id: collaborativeId,
-      attendee_email: p.email,
-      attendee_name: p.name,
-      hours_awarded: p.hoursAwarded,
-      hours_total: hoursTotal,
-      issued_by: user?.id || null,
-    }).select('id').single()
-    return data?.id || null
-  }
-
-  const generateZip = async () => {
-    if (included.length === 0) { alert('No participants with awarded hours to issue.'); return }
-    setWorking('Loading template…')
-    try {
-      const template = await fetchCertificateTemplate()
-      const outZip = new JSZip()
-      for (let i = 0; i < included.length; i++) {
-        const p = included[i]
-        setWorking(`Generating ${i + 1} of ${included.length}: ${p.name}`)
-        const blob = await mergeCertificate(template, certMapping(p))
-        const safe = p.name.replace(/[^A-Za-z0-9._ -]/g, '')
-        outZip.file(`${safe} - ${(collaborative?.name || 'Certificate').replace(/[^A-Za-z0-9._ -]/g, '')}.docx`, blob)
-        await recordIssued(p)
-      }
-      setWorking('Packaging ZIP…')
-      const zipBlob = await outZip.generateAsync({ type: 'blob' })
-      const url = URL.createObjectURL(zipBlob)
-      const a = document.createElement('a')
-      a.href = url
-      a.download = `CEU_Certificates_${(collaborative?.name || '').replace(/[^A-Za-z0-9._ -]/g, '_')}.zip`
-      document.body.appendChild(a); a.click(); document.body.removeChild(a)
-      URL.revokeObjectURL(url)
-      await load()
-    } catch (err) {
-      alert('Generation failed: ' + (err.message || String(err)))
-    } finally {
-      setWorking(null)
-    }
-  }
-
-  const emailCertificates = async () => {
-    if (included.length === 0) { alert('No participants with awarded hours to email.'); return }
-    if (!window.confirm(`Email certificates to ${included.length} participant${included.length === 1 ? '' : 's'}? Each gets their merged certificate attached plus their attendance summary.`)) return
-    setWorking('Loading template…')
-    try {
-      const template = await fetchCertificateTemplate()
-      const { data: { session } } = await supabase.auth.getSession()
-      if (!session) throw new Error('Not authenticated')
-      let sent = 0, failed = 0
-      for (let i = 0; i < included.length; i++) {
-        const p = included[i]
-        setWorking(`Emailing ${i + 1} of ${included.length}: ${p.name}`)
-        const blob = await mergeCertificate(template, certMapping(p))
-        const base64 = await blobToBase64(blob)
-        const certId = await recordIssued(p)
-        const firstName = p.name.split(/\s+/)[0] || p.name
-        const approvals = buildApprovalsText(config, hoursTotal)
-        const html = `<div style="font-family: Arial, sans-serif; color: #1f2937; max-width: 640px;">
-          <p>Hello ${esc(firstName)}! Thank you for participating in "${esc(collaborative?.name || '')}"!</p>
-          <p>Your certificate is attached. You attended <strong>${fmtHours(p.hoursAwarded)}</strong> of <strong>${fmtHours(hoursTotal)}</strong> possible hours:</p>
-          ${buildAttendanceHtml(p)}
-          ${approvals ? `<p style="font-size: 13px; color: #374151; white-space: pre-wrap;">${esc(approvals)}</p>` : ''}
-          <p style="font-size: 12px; color: #6b7280;">Sent by the CTAC BSC Manager.</p>
-        </div>`
-        const safe = p.name.replace(/[^A-Za-z0-9._ -]/g, '')
-        const resp = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-ceu-certificate`, {
-          method: 'POST',
-          headers: { 'Authorization': `Bearer ${session.access_token}`, 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            to: p.email,
-            subject: `Your CEU certificate — ${collaborative?.name || ''}`,
-            html,
-            attachment_base64: base64,
-            attachment_filename: `${safe} - Certificate.docx`,
-            certificate_id: certId,
-          }),
-        })
-        if (resp.ok) sent += 1; else failed += 1
-      }
-      alert(`Done. ${sent} sent${failed > 0 ? `, ${failed} failed` : ''}.`)
-      await load()
-    } catch (err) {
-      alert('Email run failed: ' + (err.message || String(err)))
-    } finally {
-      setWorking(null)
-    }
+  // Export the qualifying + included participants as the roster the desktop
+  // Training Manager tool consumes. Columns are exactly the ones its
+  // "Import precomputed roster" mode expects — hours come from the computed
+  // values here and are used verbatim downstream (no recompute).
+  const exportRoster = () => {
+    if (included.length === 0) { alert('No participants with awarded hours to export.'); return }
+    const rows = included.map(p => ({
+      'Name': p.name,
+      'Email': p.email,
+      'Hours Attended': Number(fmtHours(p.hoursAwarded)),
+      'Hours Total': Number(fmtHours(hoursTotal)),
+    }))
+    const ws = XLSX.utils.json_to_sheet(rows)
+    ws['!cols'] = [{ wch: 28 }, { wch: 32 }, { wch: 14 }, { wch: 12 }]
+    const wb = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(wb, ws, 'Roster')
+    const safeName = (collaborative?.name || 'Collaborative').replace(/[\\/:*?"<>|]/g, '')
+    XLSX.writeFile(wb, `LC Certificate Report - ${safeName}.xlsx`)
   }
 
   if (!canAdminCollaborative(collaborativeId)) {
     return (
       <div style={{ padding: '4rem', textAlign: 'center', color: 'var(--text-muted)' }}>
-        Only admins of this collaborative can issue CEU certificates.
+        Only admins of this collaborative can manage CEU rosters.
       </div>
     )
   }
@@ -242,24 +124,17 @@ export default function CeuManager() {
         <div style={{ maxWidth: '1200px', margin: '0 auto', display: 'flex', gap: '1rem', alignItems: 'center' }}>
           <button onClick={() => navigate(`/admin/collaboratives/${collaborativeId}`)} style={{ background: 'transparent', border: '1px solid rgba(255,255,255,0.3)', color: 'white', padding: '0.5rem 1rem', borderRadius: '0.375rem', cursor: 'pointer', fontSize: '0.875rem' }}>← Back</button>
           <div>
-            <h1 style={{ margin: 0, fontSize: '1.4rem' }}>🎓 CEU Certificates</h1>
+            <h1 style={{ margin: 0, fontSize: '1.4rem' }}>🎓 CEU Roster</h1>
             <div style={{ fontSize: '0.85rem', opacity: 0.85 }}>{collaborative?.name}</div>
           </div>
         </div>
       </div>
 
       <div style={{ maxWidth: '1200px', margin: '2rem auto', padding: '0 1rem' }}>
-        {working && (
-          <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <div style={{ background: 'white', borderRadius: '0.75rem', padding: '2rem', fontSize: '1rem', color: '#0E1F56', fontWeight: 600 }}>{working}</div>
-          </div>
-        )}
 
-        {/* Step 1 — Configure */}
+        {/* Step 1 — Configure eligible sessions */}
         <section style={{ ...cardStyle, marginBottom: '1.5rem' }}>
-          <div style={cardHeaderStyle}>1 · Configure</div>
-
-          <div style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.04em', margin: '0.75rem 0 0.4rem' }}>CEU-eligible sessions</div>
+          <div style={cardHeaderStyle}>1 · CEU-eligible sessions</div>
           <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '0.5rem' }}>
             Hours auto-compute from each session's scheduled start/end time. Sessions without both times can't be eligible.
           </div>
@@ -281,40 +156,6 @@ export default function CeuManager() {
           <div style={{ fontSize: '0.85rem', marginTop: '0.5rem', color: 'var(--text-secondary)' }}>
             Total possible hours: <strong>{fmtHours(hoursTotal)}</strong> across {eligibleEvents.length} session{eligibleEvents.length === 1 ? '' : 's'}
           </div>
-
-          <div style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.04em', margin: '1.25rem 0 0.4rem' }}>Approval bodies</div>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.4rem 1.5rem', fontSize: '0.85rem' }}>
-            <label><input type="checkbox" checked={config.ceu_sw} onChange={e => setConfig({ ...config, ceu_sw: e.target.checked })} /> KY Board of Social Work</label>
-            <label><input type="checkbox" checked={config.ceu_psych} onChange={e => setConfig({ ...config, ceu_psych: e.target.checked })} /> KY Board of Psychology</label>
-            <label><input type="checkbox" checked={config.ceu_lpcc} onChange={e => setConfig({ ...config, ceu_lpcc: e.target.checked })} /> LPCC</label>
-            <div style={{ display: 'flex', gap: '0.4rem', alignItems: 'center' }}>
-              <label style={{ whiteSpace: 'nowrap' }}><input type="checkbox" checked={config.ceu_aswb} onChange={e => setConfig({ ...config, ceu_aswb: e.target.checked })} /> ASWB</label>
-              {config.ceu_aswb && <input type="text" value={config.aswb_period || ''} onChange={e => setConfig({ ...config, aswb_period: e.target.value })} placeholder="approval period" style={miniInput} />}
-            </div>
-            <div style={{ display: 'flex', gap: '0.4rem', alignItems: 'center' }}>
-              <label style={{ whiteSpace: 'nowrap' }}><input type="checkbox" checked={config.ceu_eila} onChange={e => setConfig({ ...config, ceu_eila: e.target.checked })} /> EILA</label>
-              {config.ceu_eila && <input type="text" value={config.eila_number || ''} onChange={e => setConfig({ ...config, eila_number: e.target.value })} placeholder="EILA #" style={miniInput} />}
-            </div>
-            <div style={{ display: 'flex', gap: '0.4rem', alignItems: 'center' }}>
-              <label style={{ whiteSpace: 'nowrap' }}><input type="checkbox" checked={config.ceu_frsky} onChange={e => setConfig({ ...config, ceu_frsky: e.target.checked })} /> FRSKY</label>
-              {config.ceu_frsky && <input type="text" value={config.frsky_number || ''} onChange={e => setConfig({ ...config, frsky_number: e.target.value })} placeholder="FRSKY #" style={miniInput} />}
-            </div>
-          </div>
-
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem', marginTop: '1rem' }}>
-            <div>
-              <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, marginBottom: '0.25rem' }}>Location (for the certificate)</label>
-              <input type="text" value={config.location || ''} onChange={e => setConfig({ ...config, location: e.target.value })} placeholder="e.g., Virtual / Lexington, KY" style={inputStyle} />
-            </div>
-            <div>
-              <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, marginBottom: '0.25rem' }}>Trainer name (for the certificate)</label>
-              <input type="text" value={config.trainer_name || ''} onChange={e => setConfig({ ...config, trainer_name: e.target.value })} placeholder="e.g., Dr. Ginny Sprang" style={inputStyle} />
-            </div>
-          </div>
-
-          <button onClick={saveConfig} disabled={savingConfig} style={{ marginTop: '1rem', background: COLORS.teal, color: 'white', border: 'none', padding: '0.5rem 1.25rem', borderRadius: '6px', fontWeight: 600, cursor: savingConfig ? 'wait' : 'pointer' }}>
-            {savingConfig ? 'Saving…' : 'Save configuration'}
-          </button>
         </section>
 
         {/* Step 2 — Review */}
@@ -412,60 +253,22 @@ export default function CeuManager() {
           )}
         </section>
 
-        {/* Step 3 — Generate */}
+        {/* Step 3 — Export */}
         <section style={{ ...cardStyle, marginBottom: '1.5rem' }}>
-          <div style={cardHeaderStyle}>3 · Generate</div>
+          <div style={cardHeaderStyle}>3 · Export roster</div>
           <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
-            <strong>{included.length}</strong> participant{included.length === 1 ? '' : 's'} will receive certificates
-            (included + at least one credited session). Certificates are merged .docx files from the branded LC template.
+            <strong>{included.length}</strong> participant{included.length === 1 ? '' : 's'} will be exported
+            (included + at least one credited session). Open the .xlsx in the desktop <strong>Training Manager</strong> tool
+            ("Import precomputed roster" on the LC tab) to generate and email the PDF certificates.
           </p>
-          <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
-            <button onClick={generateZip} disabled={!!working || included.length === 0} style={{ background: COLORS.navy, color: 'white', border: 'none', padding: '0.55rem 1.25rem', borderRadius: '6px', fontWeight: 600, cursor: 'pointer', opacity: included.length === 0 ? 0.5 : 1 }}>
-              ⬇ Download all as ZIP
-            </button>
-            <button onClick={emailCertificates} disabled={!!working || included.length === 0} style={{ background: COLORS.teal, color: 'white', border: 'none', padding: '0.55rem 1.25rem', borderRadius: '6px', fontWeight: 600, cursor: 'pointer', opacity: included.length === 0 ? 0.5 : 1 }}>
-              ✉ Email to participants
-            </button>
-          </div>
-
-          {issuedLog.length > 0 && (
-            <div style={{ marginTop: '1.25rem' }}>
-              <div style={{ fontSize: '0.78rem', fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: '0.4rem' }}>Issued log</div>
-              <ul style={{ listStyle: 'none', padding: 0, margin: 0, fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-                {issuedLog.slice(0, 15).map((c, i) => (
-                  <li key={i} style={{ padding: '0.25rem 0', borderBottom: '1px solid var(--border)' }}>
-                    {c.attendee_name} · {fmtHours(c.hours_awarded)} hrs · {new Date(c.issued_at).toLocaleString()}
-                    {c.emailed_at && ' · ✉ emailed'}
-                  </li>
-                ))}
-                {issuedLog.length > 15 && <li style={{ padding: '0.25rem 0', fontStyle: 'italic' }}>…and {issuedLog.length - 15} more</li>}
-              </ul>
-            </div>
-          )}
+          <button onClick={exportRoster} disabled={included.length === 0} style={{ background: COLORS.navy, color: 'white', border: 'none', padding: '0.55rem 1.25rem', borderRadius: '6px', fontWeight: 600, cursor: 'pointer', opacity: included.length === 0 ? 0.5 : 1 }}>
+            ⬇ Export roster (.xlsx)
+          </button>
         </section>
       </div>
     </div>
   )
 }
 
-function esc(s) {
-  return String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-}
-
-function blobToBase64(blob) {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader()
-    reader.onload = () => resolve(String(reader.result).split(',')[1])
-    reader.onerror = reject
-    reader.readAsDataURL(blob)
-  })
-}
-
-const inputStyle = {
-  width: '100%', padding: '0.5rem 0.75rem',
-  border: '1px solid var(--border-light)', borderRadius: '6px',
-  fontSize: '0.9rem', boxSizing: 'border-box', background: 'var(--bg-card)',
-}
-const miniInput = { ...inputStyle, width: '11rem', padding: '0.3rem 0.5rem', fontSize: '0.8rem' }
 const thMini = { textAlign: 'left', padding: '0.3rem 0.4rem', fontWeight: 700 }
 const tdMini = { padding: '0.3rem 0.4rem' }
