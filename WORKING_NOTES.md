@@ -53,7 +53,56 @@ A bidirectional scratchpad shared between Josh, Claude Cowork (Claude desktop ch
 
 <!-- Add new drafts BELOW this line, newest at the bottom so Claude Code works through them in submission order. -->
 
-_(none — the two ddb75e6 drafts shipped 2026-06-10: CEU course-correction `9b01b22`, feedback widget `a52463d`. Full specs preserved in git history — `git show ddb75e6:WORKING_NOTES.md`.)_
+_Two ready drafts below — **(1) feedback triage dashboard** and **(2) ProQOL burnout-only** — then a ⛔ BLOCKED data-cleaning entry that must be skipped. (Shipped 2026-06-10 from `ddb75e6`: CEU course-correction `9b01b22`, feedback widget `a52463d`.)_
+
+### 2026-06-10 — Feedback triage dashboard (`/admin/feedback`, super_admin)
+
+> Builds the review side of the feedback widget shipped in `a52463d`. The `app_feedback` table + private `feedback-screenshots` bucket already exist. Commit this draft before implementing.
+
+**Goal:** An in-app triage board at `/admin/feedback`, **super_admin only**, for reviewing tester feedback during the Anchor Lab demo phase.
+
+**Table columns (confirmed live):** `id, user_id, user_email, user_role, route, page_label, program_type, collaborative_id, category, severity, message, screenshot_path, user_agent, viewport, status, admin_notes, created_at, resolved_at`. RLS already lets super_admin SELECT + UPDATE all rows.
+
+- Route `/admin/feedback` behind `ProtectedRoute`, gated to `isSuperAdmin` (trainer_admins must NOT see all feedback). AdminDashboard tile "🐞 Feedback" (super_admin only) → the page.
+- List newest-first with summary counts by status (e.g. "5 new"). Columns: created_at, submitter (`user_email` + `user_role`), page (`page_label`, route secondary), program/collab (`program_type` + resolve `collaborative_id` → collaborative name), category, severity, status badge, message preview.
+- Filters: status, category, severity, program_type, submitter, collaborative; free-text search over `message` (client-side filtering is fine for expected volume).
+- Row detail (modal/side panel, follow the `AddTeamModal` overlay pattern): full message + all captured context + the **screenshot** via a signed URL — `supabase.storage.from('feedback-screenshots').createSignedUrl(screenshot_path, 3600)` (handle null path gracefully). Controls: change `status` (new → triaged → incorporated → declined), edit `admin_notes`, stamp `resolved_at = now()` when set to incorporated/declined (clear it if moved back). Persist via supabase update + refresh row.
+- Inline styles + `COLORS` / `cardStyle` conventions; `useAuth()` gate; existing supabase client.
+
+**Verify:** super_admin opens `/admin/feedback`, sees all rows, filters/searches, opens an item and views its screenshot, changes status + notes and sees them persist with `resolved_at` set; trainer_admin / team_member cannot reach the page and the tile is hidden for them.
+
+### 2026-06-10 — Drop ProQOL Compassion Satisfaction (burnout-only)
+
+> Per Dr. Sprang: ProQOL should use ONLY the burnout subscale (reduce respondent burden). Compassion Satisfaction is **still present** — only the STS subscale was removed previously (`913a076`). **Mirror that STS-removal pattern exactly.** Commit this draft before implementing.
+
+- `frontend/src/config/proqol.js`: remove every `subscale: 'compassion_satisfaction'` item from `PROQOL_ITEMS`; remove the Compassion Satisfaction entry from `PROQOL_INFO.subscales`; update the description / purpose / scoring copy + comment block to reflect a **single burnout subscale**. Leave remaining burnout items at their original ProQOL values for historical comparability.
+- `frontend/src/pages/ProQOL.jsx`: stop including the compassion-satisfaction score in the insert (mirror how `secondary_trauma_score` was handled — the `proqol_responses` CS column stays, just NULL on new rows; no migration, no column drop).
+- `DataVisualization`, `TeamReport`, `exportPdf`, `exportExcel`: drop Compassion Satisfaction from all display + exports (burnout only).
+- `utils/dataRecommendations.js`: drop CS-based strengths/growth-areas; keep burnout logic.
+- Preserve all existing `proqol_responses` data.
+
+**Flag to Josh (don't block):** this leaves ProQOL as a ~10-item burnout-only scale; the ProQOL copyright asks the measure not be altered for free use — CTAC already administers a shortened version, so this continues that, but worth being aware.
+
+**Verify:** ProQOL presents only burnout items; scoring, DataVisualization, TeamReport, and both exports show only burnout; existing `proqol_responses` rows unchanged.
+
+### 2026-06-10 — Data-cleaning stage for STS-BSC assessment data ⛔ BLOCKED (do not implement yet)
+
+> ⛔ **Not ready for Claude Code — skip this.** Blocked until Ginny (or an RA) delivers the "how we normally clean the data" rules list — that's research-methods domain and is explicitly one of Ginny's app-review jobs. This entry captures ONLY the **machinery requirements** gleaned from the demo meeting with Ginny (recovered from a closed-caption transcript). The actual cleaning rules are hers to define and are deliberately NOT invented here.
+
+**Machinery the conversation established (app's responsibility):**
+- A distinct **data-cleaning stage between collection and publishing to teams** — cleaning must finish BEFORE a team sees its dashboard/reports (ties into the publish-before-teams-see gate; cf. `admin_reviews` / `CLAUDE-1.md`).
+- **Flag, don't auto-fix:** apply defined rules and flag records/fields that "need manual review."
+- **Rule-based, not AI:** specific rules they define; no ML.
+- **Manual resolution UI:** reviewer clicks through flagged items and resolves/edits them "like track changes" → implies an **audit trail** of changes (research-integrity requirement).
+- **Hybrid:** automated flagging + manual resolution; some checks may stay fully manual.
+
+**Only concrete rule examples that surfaced (from Ginny/Josh — seeds for her list, NOT a complete ruleset):**
+- **Straight-lining** — respondent selected the same answer (e.g., "1") for everything.
+- **Out-of-range / implausible values** — esp. **age** typos ("2" instead of 20-something), which have slipped through before and embarrassed on the dashboard.
+
+**Blocked on:** Ginny/RA producing the normalized cleaning-rules list (valid ranges per field, junk-pattern definitions, duplicate/blank handling, etc.). Once delivered, the app operationalizes each rule as a flag + review-and-resolve step. Do not scope implementation before that list exists.
+
+**Adjacent notes from the same meeting (capture only, separate from this feature):** Ginny wants **percentiles** shown for STSI-OA and STSS; on **ProQOL she wants ONLY the burnout subscale** — drop secondary traumatic stress (shipped) AND compassion satisfaction (may still be present — worth checking).
 
 <!-- Archived original draft section follows for posterity. Future drafts replace the placeholder above; this stays as a record of the spec. -->
 
