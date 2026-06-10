@@ -34,7 +34,9 @@ export default function SessionSignOut() {
         return
       }
 
-      // Sign out if not already handled by evaluation submission
+      // Perform the explicit final sign-out. sign_out_method='manual' is the
+      // CEU-credit gate — eval completion alone (evaluation_completed_at)
+      // doesn't earn credit without reaching this step.
       const attendanceId = sessionStorage.getItem(`attendance_${token}`)
       if (attendanceId) {
         await supabase

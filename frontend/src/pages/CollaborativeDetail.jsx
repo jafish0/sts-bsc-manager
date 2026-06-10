@@ -693,21 +693,38 @@ export default function CollaborativeDetail() {
             </div>
 
             {isAdminHere && (!isEditing ? (
-              <button
-                onClick={() => setIsEditing(true)}
-                style={{
-                  background: 'linear-gradient(135deg, #00A79D 0%, #0E1F56 100%)',
-                  color: 'white',
-                  padding: '0.625rem 1.25rem',
-                  borderRadius: '8px',
-                  border: 'none',
-                  fontWeight: '600',
-                  cursor: 'pointer',
-                  fontSize: '0.9rem'
-                }}
-              >
-                Edit
-              </button>
+              <div style={{ display: 'flex', gap: '0.75rem' }}>
+                <button
+                  onClick={() => navigate(`/admin/ceu/${id}`)}
+                  style={{
+                    background: 'white',
+                    color: '#0E1F56',
+                    padding: '0.625rem 1.25rem',
+                    borderRadius: '8px',
+                    border: '2px solid #0E1F56',
+                    fontWeight: '600',
+                    cursor: 'pointer',
+                    fontSize: '0.9rem'
+                  }}
+                >
+                  🎓 CEU Certificates
+                </button>
+                <button
+                  onClick={() => setIsEditing(true)}
+                  style={{
+                    background: 'linear-gradient(135deg, #00A79D 0%, #0E1F56 100%)',
+                    color: 'white',
+                    padding: '0.625rem 1.25rem',
+                    borderRadius: '8px',
+                    border: 'none',
+                    fontWeight: '600',
+                    cursor: 'pointer',
+                    fontSize: '0.9rem'
+                  }}
+                >
+                  Edit
+                </button>
+              </div>
             ) : (
               <div style={{ display: 'flex', gap: '0.75rem' }}>
                 <button

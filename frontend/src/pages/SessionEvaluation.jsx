@@ -88,27 +88,27 @@ export default function SessionEvaluation() {
       return
     }
 
-    // Attendance sign-out is best-effort — never block the post-submit
-    // navigation on it. (Earlier bug: if this throws, the user got stuck on
-    // the form with no feedback after a successful eval insert.)
+    // Stamp evaluation completion on the attendance row (best-effort — never
+    // block the post-submit navigation). The eval CONTENT stays anonymous in
+    // session_evaluations; only the completion timestamp lands here. This is
+    // a CEU-credit gate: credit requires signed_in + evaluation_completed_at
+    // + an explicit final sign-out (sign_out_method='manual', stamped by the
+    // signout page we navigate to next). We intentionally do NOT sign out or
+    // clear sessionStorage here — SessionSignOut owns that step.
     try {
       const attendanceId = sessionStorage.getItem(`attendance_${token}`)
       if (attendanceId) {
         await supabase
           .from('session_attendance')
-          .update({
-            signed_out_at: new Date().toISOString(),
-            sign_out_method: 'evaluation'
-          })
+          .update({ evaluation_completed_at: new Date().toISOString() })
           .eq('id', attendanceId)
-        sessionStorage.removeItem(`attendance_${token}`)
       }
     } catch (err) {
-      console.warn('Attendance sign-out failed (eval was saved OK):', err)
+      console.warn('Eval-completion stamp failed (eval was saved OK):', err)
     }
 
-    // Always navigate — the eval is in. SessionSignOut renders the unified
-    // thank-you screen.
+    // Always navigate — the eval is in. SessionSignOut performs the explicit
+    // sign-out (sign_out_method='manual') and renders the thank-you screen.
     navigate(`/session/${token}/signout`)
   }
 
