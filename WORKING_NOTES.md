@@ -47,7 +47,64 @@ A bidirectional scratchpad shared between Josh, Claude Cowork (Claude desktop ch
 
 <!-- Add new drafts BELOW this line, newest at the bottom so Claude Code works through them in submission order. -->
 
-_(none — most recent draft "Registration system hardening" shipped 2026-06-10 as `b733257`. The draft WAS committed first this time (`2554861`) — recover the full spec via `git show 2554861:WORKING_NOTES.md`. Workflow gap closed; keep committing drafts when they're added.)_
+> **Batch queued 2026-06-10** (Fable 5 free-window push). Four backlog items: the three below are ready to implement; the **CEU certificate** feature is being designed in Cowork and will be appended once Josh confirms a couple of decisions. Commit each draft before implementing.
+
+### 2026-06-10 — Trainer analytics (3 widgets)
+
+**(a) Active Participation Index** — TrainerDashboard widget. Per team in the trainer's assigned collab(s), a composite engagement score blending forum post frequency, SMARTIE goal activity (new/updated goals), and checklist completion rate. Show a ranked per-team list with the component breakdown visible (not a black box). Compute over a trailing 30-day window, normalize each component 0–1, weight equally to start, and define the formula in one place (e.g. a `utils` helper). Read-only; scope via `canAdminCollaborative` / `myAdminCollaborativeIds`.
+
+**(b) Resource Utilization Heatmap** — needs a download-logging path first: new `resource_downloads` table (`id`, `resource_id` and/or `document_id`, `user_id` nullable, `downloaded_at`), written whenever a signed URL is minted for `resources` and `bsc_event_documents`. **New table → include explicit `GRANT`s per the CLAUDE.md 2026-10-30 convention + RLS.** Then a heatmap/bar on the dashboard showing most-downloaded resources and which STSI-OA domains (`resources.domains` TEXT[]) get the most engagement.
+
+**(c) Weekly trainer summary digest** — edge function + `pg_cron` Monday ~9 AM ET (use the same UTC-offset approach as the existing reminder crons). Per assigned collaborative, email each trainer a prior-week digest: new/updated SMARTIE goals, completed PDSAs, recent evaluation responses, new parking-lot items. Reuse the per-recipient Resend pattern + `unsubscribe_token` + `notifications_unsubscribed_at` handling from `send-event-reminder`.
+
+**Verify:** widgets render for a `trainer_admin` scoped to only their collabs; download logging fires on real downloads; digest cron inserts a log row and an email lands.
+
+### 2026-06-10 — Demo-mode flag (replace the hardcode)
+
+Replace the temporary `DEMO_COLLABORATIVE_ID` hardcode (from `edccdf6`) with a real per-collaborative flag.
+1. Migration: `ALTER TABLE collaboratives ADD COLUMN is_demo boolean NOT NULL DEFAULT false;` then set the current demo collab (`d82cab03-3025-47b7-98e1-e893d6f522ae`) to `true`. (Existing table — no new Data API grants needed.)
+2. **Anon read path:** the public `SessionSignIn` flow (anonymous) must learn whether the event's collaborative is a demo. Expose *only* this flag safely — e.g. a narrow anon SELECT policy surfacing it through the existing `session_links → bsc_events → collaboratives` relationship, or a `SECURITY DEFINER` helper that returns `is_demo` for a given token/event. Do NOT broadly expose `collaboratives` to anon.
+3. `SessionSignIn.jsx`: drop the `DEMO_COLLABORATIVE_ID` constant; gate the post-sign-in redirect-suppression on the fetched `is_demo` instead.
+4. Admin UI: a "Demo collaborative" toggle in the collaborative create/edit modal (super_admin only).
+
+**Verify:** demo collab still suppresses the redirect; flipping the flag off restores normal redirect; non-demo collabs unaffected; anon cannot read other collaborative data.
+
+### 2026-06-10 — Finish reminder system (T-1 hour + T-0)
+
+`send-event-reminder` already supports `reminder_type` `hour_before` and `starting_now`; nothing triggers them yet. Add a `pg_cron` job every 5 minutes that finds events whose `start_time` falls in the next 0–60 min window (`hour_before`) and ~now (`starting_now`), de-dupes via `event_reminder_log` (same idempotency as day/week-before), and POSTs to `send-event-reminder` via `pg_net` using the vault `service_role_key`. Match the ET→UTC handling in the existing `fire_day_before_reminders` / `fire_week_before_reminders` helpers.
+
+**Verify:** create a test event starting in ~55 min, run the new function manually → one `hour_before` row in `event_reminder_log` + email; second run produces no duplicate.
+
+### 2026-06-10 — CEU certificate issuance for learning collaboratives
+
+> **Largest of the batch — likely more than one implementation pass.** Port the logic from the existing desktop tool in this repo: `Training Manager/TrainingEventManager.py` (the LC certificate path: `build_lc_attendance`, `_lc_build_email_html`, the `CEU_*` approval constants ~lines 114–123, and the `<<…>>` merge logic). The certificate template lives at `Josh Notes/LC Certificate Template Fixed.docx`. The app now collects sign-in/out natively in `session_attendance`, so this replaces the Qualtrics-CSV → desktop-tool pipeline.
+>
+> **Decisions locked with Josh (Cowork):** (1) **Hours per session = auto from schedule** (`end_time − start_time`); CEU-eligible sessions must have both times. (2) **Attendance = sign-in + completed evaluation + explicit sign-out**, all three, per session. Per Josh: participants must complete the evaluation (which routes them to the sign-out page) AND click sign-out — doing both is the proof of attendance. **Schema wrinkle:** `session_evaluations` is anonymous (no attendee identity — only `bsc_event_id`, `collaborative_id`, scores, free text), so eval *completion* must be recorded per-person on the attendance row. Credit therefore requires `session_attendance.signed_in_at` non-null AND a new `evaluation_completed_at` non-null (stamped at eval submission) AND `sign_out_method = 'manual'` (the explicit final sign-out). `sign_out_method = 'evaluation'` (eval but no final sign-out) and `'session_closed'` (auto-close cron / admin "Close now") do NOT earn credit. Participants who skip either step don't earn that session by default; the admin review screen allows manual inclusion of verified exceptions. (3) **Delivery = review → generate → both** (review table, then bulk-download PDFs AND optional email via Resend).
+
+**Goal.** In-app CEU certificate issuance scoped to a learning collaborative (reusable for standalone trainings later). Admin marks which of the collaborative's sessions are CEU-eligible, the app computes each participant's awarded vs total hours from `session_attendance`, the admin reviews, then generates branded certificates (bulk download + optional email). `super_admin` + `trainer_admin` (`isAdminLevel`), scoped via `canAdminCollaborative`.
+
+**Data model (additive).**
+- `bsc_events`: ADD `ceu_eligible boolean NOT NULL DEFAULT false`. Admin marks eligible sessions; hours auto = `end_time − start_time` (eligible sessions must have both). (Existing table — no new grants.)
+- `session_attendance`: ADD `evaluation_completed_at timestamptz` (nullable). Required because `session_evaluations` carries no attendee identity (anonymous), so this is the only per-person record that an individual completed the eval. Wire `SessionEvaluation.jsx` to stamp it on a successful eval insert, using the `attendance_<token>` id already in sessionStorage. Keep eval *content* anonymous — only the completion timestamp goes on the attendance row. This stamp applies to all sessions (harmless additive); it just becomes a credit gate for CEU-eligible ones. (Existing table — no new grants.)
+- `collaborative_ceu_config` (NEW table, one row per collaborative): approval-body selections + params (KY Board of Social Work, KY Board of Psychology, LPCC, ASWB + approval period, EILA + number, FRSKY + number), plus `location text`, `trainer_name text`, `template_path text` (Storage path to the .docx template). **New table → explicit GRANTs + admin-only RLS per the CLAUDE.md 2026-10-30 convention.**
+- `ceu_certificates` (NEW table, issued log): `id`, `collaborative_id`, `attendee_email`, `attendee_name`, `hours_awarded`, `hours_total`, `issued_at`, `issued_by`, `pdf_path` (nullable), `emailed_at` (nullable). **New table → explicit GRANTs + admin-only RLS.**
+- Port the six approval texts **verbatim** from `TrainingEventManager.py` (`CEU_SWBOARD_TEXT`, `CEU_PSYCHBOARD_TEXT`, `CEU_LPCC_TEXT`, `CEU_ASWB_TEMPLATE`, `CEU_EILA_TEMPLATE`, `CEU_FRSKY_TEMPLATE`) — do not retype from memory; copy from the file. Substitute `{hours}` / `{number}` / approval period as the tool does. The combined selected texts fill the `<<CEU_APPROVALS>>` merge field.
+
+**Computation (mirror `build_lc_attendance`, but per-session binary on app data).**
+- Eligible sessions = the collaborative's `bsc_events` where `ceu_eligible = true` AND both `start_time`/`end_time` set. `hours_total = Σ(end_time − start_time)` across them.
+- Group `session_attendance` rows for those events by `lower(attendee_email)`. A participant "attended" a session only if their row has `signed_in_at` non-null AND `evaluation_completed_at` non-null AND `sign_out_method = 'manual'` (completed eval **and** explicit sign-out). Rows missing any of the three — including `sign_out_method` of `'evaluation'` (eval but no final sign-out) or `'session_closed'` (system close) — do **not** count. `hours_awarded = Σ` hours of attended eligible sessions.
+- Produce per-participant: name, email, hours_awarded, hours_total, and a per-session attended/not table (for `<<ATTENDANCE_TABLE>>` in the optional email).
+
+**Admin flow (new page, e.g. `/admin/ceu/:collaborativeId`, or a CEU panel on `CollaborativeDetail`).**
+1. **Configure:** auto-list the collaborative's sessions with an eligible toggle + the auto-computed hours; pick approval bodies + params; set location/trainer; confirm template.
+2. **Review:** table of every participant with hours_awarded / hours_total and their attended sessions. Flag zero-hour and partial-credit people. Allow per-person exclude / manual override before issuing (this is the "manual verification step").
+3. **Generate:** merge into the template per participant → PDF. Bulk-download (ZIP) AND an optional "Email to participants" action (Resend, per-recipient, with the attendance table + approval text, reusing the existing email infra). Record each issued cert in `ceu_certificates`.
+
+**Merge fields** (match the template): `<<NAME>>`, `<<FIRSTNAME>>`, `<<HOURS>>` (= hours_awarded), `<<TOTALHOURS>>` (= hours_total), `<<TRAINING>>` (collaborative name), `<<DATE>>` (session date range, like `_lc_date_range`), `<<LOCATION>>`, `<<TRAINER>>`, `<<CEU_APPROVALS>>`, `<<ATTENDANCE_TABLE>>` (email only).
+
+**Main implementation risk — rendering.** The template is a branded .docx (logo + Josh's signature block). Faithful output likely needs a real docx mail-merge (e.g. docxtemplater) + a docx→PDF step rather than re-drawing it in jsPDF. Confirm the rendering approach early; this is the part most likely to need iteration. Store the template in Supabase Storage (seed from `Josh Notes/LC Certificate Template Fixed.docx`).
+
+**Verify:** on a collaborative with real attendance, mark sessions eligible → confirm `hours_total` and a hand-checked participant's `hours_awarded` match; generate one certificate and confirm every merge field + the selected approval statements render correctly against the template; exercise the email path to one test address.
 
 <!-- Archived original draft section follows for posterity. Future drafts replace the placeholder above; this stays as a record of the spec. -->
 
