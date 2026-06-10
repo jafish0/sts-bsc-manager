@@ -14,6 +14,8 @@ A bidirectional scratchpad shared between Josh, Claude Cowork (Claude desktop ch
 
 > What's been built recently, so Claude Cowork has the running context without re-reading the entire git log.
 
+- **2026-06-10 `ae1fd09`** — ProQOL burnout-only (drafts preserved at `4735813`). Mirrors the `913a076` STS-removal pattern: the 10 Compassion Satisfaction items removed from `PROQOL_ITEMS` (burnout item IDs keep original ProQOL 5 values), `PROQOL_INFO` + copy now describe a single 10-item burnout subscale, insert no longer includes `compassion_satisfaction_score` (column stays, NULL on new rows; no migration). DataVisualization + reportDataLoader now filter stats on `burnout_score` (so new burnout-only rows count); TeamReport chart/table, exportPdf, and exportExcel are burnout-only (the Excel sheet's leftover STS columns also removed — they'd have crashed on the new loader shape); dataRecommendations drops CS strengths/growth, CS cross-cutting insights, and `summary.proqolCS` (banner metric removed in DataRecommendations.jsx). All existing `proqol_responses` rows preserved. **Flag for Josh (per draft, not a blocker):** ProQOL is now a ~10-item burnout-only scale; the ProQOL copyright asks the measure not be altered for free use — CTAC already administers a shortened version.
+- **2026-06-10 `00f15ce`** — Feedback triage dashboard (drafts preserved at `4735813`). New `/admin/feedback` page, **super_admin only** (gated `isSuperAdmin`; trainer_admins blocked + tile hidden): status-count pill filters, category/severity/program/submitter/collaborative dropdowns + free-text message search (client-side), newest-first table. Detail modal (AddTeamModal overlay pattern) shows full message + captured context + screenshot via 1-hour signed URL from the private `feedback-screenshots` bucket (null path handled); status select (new → triaged → incorporated → declined) + `admin_notes`, stamping `resolved_at` on incorporated/declined (preserved if already set, cleared on move back). "🐞 Feedback Triage" tile on AdminDashboard.
 - **2026-06-10 `a52463d`** — Demo/UAT contextual feedback widget (drafts preserved at `ddb75e6`). New `app_feedback` table (explicit GRANTs, no anon; RLS: admin-level INSERT own / read own / super_admin reads + triages all) + private `feedback-screenshots` bucket. Global `FeedbackWidget` (admin-level only): floating "💬 Feedback" button → html2canvas viewport screenshot (captured before the panel paints, widget self-excluded), route→page-label map, collab-id from scoped routes, category/severity/message, user-agent + viewport. Screenshot failure never blocks submission. Triage dashboard is Cowork's (separate artifact over the table). Dep `html2canvas` promoted to direct.
 - **2026-06-10 `9b01b22`** — CEU course-correction (revises `886245a`; drafts at `ddb75e6`). In-app .docx certs failed the uneditable-PDF requirement → the app now exports an Excel roster (`Name / Email / Hours Attended / Hours Total`, included participants only) and the desktop Training Manager tool issues PDFs. **Kept:** `ceu_eligible`, `evaluation_completed_at`, eval-flow change, strict credit rule, Configure + Review screens. **Rolled back:** `send-ceu-certificate` (tombstoned 410 — delete from dashboard when convenient), JSZip merge engine + approval constants + bundled template + `jszip` dep; dropped `collaborative_ceu_config` + `ceu_certificates` tables. **Desktop tool** (first commit of `TrainingEventManager.py` to the repo): new "Precomputed Roster (App)" picker + "Date Range (roster mode)" entry on the LC tab, `_lc_get_participants()` helper unifying review/test/send (roster mode bypasses Qualtrics parsing entirely), roster hours used verbatim in approval texts, `build_attendance_html` degrades to a one-line summary with empty session_data. Verified: py_compile clean on the tool's Python 3.14 + app-format .xlsx round-trips the parser.
 - **2026-06-10 `886245a`** — CEU certificate issuance for learning collaboratives (batch item 4/4; drafts preserved at `8e4ed3c`). New `bsc_events.ceu_eligible` + `session_attendance.evaluation_completed_at`; new `collaborative_ceu_config` + `ceu_certificates` tables (explicit GRANTs + admin RLS). Credit rule: signed-in + eval-completed + explicit sign-out (`sign_out_method='manual'`), all three per session; admin review screen allows per-session manual overrides. **Eval-flow change:** SessionEvaluation now stamps `evaluation_completed_at` and leaves sign-out to the signout page (which stamps `'manual'`) — previously eval stamped `'evaluation'` and the signout page's update never ran. CEU engine in `utils/ceu.js`: six approval texts ported verbatim from `TrainingEventManager.py`, `buildLcAttendance` mirror, JSZip-based docx merge validated against the real template (8/8 placeholders, images byte-identical, multi-line approvals via `<w:br/>`). New page `/admin/ceu/:collaborativeId` (Configure / Review / Generate) with "🎓 CEU Certificates" button on CollaborativeDetail; bulk ZIP download + per-participant email via new `send-ceu-certificate` edge function. **Output is merged .docx, not PDF** (browser-side docx→PDF infeasible; desktop tool had the same fallback). Template bundled at `frontend/public/templates/`. New dep `jszip`.
@@ -53,37 +55,7 @@ A bidirectional scratchpad shared between Josh, Claude Cowork (Claude desktop ch
 
 <!-- Add new drafts BELOW this line, newest at the bottom so Claude Code works through them in submission order. -->
 
-_Two ready drafts below — **(1) feedback triage dashboard** and **(2) ProQOL burnout-only** — then a ⛔ BLOCKED data-cleaning entry that must be skipped. (Shipped 2026-06-10 from `ddb75e6`: CEU course-correction `9b01b22`, feedback widget `a52463d`.)_
-
-### 2026-06-10 — Feedback triage dashboard (`/admin/feedback`, super_admin)
-
-> Builds the review side of the feedback widget shipped in `a52463d`. The `app_feedback` table + private `feedback-screenshots` bucket already exist. Commit this draft before implementing.
-
-**Goal:** An in-app triage board at `/admin/feedback`, **super_admin only**, for reviewing tester feedback during the Anchor Lab demo phase.
-
-**Table columns (confirmed live):** `id, user_id, user_email, user_role, route, page_label, program_type, collaborative_id, category, severity, message, screenshot_path, user_agent, viewport, status, admin_notes, created_at, resolved_at`. RLS already lets super_admin SELECT + UPDATE all rows.
-
-- Route `/admin/feedback` behind `ProtectedRoute`, gated to `isSuperAdmin` (trainer_admins must NOT see all feedback). AdminDashboard tile "🐞 Feedback" (super_admin only) → the page.
-- List newest-first with summary counts by status (e.g. "5 new"). Columns: created_at, submitter (`user_email` + `user_role`), page (`page_label`, route secondary), program/collab (`program_type` + resolve `collaborative_id` → collaborative name), category, severity, status badge, message preview.
-- Filters: status, category, severity, program_type, submitter, collaborative; free-text search over `message` (client-side filtering is fine for expected volume).
-- Row detail (modal/side panel, follow the `AddTeamModal` overlay pattern): full message + all captured context + the **screenshot** via a signed URL — `supabase.storage.from('feedback-screenshots').createSignedUrl(screenshot_path, 3600)` (handle null path gracefully). Controls: change `status` (new → triaged → incorporated → declined), edit `admin_notes`, stamp `resolved_at = now()` when set to incorporated/declined (clear it if moved back). Persist via supabase update + refresh row.
-- Inline styles + `COLORS` / `cardStyle` conventions; `useAuth()` gate; existing supabase client.
-
-**Verify:** super_admin opens `/admin/feedback`, sees all rows, filters/searches, opens an item and views its screenshot, changes status + notes and sees them persist with `resolved_at` set; trainer_admin / team_member cannot reach the page and the tile is hidden for them.
-
-### 2026-06-10 — Drop ProQOL Compassion Satisfaction (burnout-only)
-
-> Per Dr. Sprang: ProQOL should use ONLY the burnout subscale (reduce respondent burden). Compassion Satisfaction is **still present** — only the STS subscale was removed previously (`913a076`). **Mirror that STS-removal pattern exactly.** Commit this draft before implementing.
-
-- `frontend/src/config/proqol.js`: remove every `subscale: 'compassion_satisfaction'` item from `PROQOL_ITEMS`; remove the Compassion Satisfaction entry from `PROQOL_INFO.subscales`; update the description / purpose / scoring copy + comment block to reflect a **single burnout subscale**. Leave remaining burnout items at their original ProQOL values for historical comparability.
-- `frontend/src/pages/ProQOL.jsx`: stop including the compassion-satisfaction score in the insert (mirror how `secondary_trauma_score` was handled — the `proqol_responses` CS column stays, just NULL on new rows; no migration, no column drop).
-- `DataVisualization`, `TeamReport`, `exportPdf`, `exportExcel`: drop Compassion Satisfaction from all display + exports (burnout only).
-- `utils/dataRecommendations.js`: drop CS-based strengths/growth-areas; keep burnout logic.
-- Preserve all existing `proqol_responses` data.
-
-**Flag to Josh (don't block):** this leaves ProQOL as a ~10-item burnout-only scale; the ProQOL copyright asks the measure not be altered for free use — CTAC already administers a shortened version, so this continues that, but worth being aware.
-
-**Verify:** ProQOL presents only burnout items; scoring, DataVisualization, TeamReport, and both exports show only burnout; existing `proqol_responses` rows unchanged.
+_One entry below — the ⛔ BLOCKED data-cleaning stage, waiting on Ginny's cleaning-rules list. (Shipped 2026-06-10 from `4735813`: feedback triage dashboard `00f15ce`, ProQOL burnout-only `ae1fd09`. Earlier the same day from `ddb75e6`: CEU course-correction `9b01b22`, feedback widget `a52463d`. Full draft specs preserved in git history at those draft-commit hashes.)_
 
 ### 2026-06-10 — Data-cleaning stage for STS-BSC assessment data ⛔ BLOCKED (do not implement yet)
 
@@ -102,7 +74,7 @@ _Two ready drafts below — **(1) feedback triage dashboard** and **(2) ProQOL b
 
 **Blocked on:** Ginny/RA producing the normalized cleaning-rules list (valid ranges per field, junk-pattern definitions, duplicate/blank handling, etc.). Once delivered, the app operationalizes each rule as a flag + review-and-resolve step. Do not scope implementation before that list exists.
 
-**Adjacent notes from the same meeting (capture only, separate from this feature):** Ginny wants **percentiles** shown for STSI-OA and STSS; on **ProQOL she wants ONLY the burnout subscale** — drop secondary traumatic stress (shipped) AND compassion satisfaction (may still be present — worth checking).
+**Adjacent notes from the same meeting (capture only, separate from this feature):** Ginny wants **percentiles** shown for STSI-OA and STSS; on **ProQOL she wants ONLY the burnout subscale** — drop secondary traumatic stress (shipped `913a076`) AND compassion satisfaction (shipped `ae1fd09`).
 
 <!-- Archived original draft section follows for posterity. Future drafts replace the placeholder above; this stays as a record of the spec. -->
 
