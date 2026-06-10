@@ -51,7 +51,42 @@ A bidirectional scratchpad shared between Josh, Claude Cowork (Claude desktop ch
 
 <!-- Add new drafts BELOW this line, newest at the bottom so Claude Code works through them in submission order. -->
 
-_(none — the 2026-06-10 four-draft batch shipped same-day: trainer analytics `ed0a543`, demo-mode flag `70414c2`, T-1hr/T-0 reminders `2ac9993`, CEU certificates `886245a`. Full draft specs preserved in git history at `8e4ed3c` — recover via `git show 8e4ed3c:WORKING_NOTES.md`.)_
+### 2026-06-10 — CEU course-correction: Excel roster export, NOT in-app certificates
+
+> **Commit this draft before implementing.** This revises the CEU feature shipped in `886245a`. Reason: that build outputs merged **.docx** certificates (browser docx→PDF is infeasible without a paid API) and emails them via `send-ceu-certificate`. Editable .docx fails a hard requirement — certificates MUST be uneditable PDFs participants can't alter. No paid PDF/conversion APIs; cost must stay ~zero.
+>
+> **New approach (confirmed with Josh):** the web app stops generating certificates. It computes WHO qualifies + their hours (keeping the strict eval+sign-out credit rule) and exports an **Excel roster**. The existing desktop tool `Training Manager/TrainingEventManager.py` — which already makes uneditable PDFs locally via `docx2pdf` (Word) and emails via Outlook (`win32com`), at zero cost — consumes that roster and issues the certificates. Two codebases change: the web app and the Python tool.
+
+**Part A — Web app (`bsc-manager`).**
+- **KEEP** from `886245a`: `bsc_events.ceu_eligible`, `session_attendance.evaluation_completed_at`, the eval-flow change, the attendance/credit computation in `utils/ceu.js` (strict rule: `signed_in_at` + `evaluation_completed_at` + `sign_out_method='manual'`, per eligible session; hours auto = `end_time − start_time`), and the `/admin/ceu/:collaborativeId` **Configure + Review** screens (eligible-session selection + per-participant review with manual include/exclude overrides).
+- **REPLACE the "Generate" step** with an **Excel (.xlsx) export** of the qualifying + admin-approved participants. Columns exactly: `Name`, `Email`, `Hours Attended`, `Hours Total` (match the existing "LC Certificate Report" CSVs). Use the app's existing `xlsx` dependency. Filename e.g. `LC Certificate Report - <Collaborative Name>.xlsx`. Only included (not excluded) participants are written; hours come from the computed values, not recomputed downstream.
+- **ROLL BACK**: delete the `send-ceu-certificate` edge function and any in-app "email certificate" UI/action. Remove the JSZip docx-merge code, the bundled template under `frontend/public/templates/`, and the `jszip` dependency (if unused elsewhere). Drop the six approval-text constants + merge-field logic from the app (those live in the desktop tool now).
+- **Simplify config tables** (use judgment, note what changed): `collaborative_ceu_config` likely no longer needs `template_path` or approval-body fields — drop the now-unused columns, or drop the table entirely if nothing useful remains (eligible sessions live on `bsc_events`, hours are derived). `ceu_certificates` (issued log): the app no longer issues, so drop it, OR repurpose as a lightweight `ceu_exports` audit (who exported which roster, when) if cheap. Default: drop both unless trivially useful. Migrations for any drops.
+
+**Part B — Desktop tool (`Training Manager/TrainingEventManager.py`).**
+- Add an **"Import precomputed roster"** input mode to the LC tab: accepts the app's Excel/CSV (`Name, Email, Hours Attended, Hours Total`). When used, **skip** the Qualtrics sign-in/out parsing and `build_lc_attendance`, and build the `participants` list directly from the roster rows (`{name, email, hours_attended, hours_total, session_data: [], signin_only, fuzzy_matched: False}`). Feed straight into the existing certificate generation → `docx2pdf` → Outlook email flow unchanged.
+- The per-session attendance table in the email (`build_attendance_html` / `_lc_build_email_html`) has no per-session data in roster mode — adapt it to render gracefully with empty `session_data` (just show "attended X of Y hours") rather than erroring. Keep the existing CEU approval checkboxes (Josh selects approvals in the tool as today) and use the roster's hours verbatim (no recompute). Validate required columns; keep the existing `hours_attended > 0` gate for who gets a cert.
+
+**Verify:** (web) on a collaborative with attendance → mark sessions eligible → review → export yields an .xlsx with exactly those four columns, only included participants, hours matching a hand-check; `send-ceu-certificate` and the in-app email path are gone; no `jszip`/template left. (desktop) import that .xlsx → per-person `.docx` + `.pdf` land in the output folder and a test Outlook email sends.
+
+### 2026-06-10 — Demo/UAT contextual feedback tool
+
+> Context: the Anchor Lab demo phase begins 2026-06-10. Three testers join as `super_admin` (Ginny Sprang, Alex Clark, Leah Riggs) alongside Josh; they focus on the **TIC LC** and **STS-BSC** programs (Four-C and TIPE LC aren't built out yet — feedback from these two will inform those). We need an in-app way for testers to submit feedback tied to the exact place in the app, saved for later triage. Commit this draft before implementing.
+
+**Goal:** A floating "Feedback" widget on every page, visible to admin-level users (`super_admin` + `trainer_admin`), capturing contextual feedback into a new `app_feedback` table.
+
+**Data model.**
+- NEW table `app_feedback`: `id uuid PK`, `user_id uuid`, `user_email text`, `user_role text`, `route text` (path), `page_label text` (human-readable), `program_type text` NULL, `collaborative_id uuid` NULL, `category text` (`bug` | `confusing` | `idea` | `question`), `severity text` (`low` | `medium` | `high`), `message text`, `screenshot_path text` NULL, `user_agent text`, `viewport text`, `status text NOT NULL DEFAULT 'new'` (`new` | `triaged` | `incorporated` | `declined`), `admin_notes text` NULL, `created_at timestamptz DEFAULT now()`, `resolved_at timestamptz` NULL. **New table → explicit GRANTs per the 2026-10-30 convention + RLS:** admin-level (`super_admin` + `trainer_admin`) may INSERT and SELECT their own rows; `super_admin` may SELECT/UPDATE all. No anon access.
+- NEW private Storage bucket `feedback-screenshots` (signed URLs for review).
+
+**Frontend (global widget).**
+- A `FeedbackWidget` mounted in the app shell, rendered only when `isAdminLevel`. Floating button (bottom-right, high z-index, brand teal) opens a small panel.
+- On open: capture a screenshot of the current viewport via `html2canvas` (new dep); read the route via `useLocation()`; derive `page_label` (route→label map, fallback `document.title`); pull `program_type` + `collaborative_id` from the current collab context when on a collaborative-scoped page; read user/email/role from `useAuth()`; capture `navigator.userAgent` + `window.innerWidth × innerHeight`.
+- Fields: category (select), severity (select), message (textarea). Submit → upload screenshot to `feedback-screenshots` → insert `app_feedback` row with all captured context → success toast, reset. Non-blocking, dismissible; avoid capturing the widget itself in the screenshot.
+
+**Review:** the triage dashboard is built **separately in Cowork** (live artifact over `app_feedback` + signed screenshot URLs, filter by person/program/category/status, update status + notes). Claude Code only builds the widget + table + bucket.
+
+**Verify:** widget shows for an admin-level user, absent for `team_member`; submitting on a collab page writes a row with correct route, page_label, program_type/collaborative_id, user/role, and a retrievable screenshot; category/severity/message persist; status defaults to `new`.
 
 <!-- Archived original draft section follows for posterity. Future drafts replace the placeholder above; this stays as a record of the spec. -->
 
