@@ -3,6 +3,7 @@ import { BrowserRouter as Router, Routes, Route, Navigate, useNavigate, useLocat
 import { AuthProvider, useAuth } from './contexts/AuthContext'
 import { ThemeProvider } from './contexts/ThemeContext'
 import ProtectedRoute from './components/ProtectedRoute'
+import FeedbackWidget from './components/FeedbackWidget'
 import TeamCodeEntry from './pages/TeamCodeEntry'
 import Demographics from './pages/Demographics'
 import STSS from './pages/STSS'
@@ -78,6 +79,8 @@ function App() {
     <AuthProvider>
       <Router>
         <AuthRedirectHandler />
+        {/* Demo/UAT contextual feedback — renders only for admin-level users */}
+        <FeedbackWidget />
         <Routes>
           {/* Public Assessment Routes */}
           <Route path="/" element={<TeamCodeEntry />} />
