@@ -8,6 +8,7 @@ import { useAuth } from '../contexts/AuthContext'
 import { COLORS, cardStyle, cardHeaderStyle } from '../utils/constants'
 import { PROGRAM_TYPE_COLORS } from '../config/programConfig'
 import { exportEvaluationReportPdf } from '../utils/exportEvaluationPdf'
+import { logDownload } from '../utils/logDownload'
 import AgendaBanner from '../components/AgendaBanner'
 
 const ATTENDANCE_REFRESH_MS = 30000
@@ -360,6 +361,7 @@ export default function EventDetail() {
       .from('event-documents')
       .createSignedUrl(doc.storage_path, 3600)
     if (err) { alert('Could not generate download link'); return }
+    logDownload({ documentId: doc.id, userId: user?.id || null })
     window.open(data.signedUrl, '_blank')
   }
 

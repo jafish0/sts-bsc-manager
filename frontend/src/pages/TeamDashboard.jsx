@@ -8,6 +8,7 @@ import { calculatePhase, PHASES, getPhaseGuidance, phaseToChecklistKey } from '.
 import { detectChecklistCompletion } from '../utils/checklistAutoDetect'
 import AttendanceReport from '../components/AttendanceReport'
 import AgendaBanner from '../components/AgendaBanner'
+import { logDownload } from '../utils/logDownload'
 
 export default function TeamDashboard() {
   const navigate = useNavigate()
@@ -192,6 +193,7 @@ export default function TeamDashboard() {
       .from('event-documents')
       .createSignedUrl(doc.storage_path, 3600)
     if (error) { alert('Could not generate download link'); return }
+    logDownload({ documentId: doc.id, userId: user?.id || null })
     window.open(data.signedUrl, '_blank')
   }
 

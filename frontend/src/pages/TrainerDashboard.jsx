@@ -5,6 +5,7 @@ import { useAuth } from '../contexts/AuthContext'
 import { COLORS, cardStyle, cardHeaderStyle } from '../utils/constants'
 import { PROGRAM_TYPE_COLORS } from '../config/programConfig'
 import { exportEvaluationReportPdf } from '../utils/exportEvaluationPdf'
+import { computeParticipationIndex, PARTICIPATION_WINDOW_DAYS } from '../utils/participationIndex'
 
 const PAGE_BG = 'var(--bg-page)'
 
@@ -56,6 +57,8 @@ export default function TrainerDashboard() {
   const [disengagedTeams, setDisengagedTeams] = useState([])  // teams idle 14+ days
   const [rsvpsByEvent, setRsvpsByEvent] = useState({})  // { eventId: { attending: [...], not_attending: [...], no_response: [...] } }
   const [expandedRsvpEvent, setExpandedRsvpEvent] = useState(null)
+  const [participationScores, setParticipationScores] = useState([])  // ranked [{ team, score, components }]
+  const [downloadStats, setDownloadStats] = useState(null)  // { topItems: [...], byDomain: [...] }
 
   useEffect(() => {
     if (!user?.id) return
@@ -232,6 +235,46 @@ export default function TrainerDashboard() {
           })
 
         if (!cancelled) setDisengagedTeams(flagged)
+      }
+
+      // 7. Active Participation Index — composite per-team engagement score.
+      // Formula lives in utils/participationIndex.js.
+      if (teamIds.length > 0) {
+        const scored = await computeParticipationIndex(
+          (teamsInMyCollabs || []).map(t => ({
+            ...t,
+            collaborative_name: collabById[t.collaborative_id]?.name || '',
+          }))
+        )
+        if (!cancelled) setParticipationScores(scored)
+      }
+
+      // 8. Resource Utilization — download telemetry over the trailing 30 days.
+      {
+        const windowStart = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString()
+        const { data: dls } = await supabase
+          .from('resource_downloads')
+          .select('resource_id, document_id, downloaded_at, resources ( title, domains ), bsc_event_documents ( file_name )')
+          .gte('downloaded_at', windowStart)
+        if (!cancelled) {
+          const byItem = new Map()
+          const byDomain = {}
+          ;(dls || []).forEach(d => {
+            const key = d.resource_id ? `r:${d.resource_id}` : `d:${d.document_id}`
+            const label = d.resources?.title || d.bsc_event_documents?.file_name || '(deleted item)'
+            const entry = byItem.get(key) || { label, count: 0, kind: d.resource_id ? 'resource' : 'material' }
+            entry.count += 1
+            byItem.set(key, entry)
+            ;(d.resources?.domains || []).forEach(dom => {
+              byDomain[dom] = (byDomain[dom] || 0) + 1
+            })
+          })
+          setDownloadStats({
+            total: (dls || []).length,
+            topItems: [...byItem.values()].sort((a, b) => b.count - a.count).slice(0, 8),
+            byDomain: Object.entries(byDomain).map(([domain, count]) => ({ domain, count })).sort((a, b) => b.count - a.count),
+          })
+        }
       }
 
       setLoading(false)
@@ -643,6 +686,108 @@ export default function TrainerDashboard() {
                       >Open</button>
                     </div>
                   ))}
+                </div>
+              </section>
+            )}
+
+            {/* Active Participation Index — ranked per-team engagement */}
+            {participationScores.length > 0 && (
+              <section style={{ ...cardStyle, marginBottom: '1.5rem' }}>
+                <div style={cardHeaderStyle}>
+                  📈 Active Participation Index
+                  <span style={{ fontWeight: 400, fontSize: '0.85rem', color: 'var(--text-muted)', marginLeft: '0.5rem' }}>
+                    forum + goals + checklist, trailing {PARTICIPATION_WINDOW_DAYS} days
+                  </span>
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', marginTop: '0.5rem' }}>
+                  {participationScores.map(({ team, score, components }) => (
+                    <div
+                      key={team.id}
+                      style={{
+                        padding: '0.6rem 0.85rem',
+                        border: '1px solid var(--border-light)',
+                        borderLeft: `4px solid ${score >= 60 ? '#16a34a' : score >= 30 ? '#f59e0b' : '#ef4444'}`,
+                        borderRadius: '6px',
+                        background: 'var(--bg-card)',
+                        display: 'grid',
+                        gridTemplateColumns: '1fr auto',
+                        gap: '0.75rem',
+                        alignItems: 'center',
+                      }}
+                    >
+                      <div>
+                        <div style={{ fontSize: '0.9rem', fontWeight: 600 }}>
+                          {team.team_name || team.agency_name}
+                          {team.collaborative_name && (
+                            <span style={{ fontWeight: 400, fontSize: '0.75rem', color: 'var(--text-muted)', marginLeft: '0.5rem' }}>{team.collaborative_name}</span>
+                          )}
+                        </div>
+                        {/* Component breakdown — visible, not a black box */}
+                        <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '0.15rem' }}>
+                          💬 {components.forum.raw} forum post{components.forum.raw === 1 ? '' : 's'}
+                          {' · '}🎯 {components.goals.raw} goal{components.goals.raw === 1 ? '' : 's'} active
+                          {' · '}✅ checklist {components.checklist.total > 0 ? `${components.checklist.done}/${components.checklist.total}` : '—'}
+                        </div>
+                      </div>
+                      <div style={{ fontSize: '1.3rem', fontWeight: 700, color: score >= 60 ? '#16a34a' : score >= 30 ? '#b45309' : '#ef4444' }}>
+                        {score}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </section>
+            )}
+
+            {/* Resource Utilization — most-downloaded items + domain engagement */}
+            {downloadStats && downloadStats.total > 0 && (
+              <section style={{ ...cardStyle, marginBottom: '1.5rem' }}>
+                <div style={cardHeaderStyle}>
+                  📊 Resource Utilization
+                  <span style={{ fontWeight: 400, fontSize: '0.85rem', color: 'var(--text-muted)', marginLeft: '0.5rem' }}>
+                    {downloadStats.total} download{downloadStats.total === 1 ? '' : 's'} in the last 30 days
+                  </span>
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: downloadStats.byDomain.length > 0 ? '1fr 1fr' : '1fr', gap: '1.25rem', marginTop: '0.5rem' }}>
+                  <div>
+                    <div style={{ fontSize: '0.78rem', fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: '0.4rem' }}>Most downloaded</div>
+                    {downloadStats.topItems.map((item, i) => {
+                      const max = downloadStats.topItems[0]?.count || 1
+                      return (
+                        <div key={i} style={{ marginBottom: '0.4rem' }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem' }}>
+                            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '75%' }}>
+                              {item.kind === 'resource' ? '📚' : '📄'} {item.label}
+                            </span>
+                            <strong>{item.count}</strong>
+                          </div>
+                          <div style={{ height: '6px', background: 'var(--bg-card-alt)', borderRadius: '3px', overflow: 'hidden' }}>
+                            <div style={{ width: `${(item.count / max) * 100}%`, height: '100%', background: COLORS.teal }} />
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+
+                  {downloadStats.byDomain.length > 0 && (
+                    <div>
+                      <div style={{ fontSize: '0.78rem', fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: '0.4rem' }}>Engagement by domain</div>
+                      {downloadStats.byDomain.map(({ domain, count }) => {
+                        const max = downloadStats.byDomain[0]?.count || 1
+                        return (
+                          <div key={domain} style={{ marginBottom: '0.4rem' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem' }}>
+                              <span style={{ textTransform: 'capitalize' }}>{domain.replace(/_/g, ' ')}</span>
+                              <strong>{count}</strong>
+                            </div>
+                            <div style={{ height: '6px', background: 'var(--bg-card-alt)', borderRadius: '3px', overflow: 'hidden' }}>
+                              <div style={{ width: `${(count / max) * 100}%`, height: '100%', background: COLORS.navy }} />
+                            </div>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  )}
                 </div>
               </section>
             )}

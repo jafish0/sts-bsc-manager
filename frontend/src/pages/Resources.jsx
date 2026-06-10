@@ -4,6 +4,7 @@ import { supabase } from '../utils/supabase'
 import { useAuth } from '../contexts/AuthContext'
 import { useProgramDomains } from '../hooks/useProgramDomains'
 import { useProgramCategories } from '../hooks/useProgramCategories'
+import { logDownload } from '../utils/logDownload'
 import AddResourceModal from '../components/AddResourceModal'
 import ctacLogo from '../assets/CTAC_white.png'
 
@@ -103,6 +104,7 @@ export default function Resources() {
       .from('resources')
       .createSignedUrl(resource.file_path, 3600)
     if (error) { alert('Error generating download link'); return }
+    logDownload({ resourceId: resource.id, userId: profile?.id || null })
     window.open(data.signedUrl, '_blank')
   }
 

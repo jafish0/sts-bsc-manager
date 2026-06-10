@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import ReactMarkdown from 'react-markdown'
 import { supabase } from '../utils/supabase'
+import { logDownload } from '../utils/logDownload'
 
 const NAVY = '#0E1F56'
 const TEAL = '#00A79D'
@@ -271,6 +272,7 @@ function DocumentDownloadButton({ doc }) {
         .from('event-documents')
         .createSignedUrl(doc.storage_path, 3600)
       if (error) throw error
+      logDownload({ documentId: doc.id }) // anon — userId stays null
       window.open(data.signedUrl, '_blank')
     } catch (err) {
       alert('Could not generate download link. Reach out to your trainer if this keeps happening.')
