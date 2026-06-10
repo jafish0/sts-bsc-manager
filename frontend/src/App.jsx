@@ -47,6 +47,7 @@ import RegistrationsAdmin from './pages/RegistrationsAdmin'
 import TrainingsAdmin from './pages/TrainingsAdmin'
 import TrainingHub from './pages/TrainingHub'
 import CeuManager from './pages/CeuManager'
+import FeedbackAdmin from './pages/FeedbackAdmin'
 
 // Detect invite/recovery tokens in URL hash and redirect to /set-password
 function AuthRedirectHandler() {
@@ -163,6 +164,11 @@ function App() {
           <Route path="/admin/ceu/:collaborativeId" element={
             <ProtectedRoute>
               <CeuManager />
+            </ProtectedRoute>
+          } />
+          <Route path="/admin/feedback" element={
+            <ProtectedRoute>
+              <FeedbackAdmin />
             </ProtectedRoute>
           } />
           <Route path="/admin/smartie-goals/:teamId" element={
