@@ -41,7 +41,7 @@ function formatAutoClose(evt) {
 export default function CollaborativeDetail() {
   const { id } = useParams()
   const navigate = useNavigate()
-  const { canAdminCollaborative } = useAuth()
+  const { canAdminCollaborative, isSuperAdmin } = useAuth()
   // True if the current user can administer THIS collaborative (super_admin
   // OR a trainer assigned to it via collaborative_trainers).
   const isAdminHere = canAdminCollaborative(id)
@@ -59,7 +59,8 @@ export default function CollaborativeDetail() {
     description: '',
     start_date: '',
     end_date: '',
-    status: 'active'
+    status: 'active',
+    is_demo: false
   })
 
   // Events state
@@ -205,7 +206,8 @@ export default function CollaborativeDetail() {
         description: data.description || '',
         start_date: data.start_date,
         end_date: data.end_date || '',
-        status: data.status || 'active'
+        status: data.status || 'active',
+        is_demo: data.is_demo || false
       })
     } catch (error) {
       console.error('Error fetching collaborative:', error)
@@ -470,7 +472,8 @@ export default function CollaborativeDetail() {
       description: collaborative.description || '',
       start_date: collaborative.start_date,
       end_date: collaborative.end_date || '',
-      status: collaborative.status || 'active'
+      status: collaborative.status || 'active',
+      is_demo: collaborative.is_demo || false
     })
     setIsEditing(false)
   }
@@ -822,6 +825,22 @@ export default function CollaborativeDetail() {
                   </select>
                 </div>
               </div>
+
+              {/* Demo-mode toggle — super_admin only. Demo collabs suppress the
+                  post-sign-in redirect to staff login on the public sign-in page. */}
+              {isSuperAdmin && (
+                <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginTop: '1rem', fontSize: '0.9rem', color: '#374151', cursor: 'pointer' }}>
+                  <input
+                    type="checkbox"
+                    checked={editForm.is_demo}
+                    onChange={(e) => setEditForm({ ...editForm, is_demo: e.target.checked })}
+                  />
+                  <span>
+                    <strong>Demo collaborative</strong> — participants who sign in stay on the confirmation screen
+                    (no redirect to the staff login)
+                  </span>
+                </label>
+              )}
             </div>
           ) : (
             <>

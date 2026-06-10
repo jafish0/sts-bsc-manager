@@ -5,13 +5,6 @@ import { supabase } from '../utils/supabase'
 const NAVY = '#0E1F56'
 const TEAL = '#00A79D'
 
-// Temporary hardcode for the public demo collaborative (created 2026-06-01).
-// While we're in "expose one feature at a time" demo mode for the live LC,
-// sign-in on this collaborative should NOT auto-redirect participants to the
-// staff login (they have no app access). Easy to find/remove or replace with
-// an `is_demo` flag on the collaboratives table later.
-const DEMO_COLLABORATIVE_ID = 'd82cab03-3025-47b7-98e1-e893d6f522ae'
-
 export default function SessionSignIn() {
   const { token } = useParams()
   const navigate = useNavigate()
@@ -30,7 +23,19 @@ export default function SessionSignIn() {
     role: ''
   })
 
-  const isDemoCollaborative = eventInfo?.collaborative_id === DEMO_COLLABORATIVE_ID
+  // Demo collaboratives suppress the post-sign-in redirect to staff login
+  // (participants have no app accounts). Fetched via a narrow SECURITY
+  // DEFINER RPC so anon visitors learn only this one boolean — replaces the
+  // old DEMO_COLLABORATIVE_ID hardcode.
+  const [isDemoCollaborative, setIsDemoCollaborative] = useState(false)
+  useEffect(() => {
+    if (!eventInfo?.id) return
+    let cancelled = false
+    supabase.rpc('event_collab_is_demo', { p_event_id: eventInfo.id })
+      .then(({ data }) => { if (!cancelled) setIsDemoCollaborative(!!data) })
+      .catch(() => { /* default false — normal redirect behavior */ })
+    return () => { cancelled = true }
+  }, [eventInfo?.id])
 
   useEffect(() => {
     validateToken()
