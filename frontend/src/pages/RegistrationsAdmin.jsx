@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { supabase } from '../utils/supabase'
 import { useAuth } from '../contexts/AuthContext'
 import { COLORS, cardStyle, cardHeaderStyle } from '../utils/constants'
@@ -12,14 +12,16 @@ import RegistrationRosterModal from '../components/RegistrationRosterModal'
 // in one sortable table.
 export default function RegistrationsAdmin() {
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
   const { isAdminLevel } = useAuth()
 
   const [collaboratives, setCollaboratives] = useState([])  // [{id, name, link_count, events: [...]}]
   const [registrationLinks, setRegistrationLinks] = useState([])  // flat array; each row has collaborative name joined in
   const [loading, setLoading] = useState(true)
 
-  // Create flow
-  const [createCollabId, setCreateCollabId] = useState('')
+  // Create flow. The ?prefill_collab=<id> query param (set by EventDetail's
+  // "Create registration link →" affordance) preselects the dropdown.
+  const [createCollabId, setCreateCollabId] = useState(() => searchParams.get('prefill_collab') || '')
   const [showCreateModal, setShowCreateModal] = useState(false)
   const [editingLink, setEditingLink] = useState(null)
   const [eventsForCreateCollab, setEventsForCreateCollab] = useState([])

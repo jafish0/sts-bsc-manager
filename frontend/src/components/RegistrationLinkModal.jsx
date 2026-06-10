@@ -120,6 +120,22 @@ export default function RegistrationLinkModal({ collaborativeId, eventsForCollab
 
     setSaving(true)
     try {
+      // Capacity-decrease guard: don't allow setting capacity below the
+      // current number of CONFIRMED registrations on this link. Waitlisted
+      // rows don't count against capacity, so they don't block.
+      if (editingLink && capacity !== '') {
+        const { count: confirmedCount } = await supabase
+          .from('event_registrations')
+          .select('id', { count: 'exact', head: true })
+          .eq('registration_link_id', editingLink.id)
+          .eq('status', 'registered')
+        if ((confirmedCount ?? 0) > Number(capacity)) {
+          setError(`Cannot set capacity to ${Number(capacity)} — there are already ${confirmedCount} confirmed registrations. Cancel some first to free room.`)
+          setSaving(false)
+          return
+        }
+      }
+
       const payload = {
         collaborative_id: collaborativeId,
         title: title.trim(),

@@ -24,7 +24,7 @@ export default function RegistrationRosterModal({ linkId, linkTitle, onClose, on
     setLoading(true)
     const { data } = await supabase
       .from('event_registrations')
-      .select('id, full_name, email, responses, status, registered_at, cancelled_at, checked_in_at, waitlist_position, cancel_token')
+      .select('id, full_name, email, responses, status, registered_at, cancelled_at, checked_in_at, waitlist_position, cancel_token, confirmation_sent_at')
       .eq('registration_link_id', linkId)
       .order('registered_at', { ascending: false })
     setRows(data || [])
@@ -41,12 +41,49 @@ export default function RegistrationRosterModal({ linkId, linkTitle, onClose, on
     onChange?.()
   }
 
-  const cancelRegistrationAdmin = async (regId) => {
-    if (!window.confirm('Cancel this registration?')) return
-    await supabase.from('event_registrations')
-      .update({ status: 'cancelled', cancelled_at: new Date().toISOString() }).eq('id', regId)
+  // Admin cancel goes through the cancel-registration edge function (same
+  // path as the public /cancel-registration/:token page) so the top
+  // waitlister auto-promotes and both cancellation + promotion emails fire.
+  // A direct status UPDATE here would silently skip all of that.
+  const cancelRegistrationAdmin = async (row) => {
+    if (!window.confirm('Cancel this registration? If there is a waitlist, the top person will be automatically promoted and emailed.')) return
+    try {
+      const url = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/cancel-registration`
+      const resp = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ cancel_token: row.cancel_token }),
+      })
+      const json = await resp.json().catch(() => ({}))
+      if (!resp.ok) { alert('Cancel failed: ' + (json.error || `HTTP ${resp.status}`)); return }
+      if (json.promoted_email) {
+        alert(`Cancelled. ${json.promoted_email} was promoted off the waitlist and notified.`)
+      }
+    } catch (err) {
+      alert('Cancel failed: ' + (err.message || String(err)))
+      return
+    }
     await load()
     onChange?.()
+  }
+
+  // Re-invoke the confirmation email for a row whose send failed (or never
+  // happened). The edge function stamps confirmation_sent_at on success.
+  const resendConfirmation = async (row) => {
+    try {
+      const url = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-registration-email`
+      const resp = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ registration_id: row.id, kind: 'confirmation' }),
+      })
+      const json = await resp.json().catch(() => ({}))
+      if (!resp.ok) { alert('Resend failed: ' + (json.error || `HTTP ${resp.status}`)); return }
+    } catch (err) {
+      alert('Resend failed: ' + (err.message || String(err)))
+      return
+    }
+    await load()
   }
 
   const exportCsv = () => {
@@ -138,6 +175,12 @@ export default function RegistrationRosterModal({ linkId, linkTitle, onClose, on
                     <span style={statusBadge(r.status)}>
                       {r.status}{r.status === 'waitlisted' && r.waitlist_position != null && ` #${r.waitlist_position}`}
                     </span>
+                    {r.status !== 'cancelled' && !r.confirmation_sent_at && (
+                      <span
+                        title="No confirmation email has gone out for this registration"
+                        style={{ display: 'inline-block', marginLeft: '0.35rem', background: '#fef3c7', color: '#92400e', padding: '0.1rem 0.4rem', borderRadius: '999px', fontSize: '0.65rem', fontWeight: 700 }}
+                      >⚠ not sent</span>
+                    )}
                   </td>
                   <td style={{ padding: '0.4rem 0.5rem', fontWeight: 500 }}>{r.full_name}</td>
                   <td style={{ padding: '0.4rem 0.5rem' }}><a href={`mailto:${r.email}`} style={{ color: NAVY }}>{r.email}</a></td>
@@ -149,8 +192,11 @@ export default function RegistrationRosterModal({ linkId, linkTitle, onClose, on
                       {r.status === 'waitlisted' && (
                         <button onClick={() => promoteWaitlister(r.id)} title="Promote to registered" style={{ background: '#16a34a', color: 'white', border: 'none', padding: '0.2rem 0.5rem', borderRadius: '4px', cursor: 'pointer', fontSize: '0.72rem' }}>↑</button>
                       )}
+                      {r.status !== 'cancelled' && !r.confirmation_sent_at && (
+                        <button onClick={() => resendConfirmation(r)} title="Resend confirmation email" style={{ background: '#fef3c7', color: '#92400e', border: 'none', padding: '0.2rem 0.5rem', borderRadius: '4px', cursor: 'pointer', fontSize: '0.72rem', fontWeight: 600 }}>✉ Resend</button>
+                      )}
                       {r.status !== 'cancelled' && (
-                        <button onClick={() => cancelRegistrationAdmin(r.id)} title="Cancel registration" style={{ background: 'transparent', color: '#991b1b', border: '1px solid #991b1b', padding: '0.2rem 0.5rem', borderRadius: '4px', cursor: 'pointer', fontSize: '0.72rem' }}>✕</button>
+                        <button onClick={() => cancelRegistrationAdmin(r)} title="Cancel registration (promotes top waitlister if any)" style={{ background: 'transparent', color: '#991b1b', border: '1px solid #991b1b', padding: '0.2rem 0.5rem', borderRadius: '4px', cursor: 'pointer', fontSize: '0.72rem' }}>✕</button>
                       )}
                     </div>
                   </td>

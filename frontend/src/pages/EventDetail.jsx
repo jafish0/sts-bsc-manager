@@ -492,6 +492,18 @@ export default function EventDetail() {
             >
               ✉ Email all participants
             </button>
+            {/* Registration is collaborative-scoped, so this affordance only
+                renders for collaborative events (standalone trainings have no
+                collaborative_id). Lands on /admin/registrations with this
+                collab preselected in the picker. */}
+            {event.collaborative_id && canAdminCollaborative(event.collaborative_id) && (
+              <button
+                onClick={() => navigate(`/admin/registrations?prefill_collab=${event.collaborative_id}`)}
+                style={{ background: 'transparent', color: COLORS.navy, border: `1px solid ${COLORS.navy}`, padding: '0.4rem 0.85rem', borderRadius: '6px', cursor: 'pointer', fontSize: '0.85rem' }}
+              >
+                Create registration link →
+              </button>
+            )}
           </div>
         </div>
 
