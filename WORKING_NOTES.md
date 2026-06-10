@@ -46,7 +46,25 @@ A bidirectional scratchpad shared between Josh, Claude Cowork (Claude desktop ch
 
 <!-- Add new drafts BELOW this line, newest at the bottom so Claude Code works through them in submission order. -->
 
-_(none — most recent draft "Demo collab sign-in polish" shipped 2026-06-01 as `edccdf6`. **Note for next time:** that draft was edited into the working tree without being committed first, so the original spec text isn't recoverable from `git log` — the Recently shipped one-liner + the `edccdf6` diff are the only persisted records. **Same workflow gap as the Polish-batch draft hit on 2026-05-08.** Going forward, when adding a draft, also commit it (e.g., `git commit -m "draft: <title>"`) so the spec survives in git history before the implementation rewrites it.)_
+### 2026-06-10 — Registration system hardening (production-ready pass)
+
+> **Commit this draft before implementing** (`git commit -m "draft: registration hardening"`) so the spec survives in git history — per the recurring workflow-gap note.
+>
+> Decisions captured with Josh (Cowork session): registration stays a **learning-collaborative-only** feature — every link has a collaborative (`collaborative_id` NOT NULL); no collab-less / standalone single-event registration is to be built. Existing "which sessions does this link cover" selection is left as-is (harmless, admin-only); simplifying it is a separate UX call for later. Capacity guard blocks below **confirmed** registrations only (waitlisted don't count). Email-failure fix is the **minimal** approach (status column + resend button, no separate failures table). These four fixes come straight from the `INFRASTRUCTURE.md` "Open follow-ups" list. (Picked to run on Fable 5 during the free-access window.)
+
+**Goal:** Harden the event registration system so it's production-ready before real waitlists depend on it. Registration is a learning-collaborative feature only — every registration link belongs to a collaborative (`collaborative_id` is `NOT NULL`); do not add or support collab-less / standalone-event registration. Four independent fixes — ship what you can; each stands alone. Confirm exact handler/function names against current code before editing.
+
+**Fix 1 — Capacity-decrease guard** (`frontend/src/components/RegistrationLinkModal.jsx`). In `handleSave()`, when editing an existing link and `capacity` is set, query the count of `event_registrations` for this link with `status='registered'`. If the new capacity is below that count, block the save and show an inline message in the existing `error` state (e.g. "Cannot set capacity to N — there are already M confirmed registrations. Cancel some first to free room."). Do not count waitlisted rows.
+
+**Fix 2 — Confirmation-email visibility + resend (minimal).** (a) Migration: `ALTER TABLE event_registrations ADD COLUMN confirmation_sent_at timestamptz;` (existing table, already granted on the Data API roles — no new GRANTs needed). (b) In the `send-registration-email` edge function, stamp `confirmation_sent_at = now()` on the row after a successful confirmation send. (c) In `frontend/src/components/RegistrationRosterModal.jsx`, show a "⚠ not sent" indicator on rows where `confirmation_sent_at` is null, and add a "Resend confirmation" button that re-invokes `send-registration-email` (confirmation type) for that registration, then refreshes. Keep `mint-registration`'s fire-and-forget send as-is — this column + button is the recovery path.
+
+**Fix 3 — Admin cancel must promote the waitlist** (`frontend/src/components/RegistrationRosterModal.jsx`). The `cancelRegistrationAdmin` handler currently does a direct `status='cancelled'` UPDATE. Replace it with a POST to the `cancel-registration` edge function using the row's `cancel_token` (already in the SELECT): `{ cancel_token: row.cancel_token }`. That path atomically cancels, auto-promotes the top waitlister, and sends the cancellation + promotion emails — matching the public `/cancel-registration/:token` flow. Refresh the roster after.
+
+**Fix 4 — Create-registration affordance on EventDetail.** Add a small "Create registration link for this collaborative →" link on `EventDetail` that navigates to `/admin/registrations?prefill_collab=<event.collaborative_id>`. In the `RegistrationsAdmin` page, read the `prefill_collab` query param on mount and preselect it in the collaborative dropdown.
+
+**Verification (before declaring done):** (1) try to set capacity below confirmed count → blocked; equal/higher → allowed. (2) new registrations get `confirmation_sent_at` stamped; null it on a test row → roster shows the indicator and Resend re-stamps. (3) with someone waitlisted, admin-cancel a confirmed registrant → top waitlister promotes + both emails fire. (4) the EventDetail link lands on `/admin/registrations` with the right collaborative preselected.
+
+**Constraints:** Only Fix 2 touches the schema (one additive column). No other migrations, no new dependencies. Commit per fix or as a cohesive batch and let Vercel deploy.
 
 <!-- Archived original draft section follows for posterity. Future drafts replace the placeholder above; this stays as a record of the spec. -->
 
