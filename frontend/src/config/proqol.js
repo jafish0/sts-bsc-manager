@@ -12,20 +12,14 @@ export const PROQOL_COPYRIGHT = {
 
 export const PROQOL_INFO = {
   title: 'About the Professional Quality of Life Scale (ProQOL 5)',
-  description: 'The ProQOL measures the positive and negative effects of helping others who experience suffering and trauma.',
-  // STS subscale dropped 2026-05-08 per Dr. Sprang's demo feedback —
-  // STSS already measures secondary traumatic stress more rigorously, and the
-  // duplicate measurement was adding respondent burden. Compassion Satisfaction
-  // and Burnout remain.
-  purpose: 'When you help people, you have direct contact with their lives. This assessment helps understand both the positive aspects (compassion satisfaction) and negative aspects (burnout) of your work.',
-  scoring: 'This shortened ProQOL administration includes 20 items across two subscales:',
+  description: 'The ProQOL measures the effects of helping others who experience suffering and trauma.',
+  // STS subscale dropped 2026-05-08 (STSS measures it more rigorously);
+  // Compassion Satisfaction dropped 2026-06-10 — per Dr. Sprang, ProQOL
+  // administration uses ONLY the burnout subscale to reduce respondent
+  // burden.
+  purpose: 'When you help people, you have direct contact with their lives. This assessment helps understand the strain (burnout) your work can create.',
+  scoring: 'This shortened ProQOL administration includes the 10-item burnout subscale:',
   subscales: [
-    {
-      name: 'Compassion Satisfaction',
-      description: 'The pleasure you derive from being able to do your work well (10 items)',
-      range: 'Scores of 22 or less = Low, 23-41 = Moderate, 42 or more = High',
-      interpretation: 'Higher scores indicate greater satisfaction with your ability to provide effective care'
-    },
     {
       name: 'Burnout',
       description: 'Feelings of hopelessness and difficulties in dealing with work (10 items)',
@@ -45,11 +39,14 @@ export const RESPONSE_OPTIONS = [
   { value: 5, label: 'Very Often' }
 ]
 
-// Per Dr. Sprang's 2026-05-08 demo feedback, the secondary_trauma subscale
-// items (originally IDs 2, 5, 7, 9, 11, 13, 14, 23, 25, 28) are no longer
-// administered. STSS provides this measurement more rigorously. Item IDs of
-// the remaining 20 items are intentionally left at their original ProQOL 5
-// values so historical proqol_responses rows remain comparable.
+// Per Dr. Sprang, ProQOL administration uses ONLY the burnout subscale:
+// - secondary_trauma items (orig. IDs 2, 5, 7, 9, 11, 13, 14, 23, 25, 28)
+//   dropped 2026-05-08 — STSS measures it more rigorously.
+// - compassion_satisfaction items (orig. IDs 3, 6, 12, 16, 18, 20, 22, 24,
+//   27, 30) dropped 2026-06-10 — respondent-burden reduction.
+// Item IDs of the remaining 10 burnout items are intentionally left at
+// their original ProQOL 5 values so historical proqol_responses rows
+// remain comparable.
 export const PROQOL_ITEMS = [
   {
     id: 1,
@@ -58,20 +55,10 @@ export const PROQOL_ITEMS = [
     reverseScored: true
   },
   {
-    id: 3,
-    text: 'I get satisfaction from being able to [help] people.',
-    subscale: 'compassion_satisfaction'
-  },
-  {
     id: 4,
     text: 'I feel connected to others.',
     subscale: 'burnout',
     reverseScored: true
-  },
-  {
-    id: 6,
-    text: 'I feel invigorated after working with those I [help].',
-    subscale: 'compassion_satisfaction'
   },
   {
     id: 8,
@@ -84,20 +71,10 @@ export const PROQOL_ITEMS = [
     subscale: 'burnout'
   },
   {
-    id: 12,
-    text: 'I like my work as a [helper].',
-    subscale: 'compassion_satisfaction'
-  },
-  {
     id: 15,
     text: 'I have beliefs that sustain me.',
     subscale: 'burnout',
     reverseScored: true
-  },
-  {
-    id: 16,
-    text: 'I am pleased with how I am able to keep up with [helping] techniques and protocols.',
-    subscale: 'compassion_satisfaction'
   },
   {
     id: 17,
@@ -106,19 +83,9 @@ export const PROQOL_ITEMS = [
     reverseScored: true
   },
   {
-    id: 18,
-    text: 'My work makes me feel satisfied.',
-    subscale: 'compassion_satisfaction'
-  },
-  {
     id: 19,
     text: 'I feel worn out because of my work as a [helper].',
     subscale: 'burnout'
-  },
-  {
-    id: 20,
-    text: 'I have happy thoughts and feelings about those I [help] and how I could help them.',
-    subscale: 'compassion_satisfaction'
   },
   {
     id: 21,
@@ -126,35 +93,15 @@ export const PROQOL_ITEMS = [
     subscale: 'burnout'
   },
   {
-    id: 22,
-    text: 'I believe I can make a difference through my work.',
-    subscale: 'compassion_satisfaction'
-  },
-  {
-    id: 24,
-    text: 'I am proud of what I can do to [help].',
-    subscale: 'compassion_satisfaction'
-  },
-  {
     id: 26,
     text: 'I feel "bogged down" by the system.',
     subscale: 'burnout'
-  },
-  {
-    id: 27,
-    text: 'I have thoughts that I am a "success" as a [helper].',
-    subscale: 'compassion_satisfaction'
   },
   {
     id: 29,
     text: 'I am a very caring person.',
     subscale: 'burnout',
     reverseScored: true
-  },
-  {
-    id: 30,
-    text: 'I am happy that I chose to do this work.',
-    subscale: 'compassion_satisfaction'
   }
 ]
 

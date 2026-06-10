@@ -18,23 +18,13 @@ function classifySTSSTotal(mean) {
   return { level: 'severe', label: 'Severe STS', interpretation: 'Staff are experiencing severe STS symptoms. Immediate organizational response is needed.' }
 }
 
-// ProQOL subscale classifications (range 10-50)
-function classifyProQOLCS(mean) {
-  if (mean >= 42) return { level: 'high', label: 'High Compassion Satisfaction' }
-  if (mean >= 23) return { level: 'average', label: 'Average Compassion Satisfaction' }
-  return { level: 'low', label: 'Low Compassion Satisfaction' }
-}
-
+// ProQOL subscale classification (range 10-50). Burnout is the only
+// subscale administered — STS dropped 2026-05-08 (STSS covers it),
+// Compassion Satisfaction dropped 2026-06-10.
 function classifyProQOLBurnout(mean) {
   if (mean <= 22) return { level: 'low', label: 'Low Burnout' }
   if (mean <= 41) return { level: 'average', label: 'Average Burnout' }
   return { level: 'high', label: 'High Burnout' }
-}
-
-function classifyProQOLSTS(mean) {
-  if (mean <= 22) return { level: 'low', label: 'Low Secondary Trauma' }
-  if (mean <= 41) return { level: 'average', label: 'Average Secondary Trauma' }
-  return { level: 'high', label: 'High Secondary Trauma' }
 }
 
 // STSI-OA domain classification by percentage of max
@@ -130,37 +120,12 @@ export function generateRecommendations(reportData, timepoint) {
   }
 
   // --- ProQOL Analysis ---
-  // STS subscale removed 2026-05-08 per Dr. Sprang's feedback. STSS provides
-  // this measurement more rigorously, so we no longer surface ProQOL STS
-  // classifications even on historical rows that have the score populated.
+  // Burnout is the only subscale analyzed. STS removed 2026-05-08 (STSS
+  // provides this measurement more rigorously); Compassion Satisfaction
+  // removed 2026-06-10. Historical rows may still have those scores
+  // populated but we no longer surface them.
   if (tp.proqol && tp.proqol.n > 0) {
-    const csClass = classifyProQOLCS(tp.proqol.cs.mean)
     const burnoutClass = classifyProQOLBurnout(tp.proqol.burnout.mean)
-
-    // Compassion Satisfaction
-    if (csClass.level === 'high') {
-      strengths.push({
-        source: 'proqol',
-        label: 'High Compassion Satisfaction',
-        score: tp.proqol.cs.mean.toFixed(1),
-        interpretation: 'Your team reports high satisfaction from their work helping others. This is a protective factor against burnout and STS.',
-        leverageAdvice: 'This strength can help buffer against stress symptoms. Consider building peer support activities that reinforce this shared sense of purpose.'
-      })
-    } else if (csClass.level === 'low') {
-      growthAreas.push({
-        source: 'proqol',
-        label: 'Low Compassion Satisfaction',
-        score: `${tp.proqol.cs.mean.toFixed(1)} / 50`,
-        severity: 'high',
-        interpretation: 'Staff are not finding satisfaction in their work. This is a risk factor for turnover and disengagement.',
-        suggestedDomains: ['resilience', 'leadership'],
-        suggestedActions: [
-          'Strengthen mission-focused activities and team celebrations',
-          'Improve supervision quality with focus on recognizing meaningful work',
-          'Create opportunities for staff to reflect on the positive impact of their work'
-        ]
-      })
-    }
 
     // Burnout
     if (burnoutClass.level === 'low') {
@@ -187,10 +152,6 @@ export function generateRecommendations(reportData, timepoint) {
         ]
       })
     }
-
-    // ProQOL STS subscale-based recommendations removed 2026-05-08 — STSS
-    // already provides this signal more rigorously and is its own
-    // recommendation source elsewhere in this file.
   }
 
   // --- STSI-OA Domain Analysis ---
@@ -228,8 +189,8 @@ export function generateRecommendations(reportData, timepoint) {
   const exposureMean = tp.demographics ? parseFloat(tp.demographics.exposureMean) : null
 
   // --- Cross-Cutting Insights ---
+  // CS-based insights removed 2026-06-10 along with the CS subscale.
   const stssTotal = tp.stss?.total?.mean || 0
-  const csScore = tp.proqol?.cs?.mean || 0
   const burnoutScore = tp.proqol?.burnout?.mean || 0
   const safetyPct = tp.stsioa ? ((tp.stsioa.safety?.mean || 0) / STSIOA_DOMAIN_MAX.safety) * 100 : null
   const evalPct = tp.stsioa ? ((tp.stsioa.evaluation?.mean || 0) / STSIOA_DOMAIN_MAX.evaluation) * 100 : null
@@ -242,27 +203,11 @@ export function generateRecommendations(reportData, timepoint) {
     })
   }
 
-  // High CS + high STSS
-  if (csScore >= 42 && stssTotal >= 38) {
-    insights.push({
-      title: 'Compassion satisfaction as a buffer',
-      text: 'Despite elevated STS symptoms, your team reports high compassion satisfaction. Research shows this is a powerful protective factor. Strengthening peer support and mission-focused activities can help maintain this buffer while you address the symptom-level concerns.'
-    })
-  }
-
   // Low burnout + high STSS
   if (burnoutScore <= 22 && stssTotal >= 38) {
     insights.push({
       title: 'Trauma exposure — not workload — is the primary concern',
       text: 'Staff are not burnt out but are experiencing STS specifically. This suggests the trauma exposure itself (not workload) is the primary issue. Focus on trauma-specific interventions like low-impact processing and resilience building rather than workload reduction.'
-    })
-  }
-
-  // High burnout + low CS
-  if (burnoutScore >= 42 && csScore <= 22) {
-    insights.push({
-      title: 'Burnout and disengagement — retention risk',
-      text: 'Staff are burnt out and not finding satisfaction in their work. This combination is a significant retention risk. Address workload, supervision quality, and mission connection as a priority.'
     })
   }
 
@@ -290,10 +235,9 @@ export function generateRecommendations(reportData, timepoint) {
     }
   }
 
-  // Build summary. proqolSTS removed 2026-05-08 per Dr. Sprang's feedback.
+  // Build summary. proqolSTS removed 2026-05-08, proqolCS removed 2026-06-10.
   const summary = {
     stssTotal: tp.stss ? { mean: tp.stss.total.mean, ...classifySTSSTotal(tp.stss.total.mean) } : null,
-    proqolCS: tp.proqol ? { mean: tp.proqol.cs.mean, ...classifyProQOLCS(tp.proqol.cs.mean) } : null,
     proqolBurnout: tp.proqol ? { mean: tp.proqol.burnout.mean, ...classifyProQOLBurnout(tp.proqol.burnout.mean) } : null,
     stsioaTotal: tp.stsioa ? {
       mean: tp.stsioa.total.mean,

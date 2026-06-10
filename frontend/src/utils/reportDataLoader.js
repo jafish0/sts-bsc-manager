@@ -100,18 +100,14 @@ export async function loadTeamReportData(teamId) {
       arousal: { mean: stssScores.reduce((s, r) => s + r.arousal, 0) / stssScores.length, sd: stddev(stssScores.map(r => r.arousal)) }
     } : null
 
-    // Process ProQOL
-    const proqolScores = proqolResponses.filter(r => r.compassion_satisfaction_score !== null).map(r => ({
-      cs: r.compassion_satisfaction_score,
-      burnout: r.burnout_score,
-      sts: r.secondary_trauma_score
+    // Process ProQOL (burnout only — STS dropped 2026-05-08, CS dropped 2026-06-10)
+    const proqolScores = proqolResponses.filter(r => r.burnout_score !== null).map(r => ({
+      burnout: r.burnout_score
     }))
 
     const proqolStats = proqolScores.length > 0 ? {
       n: proqolScores.length,
-      cs: { mean: proqolScores.reduce((s, r) => s + r.cs, 0) / proqolScores.length, sd: stddev(proqolScores.map(r => r.cs)) },
-      burnout: { mean: proqolScores.reduce((s, r) => s + r.burnout, 0) / proqolScores.length, sd: stddev(proqolScores.map(r => r.burnout)) },
-      sts: { mean: proqolScores.reduce((s, r) => s + r.sts, 0) / proqolScores.length, sd: stddev(proqolScores.map(r => r.sts)) }
+      burnout: { mean: proqolScores.reduce((s, r) => s + r.burnout, 0) / proqolScores.length, sd: stddev(proqolScores.map(r => r.burnout)) }
     } : null
 
     // Process STSI-OA

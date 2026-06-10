@@ -61,19 +61,17 @@ export function exportTeamReportExcel(report) {
   })
   XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(stssRows), 'STSS')
 
-  // Sheet 3: ProQOL
+  // Sheet 3: ProQOL (burnout only — STS dropped 2026-05-08, CS dropped 2026-06-10)
   const proqolRows = [
     ['ProQOL 5 — Professional Quality of Life'],
-    ['Timepoint', 'n', 'Compassion Satisfaction M', 'CS SD', 'Burnout M', 'Burnout SD', 'Secondary Trauma M', 'STS SD']
+    ['Timepoint', 'n', 'Burnout M', 'Burnout SD']
   ]
   TIMEPOINT_ORDER.forEach(tp => {
     const d = tpData[tp]?.proqol
     if (d) {
       proqolRows.push([
         TIMEPOINT_LABELS[tp], d.n,
-        round(d.cs.mean), round(d.cs.sd),
-        round(d.burnout.mean), round(d.burnout.sd),
-        round(d.sts.mean), round(d.sts.sd)
+        round(d.burnout.mean), round(d.burnout.sd)
       ])
     }
   })
@@ -164,13 +162,11 @@ export function exportDataVizExcel(data, filters) {
     rows.push([])
   }
 
-  // ProQOL section
+  // ProQOL section (burnout only — STS dropped 2026-05-08, CS dropped 2026-06-10)
   if (data.proqol) {
     rows.push(['--- ProQOL (n=' + data.proqol.n + ') ---'])
     rows.push(['Subscale', 'Mean', 'SD'])
-    rows.push(['Compassion Satisfaction', round(data.proqol.cs.mean), round(data.proqol.cs.sd)])
     rows.push(['Burnout', round(data.proqol.burnout.mean), round(data.proqol.burnout.sd)])
-    // STS subscale removed 2026-05-08 per Dr. Sprang's feedback (STSS covers this).
     rows.push([])
   }
 

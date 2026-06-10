@@ -64,17 +64,15 @@ function ProQOL() {
       return rawScore
     }
 
-    // Calculate subscale scores. STS subscale dropped 2026-05-08; we leave
-    // secondary_trauma_score out of the payload so the column stays NULL on
-    // new rows. Historical rows retain their values.
-    const compassionItems = PROQOL_ITEMS.filter(item => item.subscale === 'compassion_satisfaction')
+    // Burnout is the only subscale administered. STS dropped 2026-05-08,
+    // Compassion Satisfaction dropped 2026-06-10; secondary_trauma_score and
+    // compassion_satisfaction_score are left out of the payload so those
+    // columns stay NULL on new rows. Historical rows retain their values.
     const burnoutItems = PROQOL_ITEMS.filter(item => item.subscale === 'burnout')
 
-    const compassionScore = compassionItems.reduce((sum, item) => sum + getScore(item.id), 0)
     const burnoutScore = burnoutItems.reduce((sum, item) => sum + getScore(item.id), 0)
 
     return {
-      compassion_satisfaction_score: compassionScore,
       burnout_score: burnoutScore
     }
   }
@@ -161,7 +159,7 @@ function ProQOL() {
 
   // Helper function to determine if we should show scale header
   const shouldShowScaleHeader = (index) => {
-    return index === 0 || index === 6 || index === 12 || index === 18 || index === 24
+    return index === 0 || index === 5
   }
 
   if (!assessmentResponseId) {

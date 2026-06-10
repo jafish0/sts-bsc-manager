@@ -425,9 +425,6 @@ function OverviewBanner({ summary }) {
   if (summary.stssTotal) {
     metrics.push({ label: 'STSS', value: summary.stssTotal.mean.toFixed(1), sublabel: summary.stssTotal.label, level: summary.stssTotal.level })
   }
-  if (summary.proqolCS) {
-    metrics.push({ label: 'Compassion Sat.', value: summary.proqolCS.mean.toFixed(1), sublabel: summary.proqolCS.label, level: summary.proqolCS.level === 'high' ? 'low' : summary.proqolCS.level === 'low' ? 'high' : 'average' })
-  }
   if (summary.proqolBurnout) {
     metrics.push({ label: 'Burnout', value: summary.proqolBurnout.mean.toFixed(1), sublabel: summary.proqolBurnout.label, level: summary.proqolBurnout.level })
   }

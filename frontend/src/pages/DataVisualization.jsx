@@ -285,18 +285,14 @@ export default function DataVisualization() {
         arousal: { mean: stssScores.reduce((s, r) => s + r.arousal, 0) / stssScores.length, sd: stddev(stssScores.map(r => r.arousal)) }
       } : null
 
-      // --- Process ProQOL (all 3 subscales from pre-calculated scores) ---
-      const proqolScores = proqolResponses.filter(r => r.compassion_satisfaction_score !== null).map(r => ({
-        cs: r.compassion_satisfaction_score,
-        burnout: r.burnout_score,
-        sts: r.secondary_trauma_score
+      // --- Process ProQOL (burnout only — STS dropped 2026-05-08, CS dropped 2026-06-10) ---
+      const proqolScores = proqolResponses.filter(r => r.burnout_score !== null).map(r => ({
+        burnout: r.burnout_score
       }))
 
       const avgProQOL = proqolScores.length > 0 ? {
         n: proqolScores.length,
-        cs: { mean: proqolScores.reduce((s, r) => s + r.cs, 0) / proqolScores.length, sd: stddev(proqolScores.map(r => r.cs)) },
-        burnout: { mean: proqolScores.reduce((s, r) => s + r.burnout, 0) / proqolScores.length, sd: stddev(proqolScores.map(r => r.burnout)) },
-        sts: { mean: proqolScores.reduce((s, r) => s + r.sts, 0) / proqolScores.length, sd: stddev(proqolScores.map(r => r.sts)) }
+        burnout: { mean: proqolScores.reduce((s, r) => s + r.burnout, 0) / proqolScores.length, sd: stddev(proqolScores.map(r => r.burnout)) }
       } : null
 
       // --- Process STSI-OA (domain scores from DB) ---
@@ -632,18 +628,15 @@ export default function DataVisualization() {
 
           {/* Row 3: ProQOL + STSI-OA */}
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: '1rem', marginBottom: '1rem' }}>
-            {/* ProQOL - All 3 Subscales */}
+            {/* ProQOL - Burnout subscale only (STS dropped 2026-05-08, CS dropped 2026-06-10) */}
             <div style={cardStyle}>
               <div style={cardHeaderStyle}>Professional Quality of Life (ProQOL 5)</div>
-              {/* STS subscale dropped 2026-05-08 per Dr. Sprang's feedback —
-                  STSS provides this measurement more rigorously. */}
-              <div style={subtitleStyle}>Two subscales (n={data.proqol?.n || 0})</div>
+              <div style={subtitleStyle}>Burnout subscale (n={data.proqol?.n || 0})</div>
               {data.proqol ? (
                 <>
                   <ResponsiveContainer width="100%" height={250}>
                     <BarChart
                       data={[
-                        { name: 'Compassion\nSatisfaction', value: data.proqol.cs.mean },
                         { name: 'Burnout', value: data.proqol.burnout.mean }
                       ]}
                       margin={{ top: 10, right: 10, left: 0, bottom: 20 }}
@@ -653,13 +646,11 @@ export default function DataVisualization() {
                       <YAxis domain={[0, 50]} tick={{ fontSize: 11 }} />
                       <Tooltip content={<CustomTooltip />} />
                       <Bar dataKey="value" radius={[4, 4, 0, 0]}>
-                        <Cell fill={COLORS.green} />
                         <Cell fill={COLORS.amber} />
                       </Bar>
                     </BarChart>
                   </ResponsiveContainer>
                   <div style={{ fontSize: '0.75rem', lineHeight: '1.6', marginTop: '0.5rem' }}>
-                    <div><strong>CS:</strong> M={data.proqol.cs.mean.toFixed(2)}, SD={data.proqol.cs.sd.toFixed(2)} (higher = better)</div>
                     <div><strong>BO:</strong> M={data.proqol.burnout.mean.toFixed(2)}, SD={data.proqol.burnout.sd.toFixed(2)} ({data.proqol.burnout.mean <= 22 ? 'Low' : data.proqol.burnout.mean <= 41 ? 'Average' : 'High'})</div>
                   </div>
                 </>
