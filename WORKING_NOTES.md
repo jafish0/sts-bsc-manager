@@ -55,7 +55,24 @@ A bidirectional scratchpad shared between Josh, Claude Cowork (Claude desktop ch
 
 <!-- Add new drafts BELOW this line, newest at the bottom so Claude Code works through them in submission order. -->
 
-_One entry below — the ⛔ BLOCKED data-cleaning stage, waiting on Ginny's cleaning-rules list. (Shipped 2026-06-10 from `4735813`: feedback triage dashboard `00f15ce`, ProQOL burnout-only `ae1fd09`. Earlier the same day from `ddb75e6`: CEU course-correction `9b01b22`, feedback widget `a52463d`. Full draft specs preserved in git history at those draft-commit hashes.)_
+_One ready draft below (demo data seed + empty real collaboratives), then the ⛔ BLOCKED data-cleaning stage (waiting on Ginny's rules list — skip it). (Shipped 2026-06-10: feedback triage dashboard `00f15ce`, ProQOL burnout-only `ae1fd09`, CEU course-correction `9b01b22`, feedback widget `a52463d`.)_
+
+### 2026-06-10 — Seed demo data + create two empty real collaboratives
+
+> Production data operation. Two parts: (A) populate the two existing demo collaboratives with realistic made-up data so Dr. Sprang can review working dashboards/reports; (B) create two NEW empty collaboratives for real CTAC staff. **Inspect the live schema + `frontend/src/config` instrument definitions before generating, and verify row counts after.** Commit this draft first. Do NOT delete any collaborative.
+>
+> **Decisions (Josh, Cowork):** keep both existing collaboratives as the demos; build on the 3 existing teams in 'Demo 2026'; baseline + endline data across ALL measures. Assessment data is **anonymous** (team_codes per timepoint, not login accounts) — generate anonymous respondents, do NOT create auth/login users for dummy respondents.
+
+**Part A — populate the two demos.**
+- **'Demo 2026 Collaborative'** (`aa91e6ec-c3a5-4eaf-a1ad-4af8af984299`, STS-BSC): keep its 3 existing teams (STS Busters / Southern Bluegrass DCBS, Compassion Keepers / KVC Kentucky, Trauma-Informed Pathfinders / New Vista) — build on them.
+- **'Trauma-Informed Care for Providers…'** (`d82cab03-3025-47b7-98e1-e893d6f522ae`, TIC-LC): has 0 teams — make up ~3 realistic TIC-space teams (agency + team names). Leave its existing 9 events and the 6/2 sign-in setup untouched.
+- For **every** demo team: generate ~50–60 anonymous respondents at **baseline** and again at **endline**, each a complete set across all four instruments — demographics (gender values `'M'`/`'F'`/`'NB'`/`'not_listed'`; realistic role/tenure; ages 22–65, no junk values), STSS, ProQOL **(burnout subscale only — CS removed `ae1fd09`)**, and STSI-OA (`item_1`…`item_37`). Link correctly: `assessment_responses` → `demographics`/`stss_responses`/`proqol_responses`/`stsioa_responses` via `assessment_response_id`; tie each to the team's `team_codes` for the correct timepoint. Make endline show plausible improvement over baseline (modestly lower STSS/burnout, higher STSI-OA) with natural per-respondent variance, not uniform shifts. Use the configs in `frontend/src/config` for valid scales/value ranges; follow the CLAUDE.md assessment-query gotchas.
+
+**Part B — create two EMPTY real collaboratives.**
+- One STS-BSC collaborative named **"STS-BSC 2026"** and one TIC-LC collaborative named **"TIC LC 2026"**, `is_demo = false`.
+- Each gets exactly one team named **"CTAC Staff"** (`agency_name` and `team_name` both = "CTAC Staff"), with NO members and NO assessment/dummy data — real CTAC staff will use these to test the agency assessment links. No events needed yet; team codes / assessment links get generated separately when Josh is ready to have staff take them.
+
+**Verify:** per-team respondent counts at each timepoint match target; a demo team's TeamReport renders baseline + endline with visible change-over-time; the two new collaboratives each show one empty "CTAC Staff" team and zero responses; the 3 original 'Demo 2026' teams are retained; nothing in `d82cab03`'s event/sign-in setup changed.
 
 ### 2026-06-10 — Data-cleaning stage for STS-BSC assessment data ⛔ BLOCKED (do not implement yet)
 
