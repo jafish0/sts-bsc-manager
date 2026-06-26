@@ -23,20 +23,6 @@ export default function SessionSignIn() {
     role: ''
   })
 
-  // Demo collaboratives suppress the post-sign-in redirect to staff login
-  // (participants have no app accounts). Fetched via a narrow SECURITY
-  // DEFINER RPC so anon visitors learn only this one boolean — replaces the
-  // old DEMO_COLLABORATIVE_ID hardcode.
-  const [isDemoCollaborative, setIsDemoCollaborative] = useState(false)
-  useEffect(() => {
-    if (!eventInfo?.id) return
-    let cancelled = false
-    supabase.rpc('event_collab_is_demo', { p_event_id: eventInfo.id })
-      .then(({ data }) => { if (!cancelled) setIsDemoCollaborative(!!data) })
-      .catch(() => { /* default false — normal redirect behavior */ })
-    return () => { cancelled = true }
-  }, [eventInfo?.id])
-
   useEffect(() => {
     validateToken()
     // Check if already signed in for this session
@@ -47,17 +33,20 @@ export default function SessionSignIn() {
     }
   }, [token])
 
-  // Auto-redirect to login after sign-in — skipped for the demo collaborative
-  // because demo participants don't have app accounts and the redirect just
-  // dumps them on a confusing login screen.
+  // Post-sign-in routing: once signed in (fresh or restored from storage) and
+  // the event is loaded, send the participant to their materials. Standalone
+  // trainings use the training hub; collaborative sessions use the in-app
+  // session-materials view. We no longer bounce anyone to /login — participants
+  // don't have app accounts, and the materials view is the useful destination
+  // for demo and real collaboratives alike.
   useEffect(() => {
-    if (signedIn && !isDemoCollaborative) {
-      const timer = setTimeout(() => {
-        navigate('/login')
-      }, 4000)
-      return () => clearTimeout(timer)
+    if (!signedIn || !eventInfo) return
+    if (eventInfo.kind === 'standalone_training' && eventInfo.hub_token) {
+      navigate(`/training/${eventInfo.hub_token}`, { replace: true })
+    } else {
+      navigate(`/session/${token}/materials`, { replace: true })
     }
-  }, [signedIn, navigate, isDemoCollaborative])
+  }, [signedIn, eventInfo, token, navigate])
 
   const validateToken = async () => {
     try {
@@ -111,8 +100,13 @@ export default function SessionSignIn() {
 
       if (rpcErr) throw rpcErr
 
-      // Store attendance ID in sessionStorage
+      // Store attendance ID + the per-device gate flag for the materials view /
+      // training hub BEFORE marking signed in, so the redirect effect's
+      // destination sees the flag the moment it fires. (Soft gate — the flag is
+      // per-device and bypassable via dev tools, but it's enough to keep casual
+      // visitors out of the materials before they actually show up and sign in.)
       sessionStorage.setItem(`attendance_${token}`, attendanceId)
+      sessionStorage.setItem(`signedInForEvent_${eventInfo.id}`, 'true')
       setAttendanceId(attendanceId)
       setSignedIn(true)
 
@@ -142,15 +136,6 @@ export default function SessionSignIn() {
         console.warn('Could not link registration to attendance:', linkErr)
       }
 
-      // Standalone training: set the hub gate flag and redirect to the hub.
-      // Soft gate — the sessionStorage flag is per-device and bypassable via
-      // dev tools, but it's enough to prevent casual material access before
-      // a participant actually shows up.
-      if (eventInfo?.kind === 'standalone_training' && eventInfo?.hub_token) {
-        sessionStorage.setItem(`signedInForEvent_${eventInfo.id}`, 'true')
-        navigate(`/training/${eventInfo.hub_token}`)
-        return
-      }
     } catch (err) {
       console.error('Sign-in error:', err)
       alert('Error signing in: ' + err.message)
@@ -179,6 +164,8 @@ export default function SessionSignIn() {
     )
   }
 
+  // Brief interstitial: signed in, the redirect effect is about to route to the
+  // materials view (collaborative) or training hub (standalone).
   if (signedIn) {
     return (
       <div style={{ minHeight: '100vh', background: '#f9fafb', display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
@@ -188,30 +175,9 @@ export default function SessionSignIn() {
           <p style={{ color: '#6b7280', fontSize: '0.95rem', marginBottom: '0.25rem' }}>
             <strong>{eventInfo?.title}</strong>
           </p>
-          <p style={{ color: '#9ca3af', fontSize: '0.85rem', marginBottom: '1.5rem' }}>
-            {eventInfo?.event_date && new Date(eventInfo.event_date + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}
+          <p style={{ color: '#9ca3af', fontSize: '0.85rem' }}>
+            Loading your session materials…
           </p>
-          <div style={{
-            background: '#F0FDF4', border: '1px solid #BBF7D0', borderRadius: '0.5rem',
-            padding: '1rem', marginBottom: isDemoCollaborative ? 0 : '1.5rem', fontSize: '0.85rem', color: '#166534'
-          }}>
-            {isDemoCollaborative
-              ? 'Thank you! Your attendance has been recorded.'
-              : 'Thank you! Your attendance has been recorded. Redirecting you to sign in...'}
-          </div>
-          {!isDemoCollaborative && (
-            <button
-              onClick={() => navigate('/login')}
-              style={{
-                display: 'block', width: '100%', padding: '0.85rem',
-                background: TEAL, color: 'white', border: 'none',
-                borderRadius: '0.5rem', fontSize: '1rem', fontWeight: '600',
-                cursor: 'pointer'
-              }}
-            >
-              Go to Dashboard Sign-In
-            </button>
-          )}
         </div>
       </div>
     )

@@ -38,6 +38,7 @@ import ResourceMapping from './pages/ResourceMapping'
 import SessionSignIn from './pages/SessionSignIn'
 import SessionEvaluation from './pages/SessionEvaluation'
 import SessionSignOut from './pages/SessionSignOut'
+import SessionMaterials from './pages/SessionMaterials'
 import TrainerDashboard from './pages/TrainerDashboard'
 import EventDetail from './pages/EventDetail'
 import RsvpPage from './pages/RsvpPage'
@@ -99,6 +100,7 @@ function App() {
           <Route path="/session/:token" element={<SessionSignIn />} />
           <Route path="/session/:token/eval" element={<SessionEvaluation />} />
           <Route path="/session/:token/signout" element={<SessionSignOut />} />
+          <Route path="/session/:token/materials" element={<SessionMaterials />} />
 
           {/* Public RSVP / unsubscribe (one-click links from reminder emails) */}
           <Route path="/rsvp/:token" element={<RsvpPage />} />
