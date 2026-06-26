@@ -88,7 +88,13 @@ export const PROGRAM_BRANDING = {
     hasResourceMapping: false,
     goalType: 'smart',
     goalLabel: 'S.M.A.R.T Goal',
-    goalFields: [],
+    goalFields: [
+      { key: 'strategic',  letter: 'S', label: 'Specific',      help: 'WHO is doing the work, and WHAT exactly needs to be done? Linked to a role, the goals of a team/department, and/or overall school or district goals.' },
+      { key: 'measurable', letter: 'M', label: 'Measurable',    help: "HOW will we know we've reached this goal? Success can be objectively measured, counted, and/or observed." },
+      { key: 'ambitious',  letter: 'A', label: 'Achievable',    help: 'Is this goal REASONABLE? Realistic and achievable in a specific, short amount of time.' },
+      { key: 'realistic',  letter: 'R', label: 'Relevant',      help: 'What are we hoping to accomplish? Aligned with current tasks/projects, focused on one defined area; include the expected result.' },
+      { key: 'time_bound', letter: 'T', label: 'Time-Oriented', help: 'WHEN? A clearly defined time-frame including a target or deadline date. Can be detailed in action steps.' },
+    ],
     // Source: AWARE 3 Year 3 Trainer Agenda — 5 Learning Sessions + 3 Learning Calls (interleaved between sessions).
     defaultEvents: [
       { event_type: 'learning_session', title: 'Learning Session 1', sequence_number: 1 },
@@ -151,3 +157,10 @@ export const PROGRAM_TYPE_COLORS = {
   tipe_lc: { bg: '#fef3c7', color: '#92400e', label: 'TIPE LC' },
   fourc: { bg: '#ede9fe', color: '#5b21b6', label: 'FourC' },
 }
+
+// Program types that can be selected when CREATING a new collaborative.
+// FourC is intentionally excluded: it has no assessment routes or score
+// columns, so a FourC collaborative would land on broken/empty dashboards.
+// (PROGRAM_TYPE_COLORS still includes fourc so existing collaboratives and
+// badges render correctly.) Order here is the order shown in the dropdown.
+export const CREATABLE_PROGRAM_TYPES = ['sts_bsc', 'tic_lc', 'tipe_lc']

@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../utils/supabase'
 import { useAuth } from '../contexts/AuthContext'
-import { PROGRAM_TYPE_COLORS, getProgramBranding } from '../config/programConfig'
+import { PROGRAM_TYPE_COLORS, CREATABLE_PROGRAM_TYPES, getProgramBranding } from '../config/programConfig'
 
 // Build the locked, pre-populated event list for a given program type.
 // Falls back to STS-BSC defaults if program has none defined.
@@ -348,8 +348,8 @@ function CreateCollaborativeModal({ onClose, onSuccess }) {
               onChange={(e) => handleChange('program_type', e.target.value)}
               style={{ width: '100%', padding: '0.75rem', border: '2px solid #e5e7eb', borderRadius: '8px', fontSize: '1rem', boxSizing: 'border-box' }}
             >
-              {Object.entries(PROGRAM_TYPE_COLORS).map(([key, pt]) => (
-                <option key={key} value={key}>{pt.label}</option>
+              {CREATABLE_PROGRAM_TYPES.map((key) => (
+                <option key={key} value={key}>{PROGRAM_TYPE_COLORS[key].label}</option>
               ))}
             </select>
           </div>
