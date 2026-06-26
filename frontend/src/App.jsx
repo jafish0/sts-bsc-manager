@@ -4,6 +4,7 @@ import { AuthProvider, useAuth } from './contexts/AuthContext'
 import { ThemeProvider } from './contexts/ThemeContext'
 import ProtectedRoute from './components/ProtectedRoute'
 import FeedbackWidget from './components/FeedbackWidget'
+import ViewAsControl from './components/ViewAsControl'
 import TeamCodeEntry from './pages/TeamCodeEntry'
 import Demographics from './pages/Demographics'
 import STSS from './pages/STSS'
@@ -82,6 +83,8 @@ function App() {
         <AuthRedirectHandler />
         {/* Demo/UAT contextual feedback — renders only for admin-level users */}
         <FeedbackWidget />
+        {/* "View as" preview switch — renders only for real super_admins */}
+        <ViewAsControl />
         <Routes>
           {/* Public Assessment Routes */}
           <Route path="/" element={<TeamCodeEntry />} />
