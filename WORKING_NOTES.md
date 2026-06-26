@@ -56,7 +56,68 @@ A bidirectional scratchpad shared between Josh, Claude Cowork (Claude desktop ch
 
 <!-- Add new drafts BELOW this line, newest at the bottom so Claude Code works through them in submission order. -->
 
-_One entry below — the ⛔ BLOCKED data-cleaning stage, waiting on Ginny's cleaning-rules list. (Shipped 2026-06-10: demo-data seed + empty real collaboratives (draft at `2624ed2`), feedback triage dashboard `00f15ce`, ProQOL burnout-only `ae1fd09`, CEU course-correction `9b01b22`, feedback widget `a52463d`.)_
+_Ready drafts below, in suggested order: (1) Remove Four-C, (2) Fill TIPE SMART goals, (3) View-as preview switch, (4) Bulk-load TIPE resource library, (5) Sign-in-gated session materials. Then the ⛔ BLOCKED data-cleaning stage (skip it). (Shipped 2026-06-10: demo-data seed `2624ed2`, feedback triage dashboard `00f15ce`, ProQOL burnout-only `ae1fd09`, CEU course-correction `9b01b22`, feedback widget `a52463d`.)_
+
+### 2026-06-10 — Remove Four-C from the create-collaborative flow (pre-testing guardrail)
+
+> Pre-testing guardrail: testers are super_admin and could otherwise create a Four-C collaborative that then hits broken/empty dashboards (Four-C has no assessment routes or score columns). Commit this draft first.
+
+In `CreateCollaborativeModal` (and anywhere else the program_type options are listed for creation), remove **Four-C (`fourc` / `four_c`)** from the selectable program options so it can't be chosen when creating a collaborative. Leave STS-BSC and TIC-LC selectable. Do not touch existing collaboratives or the grayed-out "Coming Soon" dashboard tiles.
+
+**TIPE LC note:** TIPE LC is also not built yet (being built with Josh imminently) — Josh will decide separately whether to also hide it from create in the interim. For now this change touches Four-C only unless told otherwise.
+
+**Verify:** the create-collaborative program dropdown no longer offers Four-C; STS-BSC + TIC-LC still create fine; existing collaboratives unaffected.
+
+### 2026-06-10 — Fill TIPE LC SMART goal fields (config)
+
+> Quick config completion. `PROGRAM_BRANDING.tipe_lc` in `frontend/src/config/programConfig.js` has `goalType: 'smart'` but `goalFields: []` (empty). Populate it with Leah's SMART Goals template, mapped onto the existing goal keys so it stores in the same goal columns as the other programs. Keep `goalType: 'smart'` and `goalLabel: 'S.M.A.R.T Goal'`; change nothing else.
+
+```js
+goalFields: [
+  { key: 'strategic',  letter: 'S', label: 'Specific',      help: 'WHO is doing the work, and WHAT exactly needs to be done? Linked to a role, the goals of a team/department, and/or overall school or district goals.' },
+  { key: 'measurable', letter: 'M', label: 'Measurable',    help: "HOW will we know we've reached this goal? Success can be objectively measured, counted, and/or observed." },
+  { key: 'ambitious',  letter: 'A', label: 'Achievable',    help: 'Is this goal REASONABLE? Realistic and achievable in a specific, short amount of time.' },
+  { key: 'realistic',  letter: 'R', label: 'Relevant',      help: 'What are we hoping to accomplish? Aligned with current tasks/projects, focused on one defined area; include the expected result.' },
+  { key: 'time_bound', letter: 'T', label: 'Time-Oriented', help: 'WHEN? A clearly defined time-frame including a target or deadline date. Can be detailed in action steps.' },
+]
+```
+
+The rest of the TIPE build — the AWARE pre/post survey instrument (demographics + AWARE survey, baseline + endline timepoints, link-in-chat collection, results NOT shared with participants, resource mapping OFF) — is a separate task pending Dr. Sprang's survey content.
+
+### 2026-06-10 — Full "View as" preview switch (super_admin)
+
+> Lets a super_admin preview the app as a Team Leader / Team Member (and back to Admin), with a program/team context picker — so testers can see the participant-facing experience and browse each program's resource library without separate logins. **Front-end preview only** (still authenticated as super_admin under the hood; NOT an RLS sandbox — true access verification needs a real account). Commit this draft first.
+
+- Add a `viewAs` context (role override + selected collaborative/team/program) in `AuthContext`, settable by super_admin only. A header control (visible only to super_admin) toggles **Admin** (default) / **Team Leader** / **Team Member**, plus a picker for which collaborative/team (and program) to view as.
+- The role-derived values from `useAuth` (`isSuperAdmin`, `isAdminLevel`, `isTeamMember`, effective `role`, effective `team_id` / `collaborative_id`) should reflect the `viewAs` override when active, so participant-facing pages (`TeamDashboard`, `Resources`, `ForumThreadList`, session materials, etc.) render the simulated experience and admin-only controls/tiles hide.
+- While previewing, do NOT perform destructive/admin writes as the simulated role — keep it read/preview-oriented. Underlying data fetches still run with the real super_admin session (the accepted limitation; it's a visual preview).
+- Show a persistent, obvious banner while previewing ("Viewing as Team Member — exit preview") so it's clear and easy to leave.
+- This also satisfies the **Resources program-switcher**: viewing "as" a given program/team scopes the Resources page to that program's library (today the page defaults super_admin to `sts_bsc` with no switcher).
+
+**Verify:** as super_admin, switch to Team Member for a demo team → see their dashboard / resources / forum, admin tiles hidden, clear exit banner; switch program context → Resources shows that program's library; return to Admin → full access restored; no console errors.
+
+### 2026-06-10 — Bulk-load TIPE LC resource library
+
+> Loads the TIPE library from `Resources/TIPE/Basecamp Download.zip` (332 files / 812 MB). Topic folders → the TIPE resource library; session/call folders are EXCLUDED here (handled by the session-materials draft below). Storage is on Supabase Pro (ample). Best done as a tested seed script (e.g. in `scripts/`). Commit this draft first.
+
+- **Categories (all `program_type='tipe_lc'`):** one TIPE resource category per topic folder in the zip (keep granular, as-is), PLUS three explicit ones — **Trauma-Informed Schools**, **School Intervention Project** (its own), and **Videos**. Create them in whatever backs `useProgramCategories('tipe_lc')` (inspect the hook → likely a `resource_categories`-style table) so the tabs render.
+- **EXCLUDE these session/call folders** (they become per-event materials, not library items): Learning Session 1, 2, 3, both Learning Session 4 folders, Learning Calls 1/2/3, "Session 5 Secondary Traumatic Stress Powerpoint and Handouts." ("Implementation – Charting the Course" STAYS in the library — it's a topic.)
+- **Dedupe with multi-category tags:** store each unique file in the `resources` bucket ONCE (dedupe by content hash; for the Wisconsin doc that exists as both `.docx` and `.pdf`, keep the PDF). Create ONE `resources` row per unique file with `program_type='tipe_lc'` and a `tags` array containing EVERY category (folder) the file appeared in — so a file that lived in N folders shows under all N category tabs but is stored once. (The Resources page filters category-mode by `tags.includes(category)`, so multi-tag = multi-category.)
+- **Loose `Attachments/` (7 files):** tag them in — National Safe & Supportive Schools + Wisconsin Trauma-Sensitive Schools → **Trauma-Informed Schools**; "15 Sites & Apps for SEL" → **Social Emotional Learning**; "Let's Talk: Facilitating Critical Conversations" → **Community Engagement**; "MindUP Activities for Children at Home" → **Mindfulness in Schools**; "Mindfulness Scripts & Videos for Kids" already exists in the library — don't add a duplicate file, just ensure tags cover its categories.
+- **Videos category:** from `Video Links for TIPE Trainings_April 2025.pdf` (appears twice — same file): (a) keep the PDF as a downloadable resource in Videos; (b) create a `resource_type='youtube'` resource per YouTube link so it embeds inline (app supports youtube via `youtube_url` + `getYoutubeId`), using the PDF's labels as titles (e.g. "Zoe – Removed Part 1," "Manny – Remembering Trauma," "ACES"); (c) non-YouTube links (Vimeo, cctassifilms.org, clark.wa.gov ACES, ctac.uky.edu/meditations) become `resource_type='link'`. **Parse links carefully** — several are garbled in the raw PDF text; validate each YouTube ID (11 chars) before creating, and skip/flag any that don't resolve cleanly for manual fixup.
+
+**Verify:** TIPE Resources page (via the View-as/program switcher) shows all categories; a file that was in multiple folders appears under each category but exists once in storage; Videos embeds the YouTube clips and lists the non-YouTube links + the source PDF; session/call folders are absent from the library.
+
+### 2026-06-10 — Sign-in-gated session materials for collaborative sessions
+
+> Per Josh: each session (all programs) should let trainers upload files that become available to participants the day of, after they sign in. Admin upload already exists (EventDetail drag-and-drop → `bsc_event_documents`). The gap is the participant side: signing into a COLLABORATIVE session link currently shows a confirmation and bounces to `/login`, with no materials view. Standalone trainings already do this (the `/training/:hub_token` hub). Extend that pattern to collaborative sessions. Commit this draft first.
+
+- After a successful sign-in on a collaborative session link (`SessionSignIn`, non-standalone), instead of redirecting to `/login`, route the participant to a lightweight **session-materials view** for that event: the agenda + the event's documents from `bsc_event_documents`, downloadable.
+- Gate it like the training hub: require the just-signed-in sessionStorage flag AND only show during the session's active window (around the event day / until the existing auto-close window). Outside the window or without the sign-in flag → an appropriate "not available / please sign in" state.
+- Reuse the existing materials display + document store; do NOT rebuild the uploader (trainers upload via EventDetail as today). Keep the demo-collab redirect-suppression behavior consistent (don't double-handle the post-sign-in routing).
+- Applies to all programs' collaborative sessions. After this ships, the TIPE session/call folders (Learning Sessions 1–4, Learning Calls 1–3, Session 5) get uploaded to their matching events as materials.
+
+**Verify:** sign into a collaborative session link during its window → land on a materials view with that event's agenda + files (not `/login`); files download; outside the window or without the sign-in flag → blocked state; the standalone training hub still works unchanged.
 
 ### 2026-06-10 — Data-cleaning stage for STS-BSC assessment data ⛔ BLOCKED (do not implement yet)
 
