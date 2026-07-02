@@ -64,7 +64,14 @@ A bidirectional scratchpad shared between Josh, Claude Cowork (Claude desktop ch
 
 <!-- Add new drafts BELOW this line, newest at the bottom so Claude Code works through them in submission order. -->
 
-_No ready Claude Code items right now — the queue is clear. One standing item remains: the ⛔ BLOCKED data-cleaning stage (skip until Ginny's rules list). (Shipped 2026-06-10: full demo rebuild `bac319c`, TIPE tile `a2d3cbf`, CSV export `5cedac2`, TIPE seed fixes `66293f0`, TIPE library LOADED; config guardrails `37d5bd1`, View-as `774416a`, session materials `14ad573`; earlier — demo-data seed `2624ed2`, feedback triage `00f15ce`, ProQOL burnout-only `ae1fd09`, CEU course-correction `9b01b22`, feedback widget `a52463d`.)_
+_No ready Claude Code items right now — the queue is clear. Two features are ⏳ **blocked on Ginny** (see the callout directly below — resolve ASAP so they can be built). (Shipped 2026-06-10: full demo rebuild `bac319c`, TIPE tile `a2d3cbf`, CSV export `5cedac2`, TIPE seed fixes `66293f0`, TIPE library LOADED; config guardrails `37d5bd1`, View-as `774416a`, session materials `14ad573`; earlier — demo-data seed `2624ed2`, feedback triage `00f15ce`, ProQOL burnout-only `ae1fd09`, CEU course-correction `9b01b22`, feedback widget `a52463d`.)_
+
+### ⏳ AWAITING GINNY — resolve ASAP (blocks 2 features)
+
+> **Josh action item:** these two are the only things standing between us and building two more features. Both need input from Ginny (or an RA she delegates) — they're research-methods decisions, not engineering ones. Nothing here can be scoped or built until she delivers the specifics. Ping her with the two concrete asks below.
+
+1. **Data-cleaning rules list** → unblocks the **Data-cleaning stage** feature (full spec in the ⛔ draft below). **Ask Ginny for:** the normalized "how we clean the data" ruleset — valid ranges per field (e.g. age min/max), junk-pattern definitions (straight-lining, etc.), and duplicate/blank handling. Seeds already surfaced: straight-lining, out-of-range age typos. Once the list exists, the app operationalizes each rule as a flag + manual review-and-resolve step (with an audit trail).
+2. **Percentile basis for STSI-OA + STSS** → unblocks a **percentiles display** feature. Ginny asked (demo meeting) for percentiles shown for STSI-OA and STSS. **Ask Ginny for:** what the percentiles are computed against — an external normative reference (provide the norm tables / means+SDs), or within-cohort ranking? Can't build until the basis is defined. (The ProQOL "burnout-only" part of that same meeting note is already shipped — `913a076` + `ae1fd09`.)
 
 ### 2026-06-10 — Data-cleaning stage for STS-BSC assessment data ⛔ BLOCKED (do not implement yet)
 
