@@ -1,0 +1,159 @@
+{
+  "collabs": {
+    "sts_bsc": "0817ebbd-8828-497b-95b1-8080d75e4e0e",
+    "tic_lc": "16e94625-321a-4d85-b3b4-4140efa4f46a",
+    "tipe_lc": "3d967456-d00b-41cf-8a12-7411b307e6b1"
+  },
+  "data_teams": [
+    {
+      "program": "sts_bsc",
+      "profile": "avg",
+      "codes": {
+        "baseline": "f77735f2-c439-418e-9378-f4467416ed65",
+        "endline": "4433d103-5259-4250-8381-1a70e156ebc1"
+      },
+      "n": {
+        "baseline": 78,
+        "endline": 72
+      }
+    },
+    {
+      "program": "sts_bsc",
+      "profile": "low",
+      "codes": {
+        "baseline": "b43362b5-77d1-4a06-a34b-523c52341c4a",
+        "endline": "2b27209c-dc4a-4214-bc49-4f15f72aa0d8"
+      },
+      "n": {
+        "baseline": 88,
+        "endline": 84
+      }
+    },
+    {
+      "program": "sts_bsc",
+      "profile": "ok",
+      "codes": {
+        "baseline": "26b74f9a-2da2-440b-9c3a-cd947ee5299f",
+        "endline": "2de13fc8-db49-4641-9b56-5fd3a9191fad"
+      },
+      "n": {
+        "baseline": 65,
+        "endline": 61
+      }
+    },
+    {
+      "program": "sts_bsc",
+      "profile": "avg",
+      "codes": {
+        "baseline": "21c354d0-9222-48cf-8010-e5a9ecbb3cb0",
+        "endline": "0487032f-c086-4d7b-b79a-35473a7fb6f1"
+      },
+      "n": {
+        "baseline": 52,
+        "endline": 49
+      }
+    },
+    {
+      "program": "sts_bsc",
+      "profile": "ok",
+      "codes": {
+        "baseline": "74d30912-017d-4b65-8629-0fae35574666",
+        "endline": "de82d339-76e6-4715-a6a0-0b6dd91e2987"
+      },
+      "n": {
+        "baseline": 44,
+        "endline": 41
+      }
+    },
+    {
+      "program": "tic_lc",
+      "profile": "avg",
+      "codes": {
+        "baseline": "b34d7f86-6172-42e6-a2d7-31a9470c5275",
+        "endline": "74247bf3-7d1a-4945-a04d-b91eca8cdd78"
+      },
+      "n": {
+        "baseline": 72,
+        "endline": 68
+      }
+    },
+    {
+      "program": "tic_lc",
+      "profile": "low",
+      "codes": {
+        "baseline": "b0312180-f7d6-47df-8fef-253ae03cbb28",
+        "endline": "b464bca3-f8bc-44ee-aa1d-df432e1a9b09"
+      },
+      "n": {
+        "baseline": 55,
+        "endline": 51
+      }
+    },
+    {
+      "program": "tic_lc",
+      "profile": "ok",
+      "codes": {
+        "baseline": "d319a4b0-e726-47c0-a5d3-74ef4cc34e14",
+        "endline": "cb4dfb7d-2a98-439f-a497-b08d3b4efeae"
+      },
+      "n": {
+        "baseline": 84,
+        "endline": 80
+      }
+    },
+    {
+      "program": "tic_lc",
+      "profile": "avg",
+      "codes": {
+        "baseline": "5ebe4ed8-691f-4c99-8573-ccfe07ad6dc4",
+        "endline": "1269d520-1add-4be2-ade0-81ea5307be3f"
+      },
+      "n": {
+        "baseline": 48,
+        "endline": 45
+      }
+    },
+    {
+      "program": "tic_lc",
+      "profile": "low",
+      "codes": {
+        "baseline": "53f95e9f-6009-4e46-b67d-60de61dcd622",
+        "endline": "4c932d6e-1e3d-4338-913a-c44d5ed72f00"
+      },
+      "n": {
+        "baseline": 61,
+        "endline": 57
+      }
+    },
+    {
+      "program": "tic_lc",
+      "profile": "ok",
+      "codes": {
+        "baseline": "c3c32684-831c-4cca-bbf8-6cc0a80fd23d",
+        "endline": "d82db36c-a295-473a-98e3-0daaca5aba4d"
+      },
+      "n": {
+        "baseline": 43,
+        "endline": 40
+      }
+    }
+  ],
+  "ctac_codes": [
+    {
+      "timepoint": "baseline",
+      "code_id": "6ff748d0-1a71-4d26-abe6-8049c828566d"
+    },
+    {
+      "timepoint": "endline",
+      "code_id": "284862bc-9370-49c3-bc2d-8580f999624b"
+    },
+    {
+      "timepoint": "followup_6mo",
+      "code_id": "a9fd83e0-409e-474f-8ab8-ed8246703f87"
+    },
+    {
+      "timepoint": "followup_12mo",
+      "code_id": "3bd8d07a-b1fb-4bf7-9082-baa9b0b6ac4b"
+    }
+  ]
+}

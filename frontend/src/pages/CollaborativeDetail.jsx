@@ -1543,12 +1543,22 @@ export default function CollaborativeDetail() {
               <div style={{ marginTop: '1.25rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                 {teams.map(team => {
                   const isOpen = expandedRosterTeamIds.has(team.id)
-                  const leaders = teamLeaders[team.id] || []
+                  const realLeaders = teamLeaders[team.id] || []
                   const allMembers = teamMembers[team.id] || []
                   // Members minus those already shown as leaders.
-                  const leaderIds = new Set(leaders.map(l => l.id))
-                  const otherMembers = allMembers.filter(m => !leaderIds.has(m.id))
-                  const totalCount = leaders.length + otherMembers.length
+                  const leaderIds = new Set(realLeaders.map(l => l.id))
+                  const realOthers = allMembers.filter(m => !leaderIds.has(m.id))
+                  const realTotal = realLeaders.length + realOthers.length
+
+                  // Demo teams (no real user_profiles) carry a display-only
+                  // demo_roster jsonb: [{full_name, email, role, is_senior_leader}].
+                  // Fall back to it when there are no real members. Purely visual.
+                  const demoRoster = Array.isArray(team.demo_roster) ? team.demo_roster : []
+                  const usingDemo = realTotal === 0 && demoRoster.length > 0
+                  const isLeaderEntry = p => p.role === 'Team Leader' || p.is_senior_leader
+                  const leaders = usingDemo ? demoRoster.filter(isLeaderEntry) : realLeaders
+                  const otherMembers = usingDemo ? demoRoster.filter(p => !isLeaderEntry(p)) : realOthers
+                  const totalCount = usingDemo ? demoRoster.length : realTotal
 
                   return (
                     <div key={team.id} style={{ border: '1px solid #e5e7eb', borderRadius: '8px', background: '#f9fafb' }}>
@@ -1573,7 +1583,7 @@ export default function CollaborativeDetail() {
                               <div style={{ fontSize: '0.72rem', fontWeight: 700, color: '#0E1F56', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: '0.3rem' }}>Leaders</div>
                               <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
                                 {leaders.map(l => (
-                                  <RosterRow key={l.id} person={l} copiedEmail={copiedEmail} onCopy={copyEmailToClipboard} />
+                                  <RosterRow key={l.id || l.email} person={l} copiedEmail={copiedEmail} onCopy={copyEmailToClipboard} />
                                 ))}
                               </ul>
                             </div>
@@ -1583,7 +1593,7 @@ export default function CollaborativeDetail() {
                               <div style={{ fontSize: '0.72rem', fontWeight: 700, color: '#0E1F56', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: '0.3rem' }}>Members</div>
                               <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
                                 {otherMembers.map(m => (
-                                  <RosterRow key={m.id} person={m} copiedEmail={copiedEmail} onCopy={copyEmailToClipboard} />
+                                  <RosterRow key={m.id || m.email} person={m} copiedEmail={copiedEmail} onCopy={copyEmailToClipboard} />
                                 ))}
                               </ul>
                             </div>
