@@ -95,7 +95,7 @@ export default function AdminDashboard() {
               { key: 'sts_bsc', name: 'STS-BSC', full: 'Secondary Traumatic Stress Breakthrough Series Collaborative', active: true },
               { key: 'tic_lc', name: 'TIC LC', full: 'Trauma-Informed Care Learning Collaborative', active: true },
               { key: 'fourc', name: 'FourC', full: 'FourC Occupational Trauma', active: false },
-              { key: 'tipe_lc', name: 'TIPE LC', full: 'Trauma-Informed Practices for Educators LC', active: false },
+              { key: 'tipe_lc', name: 'TIPE LC', full: 'Trauma-Informed Practices for Educators LC', active: true },
             ].map(prog => {
               const colors = PROGRAM_TYPE_COLORS[prog.key]
               return (
