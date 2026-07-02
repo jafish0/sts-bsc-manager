@@ -274,9 +274,21 @@ def main():
     print(f'Upserted {len(cat_id)} categories.')
 
     # 2. Upload unique files + create resources rows.
+    # Idempotency: a resources row is keyed by file_path (= STORAGE_PREFIX/<hash>).
+    # Pull the file_paths already loaded for this program so a re-run neither
+    # duplicates rows nor re-pushes the (large) file that's already in the
+    # bucket. Only genuinely-new files are uploaded + inserted.
+    st, resp = api('GET', f'/rest/v1/resources?program_type=eq.{PROGRAM}&select=file_path')
+    existing_paths = {r['file_path'] for r in json.loads(resp) if r.get('file_path')}
+    print(f'{len(existing_paths)} {PROGRAM} file-backed rows already present — those files will be skipped.')
+
     created = 0
+    skipped = 0
     for rec in by_hash.values():
         obj_path = f"{STORAGE_PREFIX}/{rec['hash']}{rec['ext']}"
+        if obj_path in existing_paths:
+            skipped += 1
+            continue
         with z.open(rec['member']) as fh:
             blob = fh.read()
         # Upload (x-upsert overwrites if present → idempotent).
@@ -292,7 +304,7 @@ def main():
             'title': os.path.splitext(rec['base'])[0],
             'file_name': rec['base'],
             'file_path': obj_path,
-            'resource_type': 'file',
+            'resource_type': (rec['ext'].lstrip('.').lower() or 'file'),
             'program_type': PROGRAM,
             'domains': [],
             'tags': tags,
@@ -300,10 +312,11 @@ def main():
         }
         api('POST', '/rest/v1/resources', [row],
             {'Content-Type': 'application/json', 'Prefer': 'return=minimal'})
+        existing_paths.add(obj_path)  # guard against dup hashes within this run
         created += 1
         if created % 25 == 0:
             print(f'  ...{created} files uploaded')
-    print(f'Created {created} file-backed resources rows.')
+    print(f'Created {created} new file-backed resources rows ({skipped} already present, skipped).')
     print('NOTE: Videos PDF embedded links not auto-parsed (needs pypdf). Add youtube/link rows separately if desired.')
 
 
