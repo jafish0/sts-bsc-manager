@@ -125,6 +125,34 @@ export default function FeedbackAdmin() {
     return counts
   }, [rows])
 
+  // Export the currently-filtered rows to CSV for offline synthesis. All
+  // fields, quoted + escaped so commas/quotes/newlines in message / admin_notes
+  // don't break columns. Pairs each row's triage decision (status/admin_notes)
+  // with its content. Client-side only — no backend call.
+  const exportCsv = () => {
+    const cols = [
+      'id', 'created_at', 'user_email', 'user_role', 'category', 'severity',
+      'route', 'page_label', 'program_type', 'collaborative_id', 'message',
+      'status', 'admin_notes', 'resolved_at',
+    ]
+    const esc = (v) => {
+      const s = v == null ? '' : String(v)
+      return `"${s.replace(/"/g, '""')}"`
+    }
+    const lines = [cols.join(',')]
+    filtered.forEach(r => lines.push(cols.map(c => esc(r[c])).join(',')))
+    // Prepend BOM so Excel reads UTF-8 correctly.
+    const blob = new Blob(['﻿' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8;' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `feedback-export-${new Date().toISOString().slice(0, 10)}.csv`
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    URL.revokeObjectURL(url)
+  }
+
   if (!isSuperAdmin) {
     return (
       <div style={{ padding: '4rem', textAlign: 'center', color: 'var(--text-muted)' }}>
@@ -142,6 +170,16 @@ export default function FeedbackAdmin() {
         <div style={{ maxWidth: '1200px', margin: '0 auto', display: 'flex', gap: '1rem', alignItems: 'center' }}>
           <button onClick={() => navigate('/admin')} style={{ background: 'transparent', border: '1px solid rgba(255,255,255,0.3)', color: 'white', padding: '0.5rem 1rem', borderRadius: '0.375rem', cursor: 'pointer', fontSize: '0.875rem' }}>← Back</button>
           <h1 style={{ margin: 0, fontSize: '1.4rem' }}>🐞 Feedback Triage</h1>
+          <button
+            onClick={exportCsv}
+            disabled={filtered.length === 0}
+            title="Download the currently-filtered rows as CSV"
+            style={{
+              marginLeft: 'auto', background: 'white', color: COLORS.navy, border: 'none',
+              padding: '0.5rem 1rem', borderRadius: '0.375rem', fontWeight: 700, fontSize: '0.85rem',
+              cursor: filtered.length === 0 ? 'not-allowed' : 'pointer', opacity: filtered.length === 0 ? 0.5 : 1,
+            }}
+          >⬇ Export CSV{filtered.length ? ` (${filtered.length})` : ''}</button>
         </div>
       </div>
 
