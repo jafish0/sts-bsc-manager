@@ -63,7 +63,38 @@ A bidirectional scratchpad shared between Josh, Claude Cowork (Claude desktop ch
 
 <!-- Add new drafts BELOW this line, newest at the bottom so Claude Code works through them in submission order. -->
 
-_No ready Claude Code items right now — the queue is clear. One standing item remains: the ⛔ BLOCKED data-cleaning stage (skip it until Ginny delivers the rules list). (Shipped 2026-06-10: CSV export `5cedac2`, TIPE seed fixes `66293f0`, TIPE library LOADED by Josh; config guardrails `37d5bd1`, View-as `774416a`, session materials `14ad573`; earlier — demo-data seed `2624ed2`, feedback triage `00f15ce`, ProQOL burnout-only `ae1fd09`, CEU course-correction `9b01b22`, feedback widget `a52463d`.)_
+_One ready item below: the **full demo rebuild** (⚠️ destructive — 3 clean demo collaboratives). Then the ⛔ BLOCKED data-cleaning stage (skip until Ginny's rules list). (Shipped 2026-06-10: CSV export `5cedac2`, TIPE seed fixes `66293f0`, TIPE library LOADED; config guardrails `37d5bd1`, View-as `774416a`, session materials `14ad573`; earlier — demo-data seed `2624ed2`, feedback triage `00f15ce`, ProQOL burnout-only `ae1fd09`, CEU course-correction `9b01b22`, feedback widget `a52463d`.)_
+
+### 2026-06-10 — Full demo rebuild: 3 clean demo collaboratives (one per program) ⚠️ DESTRUCTIVE
+
+> Josh signed off on wiping everything and rebuilding. End state: exactly **3 collaboratives**, all `is_demo=true`, one per program. Build as a **guarded, tested seed script** in `scripts/` (extend the existing demo-seed scripts). **Claude Code runs the whole thing** — its privileged Supabase MCP (`execute_sql` / `apply_migration`) handles the wipe + collaboratives + teams + codes + the `demo_roster` column; the bulk assessment inserts use the anon-permitted path (RLS allows anonymous assessment submissions against a valid active team_code) or `execute_sql`. **No service_role key needed** — nothing here touches storage (that was the only thing that ever required it). **Do NOT delete `resources` / `resource_categories` / storage** — the 249 TIPE resources are program-scoped and must survive the wipe. Commit this draft first.
+
+**Step 0 — Wipe.** Delete ALL existing collaboratives + dependent rows (teams, `team_codes`, `bsc_events`, `assessment_responses` + `demographics`/`stss_responses`/`proqol_responses`/`stsioa_responses`, `session_attendance`, `unmatched_attendees`, event registrations, forum threads, SMARTIE goals/PDSA, `resource_mappings`, etc.). FK-safe order or cascades; confirm 0 collaboratives + no orphaned children. Leave `resources`/`resource_categories`/storage untouched.
+
+**Step 1 — Create 3 collaboratives** (`is_demo=true`), each with its program's default events (copy `PROGRAM_BRANDING[program].defaultEvents` from `programConfig.js` — insert the `bsc_events` rows; a raw insert won't auto-create them). Proposed names (rename if Josh prefers): **"STS-BSC Demo"**, **"TIC LC Demo"**, **"TIPE LC Demo"**.
+
+**Step 2 — Teams (6 per collaborative)** with `agency_name`, `team_name`, `team_leader_name`, `team_leader_email` (realistic TEXT — not auth accounts), `team_motto`, `estimated_staff_count` ≈ sample size:
+- **STS-BSC:** 5 mock teams (reuse STS Busters/Southern Bluegrass DCBS, Compassion Keepers/KVC Kentucky, Trauma-Informed Pathfinders/New Vista + 2 more made-up KY agencies) **+ a 6th "CTAC" team** (agency + team name = Center on Trauma and Children).
+- **TIC-LC:** Aetna, Intrust Behavioral Health, KVC Kentucky, Benchmark, Necco & Associates, Sunrise Children's.
+- **TIPE-LC:** Bullitt, Jackson, Jefferson, Fayette, Harlan, Franklin counties.
+
+**Step 3 — Spoofed rosters (display-only, NO auth accounts).** Add nullable `demo_roster jsonb` to `teams` (existing table — no new grants). Populate per **mock** team with 1 leader + 5–9 members: `[{full_name, email, role, is_senior_leader}]`. Update the "👥 Team Rosters" card on `CollaborativeDetail` (and any other roster/TeamMembers view) to render `demo_roster` entries when present, styled identically to real `user_profiles` members. Purely visual; no login/RLS. **CTAC team gets NO demo_roster** (real staff will populate it).
+
+**Step 4 — Mock assessment data** (anonymous, via `team_codes`, **baseline + endline**):
+- **STS-BSC** 5 mock teams: **40–90 respondents per team per timepoint**, complete across all 4 instruments — demographics (gender `M`/`F`/`NB`/`not_listed`, realistic roles, ages 22–65, no junk), STSS, ProQOL (**burnout only**), STSI-OA (`item_1`…`item_37`). Endline improves on baseline with natural per-respondent variance. Link `assessment_responses` → response tables via `assessment_response_id`; follow CLAUDE.md gotchas.
+- **TIC-LC** 6 teams: **40–90 per team per timepoint**, demographics + TIC-OSA only. Endline improves; exclude DNK/N-A from domain scores like `TicOsa.jsx`.
+- **TIPE-LC:** **NO assessment data** (no instrument yet). Teams + spoofed rosters + resource library only.
+- **STS-BSC CTAC team:** **NO mock data.**
+
+**Step 5 — CTAC real survey codes.** For the STS-BSC CTAC team, generate distributable `team_codes` (per timepoint, active, sensible expiry) for real staff. No fake respondents. **Print the codes + participant links** for Josh to distribute.
+
+**Guardrails.** Destructive → require explicit `--commit`; print a wipe summary + a dry-run plan before deleting. **Verify at end:** exactly 3 collaboratives (1/program, all `is_demo=true`); 6 teams each; per-team respondent counts 40–90 for STS-BSC(×5)+TIC(×6); TIPE has teams + demo_rosters + 0 responses; CTAC has codes + 0 responses + no demo_roster; the 249 TIPE resources still present.
+
+**Implementation — reuse the existing generators (do NOT reinvent the instrument data/scoring):**
+- **STS-BSC data:** reuse `scripts/seed_demo_data.py` — it already generates correct demographics / STSS / ProQOL / STSI-OA with scoring and writes INSERT SQL to stdout. Adapt its module config: `COLLAB_ID` = the new STS-BSC Demo collab id; `TEAMS` = the 5 mock teams (each `{agency, team_name, motto, staff, profile ∈ {avg,low,ok}, n_per_tp}` with baseline/endline counts in 40–90); `TP_ORDER = ['baseline','endline']`. (It also emits the teams + active `team_codes`, so let it own the 5 STS mock teams. ProQOL still writes CS values — harmless since the app hides CS; optionally leave CS NULL.)
+- **TIC-LC data:** reuse `scripts/seed_tic_demo_data.py` (demographics + TIC-OSA, already baseline+endline) — set `COLLAB_ID` = new TIC Demo collab; `TEAMS` = the 6 agencies with `n_per_tp` 40–90 and `profile ∈ {low,avg,ok}`.
+- Run generators → execute their SQL via `execute_sql`. Create the **collaboratives + events first** (teams FK to collab). Add the **CTAC team + TIPE teams + `demo_roster` + CTAC codes** separately (they're not part of the generators). Commit the adapted scripts + this draft.
+- **Also queue the `demo_roster` render** (frontend): the "👥 Team Rosters" card must display `demo_roster` entries or the spoofed members won't show.
 
 ### 2026-06-10 — Data-cleaning stage for STS-BSC assessment data ⛔ BLOCKED (do not implement yet)
 
