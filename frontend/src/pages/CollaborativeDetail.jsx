@@ -1420,6 +1420,22 @@ export default function CollaborativeDetail() {
                       >
                         View Report
                       </button>
+                      <button
+                        onClick={() => navigate(`/admin/data-visualization?collaborative=${id}&team=${team.id}`)}
+                        style={{
+                          background: '#00A79D',
+                          color: 'white',
+                          border: 'none',
+                          padding: '0.5rem 1rem',
+                          borderRadius: '6px',
+                          cursor: 'pointer',
+                          fontSize: '0.85rem',
+                          fontWeight: '600',
+                          whiteSpace: 'nowrap'
+                        }}
+                      >
+                        Data Visualization
+                      </button>
                       {isAdminHere && (
                         <button
                           onClick={() => setInviteTeam(team)}

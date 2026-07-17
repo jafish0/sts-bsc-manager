@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../utils/supabase'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
@@ -19,6 +19,7 @@ import ShowProgressModal from '../components/ShowProgressModal'
 
 export default function DataVisualization() {
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
   const { user, profile, isSuperAdmin, isAgencyAdmin, isTeamMember } = useAuth()
   const [loading, setLoading] = useState(true)
   const [collaboratives, setCollaboratives] = useState([])
@@ -57,6 +58,21 @@ export default function DataVisualization() {
 
       if (error) throw error
       setCollaboratives(data || [])
+
+      // Deep link from an admin's per-team button (CollaborativeDetail):
+      // ?collaborative=<id>&team=<id> pre-selects that team's visualization
+      // for any admin role (super_admin or trainer_admin), independent of the
+      // role-based defaults below.
+      const collabParam = searchParams.get('collaborative')
+      const teamParam = searchParams.get('team')
+      if (collabParam) {
+        setSelectedCollaborative(collabParam)
+        if (teamParam) {
+          setSelectedTeam(teamParam)
+          autoSelectLatestTimepoint(teamParam)
+        }
+        return
+      }
 
       // Agency admins / team members: pre-select THEIR team and the
       // collaborative that owns it — not just the first collaborative
