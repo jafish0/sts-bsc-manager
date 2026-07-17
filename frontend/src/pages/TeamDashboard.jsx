@@ -831,7 +831,7 @@ export default function TeamDashboard() {
           <ActionCard
             icon="👥"
             title="Project Staff"
-            description="Meet the BSC faculty and support team"
+            description="Meet the BSC faculty and support team — other Training Faculty will appear here"
             borderColor={COLORS.teal}
             onClick={() => navigate('/admin/staff')}
           />

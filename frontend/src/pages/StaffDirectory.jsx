@@ -226,6 +226,18 @@ export default function StaffDirectory() {
             })}
           </div>
         )}
+
+        {/* The directory is intentionally thin during rollout — reassure viewers
+            that more faculty are coming rather than looking broken/incomplete. */}
+        {!loading && (
+          <div style={{
+            marginTop: '1.5rem', textAlign: 'center',
+            color: 'var(--text-muted)', fontSize: '0.9rem',
+            padding: '1rem', border: '1px dashed var(--border)', borderRadius: '8px'
+          }}>
+            Other Training Faculty will appear here.
+          </div>
+        )}
       </div>
 
       {showModal && (

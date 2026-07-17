@@ -614,7 +614,7 @@ export default function AdminDashboard() {
               Project Staff
             </div>
             <div style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>
-              Meet the BSC faculty and support team
+              Meet the BSC faculty and support team — other Training Faculty will appear here
             </div>
           </button>
           )}
