@@ -7,9 +7,14 @@ import { COLORS } from '../utils/constants'
 // Roles a super_admin can preview as. "Admin" isn't listed — exiting preview
 // returns to the real admin experience. value maps to a user_profiles.role.
 const PREVIEW_ROLES = [
+  { value: 'trainer_admin', label: 'CTAC Admin' },
   { value: 'agency_admin', label: 'Team Leader' },
   { value: 'team_member', label: 'Team Member' },
 ]
+
+// trainer_admin (CTAC Admin) is collaborative-scoped, not team-scoped:
+// preview it by picking a collaborative only. The other roles need a team.
+const roleNeedsTeam = (role) => role !== 'trainer_admin'
 
 const roleLabel = (role) =>
   PREVIEW_ROLES.find(r => r.value === role)?.label || role
@@ -60,16 +65,19 @@ function ViewAsControl() {
 
   if (!isRealSuperAdmin) return null
 
+  const needsTeam = roleNeedsTeam(role)
+  const canStart = collabId && (!needsTeam || teamId)
+
   const startPreview = () => {
-    if (!collabId || !teamId) return
+    if (!canStart) return
     const collab = collabs.find(c => c.id === collabId)
     const team = teams.find(t => t.id === teamId)
     setViewAs({
       role,
       collaborativeId: collabId,
-      teamId,
+      teamId: needsTeam ? teamId : null,
       programType: collab?.program_type || null,
-      teamName: team?.display_name || team?.team_name || null,
+      teamName: needsTeam ? (team?.display_name || team?.team_name || null) : null,
       collaborativeName: collab?.name || null,
     })
     setOpen(false)
@@ -143,32 +151,40 @@ function ViewAsControl() {
             ))}
           </select>
 
-          <label style={labelStyle}>Team</label>
-          <select
-            value={teamId}
-            onChange={(e) => setTeamId(e.target.value)}
-            style={inputStyle}
-            disabled={!collabId || loadingTeams}
-          >
-            <option value="">
-              {loadingTeams ? 'Loading teams…' : !collabId ? 'Pick a collaborative first' : teams.length ? 'Select a team…' : 'No teams in this collaborative'}
-            </option>
-            {teams.map(t => (
-              <option key={t.id} value={t.id}>
-                {(t.display_name || t.team_name)}{t.agency_name ? ` — ${t.agency_name}` : ''}
-              </option>
-            ))}
-          </select>
+          {needsTeam ? (
+            <>
+              <label style={labelStyle}>Team</label>
+              <select
+                value={teamId}
+                onChange={(e) => setTeamId(e.target.value)}
+                style={inputStyle}
+                disabled={!collabId || loadingTeams}
+              >
+                <option value="">
+                  {loadingTeams ? 'Loading teams…' : !collabId ? 'Pick a collaborative first' : teams.length ? 'Select a team…' : 'No teams in this collaborative'}
+                </option>
+                {teams.map(t => (
+                  <option key={t.id} value={t.id}>
+                    {(t.display_name || t.team_name)}{t.agency_name ? ` — ${t.agency_name}` : ''}
+                  </option>
+                ))}
+              </select>
+            </>
+          ) : (
+            <div style={{ fontSize: '0.75rem', color: 'var(--text-muted, #6b7280)', marginTop: '0.5rem' }}>
+              CTAC Admin is scoped to the whole collaborative — no team needed.
+            </div>
+          )}
 
           <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.75rem' }}>
             <button
               onClick={startPreview}
-              disabled={!collabId || !teamId}
+              disabled={!canStart}
               style={{
-                flex: 1, background: (!collabId || !teamId) ? '#9ca3af' : COLORS.teal,
+                flex: 1, background: !canStart ? '#9ca3af' : COLORS.teal,
                 color: 'white', border: 'none', borderRadius: '8px',
                 padding: '0.5rem', fontWeight: 700, fontSize: '0.85rem',
-                cursor: (!collabId || !teamId) ? 'not-allowed' : 'pointer',
+                cursor: !canStart ? 'not-allowed' : 'pointer',
               }}
             >
               Start preview

@@ -153,15 +153,23 @@ export const AuthProvider = ({ children }) => {
   const isSuperAdmin = effectiveRole === 'super_admin'
   const isTrainerAdmin = effectiveRole === 'trainer_admin'
 
+  // Collaboratives the effective role can administer. Previewing as a
+  // trainer_admin scopes to the single chosen collaborative so the scoped
+  // trainer experience renders correctly; any other preview role has none;
+  // otherwise it's the real trainer's assignments.
+  const effectiveAdminCollaborativeIds = previewing
+    ? (viewAs.role === 'trainer_admin' && viewAs.collaborativeId ? [viewAs.collaborativeId] : [])
+    : myAdminCollaborativeIds
+
   // True if the user can administer (read/write) the given collaborative.
   // Super admins can administer everything; trainer admins only the
-  // collaboratives they're explicitly assigned to. During preview this is
-  // false (the simulated role is not an admin role).
+  // collaboratives they're explicitly assigned to (or, while previewing as a
+  // trainer_admin, the single chosen collaborative).
   const canAdminCollaborative = (collabId) => {
     if (!collabId) return false
     if (isSuperAdmin) return true
     if (!isTrainerAdmin) return false
-    return myAdminCollaborativeIds.includes(collabId)
+    return effectiveAdminCollaborativeIds.includes(collabId)
   }
 
   const value = {
@@ -178,7 +186,7 @@ export const AuthProvider = ({ children }) => {
     isAdminLevel: isSuperAdmin || isTrainerAdmin,
     isAgencyAdmin: effectiveRole === 'agency_admin' || effectiveRole === 'team_leader',
     isTeamMember: effectiveRole === 'team_member',
-    myAdminCollaborativeIds: previewing ? [] : myAdminCollaborativeIds,
+    myAdminCollaborativeIds: effectiveAdminCollaborativeIds,
     canAdminCollaborative,
     // "View as" preview state + controls.
     isRealSuperAdmin,
