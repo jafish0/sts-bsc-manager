@@ -97,6 +97,23 @@ function TeamCodeEntry() {
           <img src={ukLogo} alt="University of Kentucky" />
         </div>
       </div>
+
+      {/* Staff/team-leader entry point. Muted + below the card so it doesn't
+          distract assessment respondents, but gives testers/real users who
+          land on the bare domain a path to the login. */}
+      <div style={{ textAlign: 'center', marginTop: '1rem' }}>
+        <button
+          type="button"
+          onClick={() => navigate('/login')}
+          style={{
+            background: 'none', border: 'none', color: '#6b7280',
+            fontSize: '0.85rem', cursor: 'pointer', textDecoration: 'underline',
+            padding: '0.25rem',
+          }}
+        >
+          CTAC staff or team leader? Log in here
+        </button>
+      </div>
     </div>
   )
 }
