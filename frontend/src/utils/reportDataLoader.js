@@ -1,5 +1,6 @@
 import { supabase } from './supabase'
 import { TIMEPOINT_ORDER, STSS_SUBSCALES, computeSTSSSubscale, stddev } from './constants'
+import { TIC_OSA_DOMAIN_META, TIC_OSA_TOTAL_ITEMS } from '../config/ticOsa'
 
 /**
  * Load all report data for a single team across ALL timepoints.
@@ -44,22 +45,24 @@ export async function loadTeamReportData(teamId) {
     const arIds = (assessmentResponses || []).map(ar => ar.id)
 
     if (arIds.length === 0) {
-      reportByTimepoint[tp] = { n: 0, demographics: null, stss: null, proqol: null, stsioa: null, completion: { responses: 0 } }
+      reportByTimepoint[tp] = { n: 0, demographics: null, stss: null, proqol: null, stsioa: null, ticosa: null, completion: { responses: 0 } }
       continue
     }
 
-    // Fetch all data in parallel
-    const [demographicsRes, stssRes, proqolRes, stsioaRes] = await Promise.all([
+    // Fetch all data in parallel (tic_osa included — empty for STS-BSC teams)
+    const [demographicsRes, stssRes, proqolRes, stsioaRes, ticOsaRes] = await Promise.all([
       supabase.from('demographics').select('*').in('assessment_response_id', arIds),
       supabase.from('stss_responses').select('*').in('assessment_response_id', arIds),
       supabase.from('proqol_responses').select('*').in('assessment_response_id', arIds),
-      supabase.from('stsioa_responses').select('*').in('assessment_response_id', arIds)
+      supabase.from('stsioa_responses').select('*').in('assessment_response_id', arIds),
+      supabase.from('tic_osa_responses').select('*').in('assessment_response_id', arIds)
     ])
 
     const demographics = demographicsRes.data || []
     const stssResponses = stssRes.data || []
     const proqolResponses = proqolRes.data || []
     const stsioaResponses = stsioaRes.data || []
+    const ticOsaResponses = ticOsaRes.data || []
 
     // Process demographics
     let femaleCount = 0, maleCount = 0, ageSum = 0, ageCount = 0, serviceSum = 0, serviceCount = 0
@@ -132,13 +135,32 @@ export async function loadTeamReportData(teamId) {
       evaluation: { mean: stsioaScores.reduce((s, r) => s + r.evaluation, 0) / stsioaScores.length, sd: stddev(stsioaScores.map(r => r.evaluation)) }
     } : null
 
+    // Process TIC-OSA (tic_lc). Domain scores are stored sums of 1–4 answers
+    // (Do-Not-Know / N-A excluded, per TicOsa.jsx); express as % of max
+    // (items × 4) for comparability across domains of different lengths.
+    const ticosaStats = ticOsaResponses.length > 0 ? {
+      n: ticOsaResponses.length,
+      total: {
+        mean: ticOsaResponses.reduce((s, r) => s + (r.total_score || 0), 0) / ticOsaResponses.length,
+        sd: stddev(ticOsaResponses.map(r => r.total_score || 0)),
+        max: TIC_OSA_TOTAL_ITEMS * 4,
+      },
+      domains: TIC_OSA_DOMAIN_META.map(d => {
+        const vals = ticOsaResponses.map(r => r[d.key] || 0)
+        const mean = vals.reduce((a, b) => a + b, 0) / vals.length
+        const max = d.items * 4
+        return { key: d.key, label: d.label, short: d.short, mean, sd: stddev(vals), max, pct: max ? (mean / max) * 100 : 0 }
+      }),
+    } : null
+
     // Completion stats
     const completion = {
       responses: arIds.length,
       demographics: demographics.length,
       stss: stssResponses.length,
       proqol: proqolResponses.length,
-      stsioa: stsioaResponses.length
+      stsioa: stsioaResponses.length,
+      ticosa: ticOsaResponses.length
     }
 
     reportByTimepoint[tp] = {
@@ -147,6 +169,7 @@ export async function loadTeamReportData(teamId) {
       stss: stssStats,
       proqol: proqolStats,
       stsioa: stsioaStats,
+      ticosa: ticosaStats,
       stsioaRaw: stsioaResponses, // Raw item-level rows for the Office Visual
       completion
     }

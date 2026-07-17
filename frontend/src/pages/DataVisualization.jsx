@@ -12,6 +12,7 @@ import {
   K_ANONYMITY_THRESHOLD
 } from '../utils/constants'
 import { STSIOA_DOMAINS } from '../config/stsioa'
+import { TIC_OSA_DOMAIN_META, TIC_OSA_TOTAL_ITEMS } from '../config/ticOsa'
 import { exportDataVizExcel } from '../utils/exportExcel'
 import STSIOAOfficeVisual from '../components/STSIOAOfficeVisual'
 import ShowProgressModal from '../components/ShowProgressModal'
@@ -222,18 +223,20 @@ export default function DataVisualization() {
         return
       }
 
-      // Fetch all data in parallel
-      const [demographicsRes, stssRes, proqolRes, stsioaRes] = await Promise.all([
+      // Fetch all data in parallel (tic_osa included — empty for STS-BSC collabs)
+      const [demographicsRes, stssRes, proqolRes, stsioaRes, ticOsaRes] = await Promise.all([
         supabase.from('demographics').select('*').in('assessment_response_id', assessmentResponseIds),
         supabase.from('stss_responses').select('*').in('assessment_response_id', assessmentResponseIds),
         supabase.from('proqol_responses').select('*').in('assessment_response_id', assessmentResponseIds),
-        supabase.from('stsioa_responses').select('*').in('assessment_response_id', assessmentResponseIds)
+        supabase.from('stsioa_responses').select('*').in('assessment_response_id', assessmentResponseIds),
+        supabase.from('tic_osa_responses').select('*').in('assessment_response_id', assessmentResponseIds)
       ])
 
       const demographics = demographicsRes.data || []
       const stssResponses = stssRes.data || []
       const proqolResponses = proqolRes.data || []
       const stsioaResponses = stsioaRes.data || []
+      const ticOsaResponses = ticOsaRes.data || []
 
       // --- Process Demographics ---
       const jobRoleCounts = {}
@@ -337,8 +340,28 @@ export default function DataVisualization() {
         stsioaJobRoleStats[jobRole] = { mean: mean.toFixed(2), sd: stddev(scores).toFixed(2), count: scores.length }
       })
 
+      // --- Process TIC-OSA (tic_lc program; domain scores from DB) ---
+      // Domain scores are stored sums of 1–4 answers (Do-Not-Know / N-A
+      // excluded, per TicOsa.jsx). Express each domain as % of its max
+      // (items × 4) so domains of very different lengths are comparable.
+      const avgTicOsa = ticOsaResponses.length > 0 ? {
+        n: ticOsaResponses.length,
+        total: {
+          mean: ticOsaResponses.reduce((s, r) => s + (r.total_score || 0), 0) / ticOsaResponses.length,
+          sd: stddev(ticOsaResponses.map(r => r.total_score || 0)),
+          max: TIC_OSA_TOTAL_ITEMS * 4,
+        },
+        domains: TIC_OSA_DOMAIN_META.map(d => {
+          const vals = ticOsaResponses.map(r => r[d.key] || 0)
+          const mean = vals.reduce((a, b) => a + b, 0) / vals.length
+          const max = d.items * 4
+          return { key: d.key, label: d.label, short: d.short, mean, sd: stddev(vals), max, pct: max ? (mean / max) * 100 : 0 }
+        }),
+      } : null
+
       setData({
         totalResponses: demographics.length,
+        ticosa: avgTicOsa,
         demographics: {
           jobRoles: jobRoleCounts,
           areasOfResp: areaOfRespCounts,
@@ -384,6 +407,9 @@ export default function DataVisualization() {
 
   const selectedCollaborativeName = collaboratives.find(c => c.id === selectedCollaborative)?.name || ''
   const selectedTeamName = selectedTeam === 'all' ? 'All Teams' : teams.find(t => t.id === selectedTeam)?.agency_name || ''
+  // TIC LC collaboratives visualize the TIC-OSA instrument, not STSS/ProQOL/STSI-OA.
+  const selectedProgram = collaboratives.find(c => c.id === selectedCollaborative)?.program_type
+  const isTic = selectedProgram === 'tic_lc'
 
   // Styles imported from utils/constants
 
@@ -553,7 +579,7 @@ export default function DataVisualization() {
           )}
 
           {/* Row 2: Level of Exposure + STSS */}
-          <div style={{ display: 'grid', gridTemplateColumns: data.totalResponses >= K_ANONYMITY_THRESHOLD ? '1fr 3fr' : '1fr', gap: '1rem', marginBottom: '1rem' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: (isTic || data.totalResponses < K_ANONYMITY_THRESHOLD) ? '1fr' : '1fr 3fr', gap: '1rem', marginBottom: '1rem' }}>
             {/* Level of Exposure — only shown when k-anonymity threshold met */}
             {data.totalResponses >= K_ANONYMITY_THRESHOLD && (
               <div style={cardStyle}>
@@ -570,7 +596,8 @@ export default function DataVisualization() {
               </div>
             )}
 
-            {/* STSS */}
+            {/* STSS — STS-BSC only */}
+            {!isTic && (
             <div style={cardStyle}>
               <div style={cardHeaderStyle}>Secondary Traumatic Stress Scale (STSS) - DSM-5 4-Factor Model</div>
               <div style={subtitleStyle}>Higher scores indicate greater secondary traumatic stress (n={data.stss?.n || 0})</div>
@@ -624,8 +651,62 @@ export default function DataVisualization() {
                 <div style={{ padding: '2rem', textAlign: 'center', color: '#666' }}>No STSS data available</div>
               )}
             </div>
+            )}
           </div>
 
+          {/* TIC-OSA (tic_lc): Agency Self-Assessment domain profile */}
+          {isTic && (
+            data.ticosa ? (
+              <div style={{ ...cardStyle, marginBottom: '1rem' }}>
+                <div style={cardHeaderStyle}>Trauma-Informed Care — Agency Self-Assessment (TIC-OSA)</div>
+                <div style={subtitleStyle}>Domain scores as % of maximum · higher = more trauma-informed (n={data.ticosa.n}, {selectedTimepoint})</div>
+                <ResponsiveContainer width="100%" height={300}>
+                  <BarChart data={data.ticosa.domains.map(d => ({ name: d.short, value: Math.round(d.pct) }))} margin={{ top: 10, right: 10, left: 0, bottom: 30 }}>
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis dataKey="name" tick={{ fontSize: 11 }} interval={0} />
+                    <YAxis domain={[0, 100]} tick={{ fontSize: 11 }} label={{ value: '% of max', angle: -90, position: 'insideLeft', fontSize: 11 }} />
+                    <Tooltip content={<CustomTooltip />} />
+                    <Bar dataKey="value" fill={COLORS.teal} radius={[4, 4, 0, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem', marginTop: '1rem' }}>
+                  <thead>
+                    <tr style={{ borderBottom: '2px solid var(--border)', background: 'var(--bg-card-alt)' }}>
+                      <th style={{ textAlign: 'left', padding: '0.4rem 0.5rem' }}>Domain</th>
+                      <th style={{ textAlign: 'center', padding: '0.4rem 0.5rem' }}>Mean (SD)</th>
+                      <th style={{ textAlign: 'center', padding: '0.4rem 0.5rem' }}>Max</th>
+                      <th style={{ textAlign: 'center', padding: '0.4rem 0.5rem' }}>% of max</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {data.ticosa.domains.map(d => (
+                      <tr key={d.key} style={{ borderBottom: '1px solid var(--border)' }}>
+                        <td style={{ padding: '0.4rem 0.5rem', fontWeight: 500 }}>{d.label}</td>
+                        <td style={{ textAlign: 'center', padding: '0.4rem 0.5rem' }}>{d.mean.toFixed(1)} ({d.sd.toFixed(1)})</td>
+                        <td style={{ textAlign: 'center', padding: '0.4rem 0.5rem' }}>{d.max}</td>
+                        <td style={{ textAlign: 'center', padding: '0.4rem 0.5rem' }}>{Math.round(d.pct)}%</td>
+                      </tr>
+                    ))}
+                    <tr style={{ borderTop: '2px solid var(--border)', fontWeight: 700 }}>
+                      <td style={{ padding: '0.4rem 0.5rem' }}>Total</td>
+                      <td style={{ textAlign: 'center', padding: '0.4rem 0.5rem' }}>{data.ticosa.total.mean.toFixed(1)} ({data.ticosa.total.sd.toFixed(1)})</td>
+                      <td style={{ textAlign: 'center', padding: '0.4rem 0.5rem' }}>{data.ticosa.total.max}</td>
+                      <td style={{ textAlign: 'center', padding: '0.4rem 0.5rem' }}>{Math.round((data.ticosa.total.mean / data.ticosa.total.max) * 100)}%</td>
+                    </tr>
+                  </tbody>
+                </table>
+                <div style={{ fontSize: '0.75rem', fontStyle: 'italic', color: 'var(--text-muted)', marginTop: '0.5rem' }}>
+                  Domain scores exclude "Do Not Know" / "N/A" answers. Switch the Timepoint filter to compare baseline vs endline; use the Team filter for per-team views. Longitudinal baseline→endline change is on each team's Report.
+                </div>
+              </div>
+            ) : (
+              <div style={{ ...cardStyle, marginBottom: '1rem', padding: '2rem', textAlign: 'center', color: '#666' }}>
+                No TIC-OSA data available for this timepoint.
+              </div>
+            )
+          )}
+
+          {!isTic && (<>
           {/* Row 3: ProQOL + STSI-OA */}
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: '1rem', marginBottom: '1rem' }}>
             {/* ProQOL - Burnout subscale only (STS dropped 2026-05-08, CS dropped 2026-06-10) */}
@@ -814,6 +895,7 @@ export default function DataVisualization() {
               </div>
             </div>
           )}
+          </>)}
         </div>
       )}
 

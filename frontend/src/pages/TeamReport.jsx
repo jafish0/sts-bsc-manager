@@ -136,10 +136,27 @@ export default function TeamReport() {
 
   const { team, data: tpData, reviews } = report
 
+  // TIC LC teams report the TIC-OSA instrument, not STSS/ProQOL/STSI-OA.
+  const isTic = team.programType === 'tic_lc'
+
   // Build chart datasets
   const stssLineData = buildLineData('stss', ['total', 'intrusion', 'avoidance', 'negCognitions', 'arousal'])
   const proqolLineData = buildLineData('proqol', ['burnout'])
   const stsioaLineData = buildLineData('stsioa', ['total', 'resilience', 'safety', 'policies', 'leadership', 'routine', 'evaluation'])
+
+  // TIC-OSA longitudinal: one line per domain, plotted as % of its max across
+  // timepoints (buildLineData can't be reused — ticosa carries a domains array).
+  const ticosaDomainMeta = tpData
+    ? (TIMEPOINT_ORDER.map(tp => tpData[tp]?.ticosa).find(Boolean)?.domains || [])
+    : []
+  const ticosaLineData = TIMEPOINT_ORDER
+    .filter(tp => tpData[tp] && tpData[tp].ticosa)
+    .map(tp => {
+      const d = tpData[tp].ticosa
+      const point = { timepoint: TIMEPOINT_LABELS[tp], n: d.n }
+      d.domains.forEach(dom => { point[dom.key] = Math.round(dom.pct) })
+      return point
+    })
 
   // Check which timepoints have data
   const timepointsWithData = TIMEPOINT_ORDER.filter(tp => tpData[tp] && tpData[tp].n > 0)
@@ -183,8 +200,9 @@ export default function TeamReport() {
               </p>
             </div>
           </div>
-          <div style={{ display: 'flex', gap: '0.5rem' }}>
-            {report && (
+          <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+            {/* PDF/Excel exporters are STS-hardcoded — hide for tic_lc until adapted. */}
+            {report && !isTic && (
               <>
                 <button onClick={() => exportTeamReportExcel(report)} style={{ padding: '0.5rem 1rem', background: COLORS.green, color: 'white', border: 'none', borderRadius: '0.375rem', cursor: 'pointer', fontWeight: '500', fontSize: '0.85rem' }}>
                   Export Excel
@@ -193,6 +211,9 @@ export default function TeamReport() {
                   Export PDF
                 </button>
               </>
+            )}
+            {report && isTic && (
+              <span style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.75)' }}>PDF/Excel export coming soon for TIC LC</span>
             )}
             <button onClick={handleSignOut} style={{ padding: '0.5rem 1rem', background: COLORS.teal, color: 'white', border: 'none', borderRadius: '0.375rem', cursor: 'pointer', fontWeight: '500' }}>
               Sign Out
@@ -276,8 +297,65 @@ export default function TeamReport() {
               )
             })()}
 
+            {/* TIC-OSA Longitudinal (tic_lc) */}
+            {isTic && ticosaLineData.length > 0 && (
+              <div style={{ ...cardStyle, marginBottom: '1.5rem' }}>
+                <div style={cardHeaderStyle}>Trauma-Informed Care — Agency Self-Assessment (TIC-OSA) — Longitudinal</div>
+                <div style={subtitleStyle}>Domain scores as % of maximum • higher = more trauma-informed</div>
+                <ResponsiveContainer width="100%" height={300}>
+                  <LineChart data={ticosaLineData} margin={{ top: 10, right: 20, left: 0, bottom: 5 }}>
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis dataKey="timepoint" tick={{ fontSize: 11 }} />
+                    <YAxis domain={[0, 100]} tick={{ fontSize: 11 }} />
+                    <Tooltip content={<ReportTooltip />} />
+                    <Legend wrapperStyle={{ fontSize: '0.8rem' }} />
+                    {ticosaDomainMeta.map((dom, i) => (
+                      <Line key={dom.key} type="monotone" dataKey={dom.key} name={dom.short} stroke={LINE_COLORS[i % LINE_COLORS.length]} strokeWidth={2} dot={{ r: 4 }} connectNulls={false} />
+                    ))}
+                  </LineChart>
+                </ResponsiveContainer>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem', marginTop: '1rem' }}>
+                  <thead>
+                    <tr style={{ borderBottom: '2px solid var(--border)', background: 'var(--bg-card-alt)' }}>
+                      <th style={{ textAlign: 'left', padding: '0.4rem 0.5rem' }}>Domain</th>
+                      {TIMEPOINT_ORDER.filter(tp => tpData[tp]?.ticosa).map(tp => (
+                        <th key={tp} style={{ textAlign: 'center', padding: '0.4rem 0.5rem' }}>{TIMEPOINT_LABELS[tp]}<br /><span style={{ fontWeight: 400, fontSize: '0.7rem', color: 'var(--text-muted)' }}>M (SD) · %</span></th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {ticosaDomainMeta.map(dom => (
+                      <tr key={dom.key} style={{ borderBottom: '1px solid var(--border)' }}>
+                        <td style={{ padding: '0.4rem 0.5rem', fontWeight: 500 }}>{dom.label}</td>
+                        {TIMEPOINT_ORDER.filter(tp => tpData[tp]?.ticosa).map(tp => {
+                          const dd = tpData[tp].ticosa.domains.find(x => x.key === dom.key)
+                          return <td key={tp} style={{ textAlign: 'center', padding: '0.4rem 0.5rem' }}>{dd ? `${dd.mean.toFixed(1)} (${dd.sd.toFixed(1)}) · ${Math.round(dd.pct)}%` : '—'}</td>
+                        })}
+                      </tr>
+                    ))}
+                    <tr style={{ borderTop: '2px solid var(--border)', fontWeight: 700 }}>
+                      <td style={{ padding: '0.4rem 0.5rem' }}>Total</td>
+                      {TIMEPOINT_ORDER.filter(tp => tpData[tp]?.ticosa).map(tp => {
+                        const t = tpData[tp].ticosa.total
+                        return <td key={tp} style={{ textAlign: 'center', padding: '0.4rem 0.5rem' }}>{t.mean.toFixed(1)} · {Math.round((t.mean / t.max) * 100)}%</td>
+                      })}
+                    </tr>
+                    <tr>
+                      <td style={{ padding: '0.4rem 0.5rem', color: 'var(--text-muted)', fontSize: '0.75rem' }}>n</td>
+                      {TIMEPOINT_ORDER.filter(tp => tpData[tp]?.ticosa).map(tp => (
+                        <td key={tp} style={{ textAlign: 'center', padding: '0.4rem 0.5rem', color: 'var(--text-muted)', fontSize: '0.75rem' }}>{tpData[tp].ticosa.n}</td>
+                      ))}
+                    </tr>
+                  </tbody>
+                </table>
+                <div style={{ fontSize: '0.75rem', fontStyle: 'italic', color: 'var(--text-muted)', marginTop: '0.5rem' }}>
+                  Domain scores exclude "Do Not Know" / "N/A" answers.
+                </div>
+              </div>
+            )}
+
             {/* STSS Longitudinal */}
-            {stssLineData.length > 0 && (
+            {!isTic && stssLineData.length > 0 && (
               <div style={{ ...cardStyle, marginBottom: '1.5rem' }}>
                 <div style={cardHeaderStyle}>Secondary Traumatic Stress Scale (STSS) — Longitudinal</div>
                 <div style={subtitleStyle}>DSM-5 4-Factor Model • Higher scores = more STS</div>
@@ -351,7 +429,7 @@ export default function TeamReport() {
             )}
 
             {/* ProQOL Longitudinal */}
-            {proqolLineData.length > 0 && (
+            {!isTic && proqolLineData.length > 0 && (
               <div style={{ ...cardStyle, marginBottom: '1.5rem' }}>
                 <div style={cardHeaderStyle}>Professional Quality of Life (ProQOL 5) — Longitudinal</div>
                 {/* Burnout subscale only — STS dropped 2026-05-08, CS dropped 2026-06-10. */}
@@ -395,7 +473,7 @@ export default function TeamReport() {
             )}
 
             {/* STSI-OA Longitudinal */}
-            {stsioaLineData.length > 0 && (
+            {!isTic && stsioaLineData.length > 0 && (
               <div style={{ ...cardStyle, marginBottom: '1.5rem' }}>
                 <div style={cardHeaderStyle}>STS-Informed Organizational Assessment (STSI-OA) — Longitudinal</div>
                 <div style={subtitleStyle}>Higher scores = more STS-informed (better) • Total range: 0–{STSIOA_TOTAL_MAX}</div>
@@ -475,7 +553,7 @@ export default function TeamReport() {
             )}
 
             {/* STSI-OA Office Visual — color-coded item-level view for one timepoint */}
-            {activeOfficeTp && (
+            {!isTic && activeOfficeTp && (
               <div style={{ marginBottom: '1.5rem' }}>
                 <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '0.5rem', gap: '0.5rem', alignItems: 'center' }}>
                   <label style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', fontWeight: '600' }}>

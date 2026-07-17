@@ -270,6 +270,20 @@ export const DOMAIN_SCORE_COLUMNS = {
   5: 'adapting_policies_score',
 }
 
+// Domain metadata for data visualization. `items` = number of Likert items in
+// the domain; max score = items × 4 (each item scored 1–4; Do-Not-Know / N-A
+// are excluded from the stored domain score, per TicOsa.jsx). Used to express
+// domain scores as a comparable "% of maximum" across domains of very
+// different lengths.
+export const TIC_OSA_DOMAIN_META = [
+  { key: 'staff_development_score',   label: 'Supporting Staff Development',      short: 'Staff Dev.',     items: 29 },
+  { key: 'safe_environment_score',    label: 'Safe & Supportive Environment',     short: 'Safe Env.',      items: 33 },
+  { key: 'assessing_planning_score',  label: 'Assessing & Planning Services',     short: 'Assess/Plan',    items: 26 },
+  { key: 'involving_consumers_score', label: 'Involving Consumers',               short: 'Consumers',      items: 3 },
+  { key: 'adapting_policies_score',   label: 'Adapting Policies',                 short: 'Policies',       items: 9 },
+]
+export const TIC_OSA_TOTAL_ITEMS = 100  // total_score max = 400
+
 export const INSTRUCTIONS = `The Agency Self-Assessment for Trauma-Informed Care is intended for use by staff members at all levels of child/family-serving organizations. It can be used to assess the degree to which the agency has incorporated trauma-informed principles into its culture and practices.
 
 After reading each item, mark the response that best describes how your organization performs on that indicator.`
