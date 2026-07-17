@@ -307,3 +307,7 @@ Build the tic_lc branch of Data Visualization:
 - Follow the existing chart patterns (Recharts, `COLORS`, existing card styles).
 - **TeamReport for tic_lc teams:** render the TIC-OSA equivalents (domain table + change chart). If `exportPdf` / `exportExcel` are too STS-hardcoded to adapt cleanly in this pass, hide the export buttons for tic_lc with a short "export coming soon" note and say so in the ship summary. Do not ship broken exports.
 - `sts_bsc` visualization behavior unchanged. `tipe_lc` stays empty for now (no instrument yet; AWARE survey pending from Ginny).
+
+#### Item 5 (added 2026-07-17, URGENT, ship first): staff login link on the team-code entry page
+
+The public root (`/`, TeamCodeEntry) currently has no path to `/login` at all. The Anchor Lab testers were just sent review guides whose login line points at the bare domain, so anyone who follows it dead-ends on the code-entry page. Add a small, unobtrusive "CTAC staff or team leader? Log in here" link on TeamCodeEntry that routes to `/login`. Placement: below the code-entry card, muted styling (small text, `--text-muted`), so it does not distract assessment respondents. This is also permanently correct: real users will always type the bare domain.
