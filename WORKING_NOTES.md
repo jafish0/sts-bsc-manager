@@ -64,7 +64,7 @@ A bidirectional scratchpad shared between Josh, Claude Cowork (Claude desktop ch
 
 <!-- Add new drafts BELOW this line, newest at the bottom so Claude Code works through them in submission order. -->
 
-_No ready Claude Code items right now — the queue is clear. Two features are ⏳ **blocked on Ginny** (see the callout directly below — resolve ASAP so they can be built). (Shipped 2026-06-10: full demo rebuild `bac319c`, TIPE tile `a2d3cbf`, CSV export `5cedac2`, TIPE seed fixes `66293f0`, TIPE library LOADED; config guardrails `37d5bd1`, View-as `774416a`, session materials `14ad573`; earlier — demo-data seed `2624ed2`, feedback triage `00f15ce`, ProQOL burnout-only `ae1fd09`, CEU course-correction `9b01b22`, feedback widget `a52463d`.)_
+**READY (2026-07-17): Anchor Lab demo prep batch, 4 items. See the draft at the BOTTOM of this file.** Two features remain ⏳ **blocked on Ginny** (see the callout directly below). _(Shipped 2026-06-10: full demo rebuild `bac319c`, TIPE tile `a2d3cbf`, CSV export `5cedac2`, TIPE seed fixes `66293f0`, TIPE library LOADED; config guardrails `37d5bd1`, View-as `774416a`, session materials `14ad573`; earlier: demo-data seed `2624ed2`, feedback triage `00f15ce`, ProQOL burnout-only `ae1fd09`, CEU course-correction `9b01b22`, feedback widget `a52463d`.)_
 
 ### ⏳ AWAITING GINNY — resolve ASAP (blocks 2 features)
 
@@ -257,3 +257,46 @@ The existing registration link system already works for any event. Creating a st
 - Recurring trainings / templates
 - Per-day agenda + per-day materials in multi-day events (V1 = one agenda + one materials library)
 - Speaker bios beyond the `user_profiles.bio` field
+
+---
+
+### 2026-07-17: Anchor Lab demo prep batch (4 items) — READY
+
+> **Context:** Ginny, Alex, and Leah (all super_admin testers) begin structured feedback on the live app shortly. Josh's own pre-testing pass found STS-BSC content leaking into TIC LC / TIPE LC contexts, plus one real build gap. Items ordered smallest to largest. Prefer one commit per item so partial shipping is clean. STS-BSC behavior must be unchanged by items 1, 2, and 4.
+
+#### Item 1: Program-appropriate placeholders for TIC LC + TIPE LC (stop STS-BSC carryover)
+
+The Change Framework, Strategy Ideas, and Recommendations surfaces currently show STS-BSC-specific content no matter the program. For collaboratives/teams whose `program_type` is `tic_lc` or `tipe_lc`:
+
+- **Keep the entry points visible** (cards on TeamDashboard, tiles/links on admin pages). Do NOT hide them.
+- **When opened in a tic_lc or tipe_lc context, replace the STS-BSC content** with a clean "needs development" state, program-aware copy along the lines of: "This section is being developed for [TIC LC / TIPE LC]. The guidance shown in STS-BSC collaboratives is specific to secondary traumatic stress and program-appropriate content will replace this."
+- Applies to: Change Framework (`/admin/change-framework` and any team-facing card), Strategy Ideas, and the data-driven Recommendations (DataRecommendations / `dataRecommendations.js` output wherever it renders for teams and admins).
+- **Do not invent TIC or TIPE content.** Placeholder only; the real content is a faculty deliverable.
+- Josh saw "a lot of carryovers" beyond these three. While in the code, **list (in your ship summary, without changing behavior) any other STS-BSC-specific content you find rendering in tic_lc / tipe_lc team or admin contexts** so we can triage the rest next round.
+
+#### Item 2: Project Staff copy
+
+Wherever Project Staff renders (the TeamDashboard "Project Staff" card, the StaffDirectory page at `/admin/staff`, and the AdminDashboard reference to it), keep listing real staff (currently just Josh Fisherkeller) and add the statement: **"Other Training Faculty will appear here."** Apply across all programs; the staff directory is equally thin everywhere right now.
+
+#### Item 3: "View as CTAC Admin" (trainer_admin) in the View-As switch
+
+`ViewAsControl.jsx` currently offers only Team Leader (`agency_admin`) and Team Member. Add the CTAC trainer/faculty view:
+
+- Add `{ value: 'trainer_admin', label: 'CTAC Admin' }` to `PREVIEW_ROLES`.
+- trainer_admin is **collaborative-scoped, not team-scoped**: when this role is selected, the picker asks for a collaborative (not a team).
+- The `viewAs` override in AuthContext must simulate the full trainer_admin boolean set: `isTrainerAdmin` true, `isSuperAdmin` false, `isAdminLevel` true, `myAdminCollaborativeIds` = [chosen collab], `canAdminCollaborative` scoped accordingly, so AdminDashboard renders the scoped trainer experience (cross-collab tiles hidden) exactly as a real trainer_admin sees it.
+- Existing guards unchanged: only real super_admins can enter preview; exit restores the real profile.
+- Known limitation to preserve, same as the existing roles: this is a front-end preview, RLS still runs as the real super_admin. Where a page filters by `myAdminCollaborativeIds` / `canAdminCollaborative` on the frontend the preview will look right; pages gated only by RLS may show broader data. Note any such pages in the ship summary rather than trying to sandbox RLS.
+
+#### Item 4: TIC-OSA (Agency Self-Assessment) Data Visualization — build the tic_lc branch
+
+**The gap:** `DataVisualization.jsx` and `utils/reportDataLoader.js` query only `stss_responses` / `proqol_responses` / `stsioa_responses`. A `tic_lc` collaborative renders empty even though TIC LC Demo has 704 responses (demographics + `tic_osa_responses`, baseline AND endline, all 6 teams). It is a build gap, not a data gap.
+
+Build the tic_lc branch of Data Visualization:
+
+- Load through `assessment_responses` (per CLAUDE.md gotcha: instrument tables link by `assessment_response_id`; never query by `team_code_id` directly).
+- Compute TIC-OSA domain scores **consistent with `TicOsa.jsx` scoring** (Do-Not-Know / N/A answers excluded from domain scores; the demo seed data mirrors that scoring exactly).
+- Show: collab-wide and per-team domain means, baseline vs endline change, response counts by timepoint, and the demographics breakdowns the STS-BSC view offers where they translate.
+- Follow the existing chart patterns (Recharts, `COLORS`, existing card styles).
+- **TeamReport for tic_lc teams:** render the TIC-OSA equivalents (domain table + change chart). If `exportPdf` / `exportExcel` are too STS-hardcoded to adapt cleanly in this pass, hide the export buttons for tic_lc with a short "export coming soon" note and say so in the ship summary. Do not ship broken exports.
+- `sts_bsc` visualization behavior unchanged. `tipe_lc` stays empty for now (no instrument yet; AWARE survey pending from Ginny).
