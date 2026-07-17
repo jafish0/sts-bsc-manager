@@ -57,14 +57,27 @@ export default function DataVisualization() {
 
       if (error) throw error
       setCollaboratives(data || [])
-      if (data && data.length > 0) {
-        setSelectedCollaborative(data[0].id)
-      }
 
-      // Agency admins: pre-select their team and find most recent timepoint
+      // Agency admins / team members: pre-select THEIR team and the
+      // collaborative that owns it — not just the first collaborative
+      // alphabetically (which would land a TIC/TIPE team leader on the wrong,
+      // STS-BSC collaborative and show no data). Super admins default to the
+      // first collaborative and use the collaborative/team selectors.
       if ((isAgencyAdmin || isTeamMember) && profile?.team_id) {
         setSelectedTeam(profile.team_id)
+        const { data: teamRow } = await supabase
+          .from('teams')
+          .select('collaborative_id')
+          .eq('id', profile.team_id)
+          .single()
+        if (teamRow?.collaborative_id) {
+          setSelectedCollaborative(teamRow.collaborative_id)
+        } else if (data && data.length > 0) {
+          setSelectedCollaborative(data[0].id)
+        }
         autoSelectLatestTimepoint(profile.team_id)
+      } else if (data && data.length > 0) {
+        setSelectedCollaborative(data[0].id)
       }
     } catch (error) {
       console.error('Error loading collaboratives:', error)
