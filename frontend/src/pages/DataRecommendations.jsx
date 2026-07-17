@@ -5,6 +5,7 @@ import { useAuth } from '../contexts/AuthContext'
 import { COLORS, cardStyle, TIMEPOINT_ORDER, K_ANONYMITY_THRESHOLD } from '../utils/constants'
 import { loadTeamReportData } from '../utils/reportDataLoader'
 import { generateRecommendations } from '../utils/dataRecommendations'
+import ProgramPlaceholder from '../components/ProgramPlaceholder'
 
 const TIMEPOINT_LABELS = {
   baseline: 'Baseline',
@@ -104,6 +105,13 @@ export default function DataRecommendations() {
 
   const team = reportData?.team
   const tp = reportData?.data?.[selectedTimepoint]
+
+  // The recommendations engine is hardwired to STS instruments (STSS / ProQOL /
+  // STSI-OA). TIC LC / TIPE LC have no such data, so show a "needs development"
+  // placeholder rather than an empty/meaningless result.
+  if (team && ['tic_lc', 'tipe_lc'].includes(team.programType)) {
+    return <ProgramPlaceholder programType={team.programType} title="Recommendations from Your Data" />
+  }
 
   return (
     <div style={{ minHeight: '100vh', background: 'var(--bg-page)' }}>

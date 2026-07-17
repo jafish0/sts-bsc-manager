@@ -4,6 +4,7 @@ import { supabase } from '../utils/supabase'
 import { useAuth } from '../contexts/AuthContext'
 import { COLORS, cardStyle, cardHeaderStyle } from '../utils/constants'
 import { useProgramDomains } from '../hooks/useProgramDomains'
+import ProgramPlaceholder from '../components/ProgramPlaceholder'
 
 export default function Strategies() {
   const navigate = useNavigate()
@@ -93,6 +94,11 @@ export default function Strategies() {
         <div style={{ textAlign: 'center', color: COLORS.navy, fontSize: '1.25rem' }}>Loading strategies...</div>
       </div>
     )
+  }
+
+  // TIC LC / TIPE LC don't have program-specific strategy content yet.
+  if (['tic_lc', 'tipe_lc'].includes(programType)) {
+    return <ProgramPlaceholder programType={programType} title="Strategy Ideas" />
   }
 
   return (

@@ -10,7 +10,7 @@ export async function loadTeamReportData(teamId) {
   // 1. Get team metadata with collaborative info
   const { data: team, error: teamError } = await supabase
     .from('teams')
-    .select('id, team_name, agency_name, display_name, motto, collaborative_id, collaboratives (id, name)')
+    .select('id, team_name, agency_name, display_name, motto, collaborative_id, collaboratives (id, name, program_type)')
     .eq('id', teamId)
     .single()
 
@@ -170,7 +170,8 @@ export async function loadTeamReportData(teamId) {
       agencyName: team.agency_name,
       displayName: team.display_name || team.team_name,
       motto: team.motto,
-      collaborativeName: team.collaboratives?.name || 'Unknown'
+      collaborativeName: team.collaboratives?.name || 'Unknown',
+      programType: team.collaboratives?.program_type || 'sts_bsc'
     },
     teamCodes,
     data: reportByTimepoint,

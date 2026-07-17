@@ -4,6 +4,7 @@ import { supabase } from '../utils/supabase'
 import { useAuth } from '../contexts/AuthContext'
 import { COLORS } from '../utils/constants'
 import { useProgramDomains } from '../hooks/useProgramDomains'
+import ProgramPlaceholder from '../components/ProgramPlaceholder'
 import ctacLogo from '../assets/CTAC_white.png'
 
 export default function ChangeFramework() {
@@ -89,6 +90,12 @@ export default function ChangeFramework() {
       .eq('id', id)
     if (error) { alert('Error deleting: ' + error.message); return }
     setDrivers(prev => prev.filter(d => d.id !== id))
+  }
+
+  // TIC LC / TIPE LC don't have program-specific Change Framework content yet —
+  // show a "needs development" placeholder instead of the STS-BSC drivers.
+  if (['tic_lc', 'tipe_lc'].includes(programType)) {
+    return <ProgramPlaceholder programType={programType} title="Change Framework" />
   }
 
   return (
