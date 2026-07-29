@@ -94,7 +94,9 @@ A bidirectional scratchpad shared between Josh, Claude Cowork (Claude desktop ch
 
 **✅ BOTH QUEUED DRAFTS SHIPPED 2026-07-17** (collaborative-creation usability + registration hardening round 2 — see Recently shipped). The `RESEND_API_KEY` blocker found during that work was **resolved the same day** — Josh set the secret and the email pipeline is verified end to end. Registration is now safe to use with real registrants. Superseded queue note follows:
 
-**READY: Registration link duplicate-save bug + delete affordance (2 items) — see the LAST draft at the bottom of this file.** Found in live use building the first real registration link: saving a newly-created link twice inserts a duplicate (branches on the `editingLink` prop, ignoring the just-created `savedLink` state). Item 1 is the bug; item 2 adds the delete action that would have let Josh clean up without SQL.
+**READY (2 drafts queued at the bottom of this file, work them in order):**
+1. **Registration link duplicate-save bug + delete affordance (2 items)** — saving a newly-created link twice inserts a duplicate (branches on the `editingLink` prop, ignoring the just-created `savedLink` state). Item 2 adds the delete action that would have let Josh clean up without SQL.
+2. **Edge functions into git + registration email/calendar overhaul (3 items)** — ⚠️ **9 of 10 deployed edge functions are not in the repo** (every participant-facing email exists only as a deployed artifact, no history, no rollback). Item 1 snapshots them into `supabase/functions/`; items 2 and 3 rebuild the registration email HTML (Outlook-safe px units, event table, start+end times, years, program-aware heading) and upgrade the `.ics` (alarms, organizer, title prefixes, `VTIMEZONE`).
 
 _(Earlier drafts, both shipped: collaborative-creation usability batch `a1f07ea`; registration hardening round 2 `44b183f`.)_
 
@@ -522,3 +524,68 @@ Behavior depends on registration count, because `event_registrations` has `ON DE
 #### Also noted (not code — Josh's to-do in the UI)
 
 The surviving AWARE link has **`capacity = NULL`**, so it accepts unlimited registrations and the waitlist logic never engages (`mint-registration` only evaluates capacity when it is non-null). Josh to set a capacity before distributing the link if the cohort is size-limited.
+
+---
+
+### 2026-07-29: Edge functions into git + registration email/calendar overhaul (3 items) — READY
+
+> **Context.** Josh registered himself through the real AWARE Year 4 TIPE LC link and the whole pipeline worked (schedule import → renamed titles → confirmation email → `.ics`). Reviewing the actual received email, he flagged: inconsistent font sizes, the event list being hard to read, and wanting the "Events covered" heading to name the program. He also asked where the email is generated and whether he can edit it himself.
+>
+> **The answer exposed a bigger problem, which is why item 1 comes first: 9 of the 10 deployed edge functions are not in the repo.** Only `invite-team-leader` exists under `supabase/functions/`. Every participant-facing email lives solely as a deployed artifact in Supabase — no git history, no diffs, no rollback. That must be fixed before hand-editing email HTML becomes routine.
+>
+> Item 1 is mechanical and unblocks the rest. Items 2 and 3 both touch `send-registration-email`; do them in one deploy if convenient, but keep them as separate commits.
+
+#### Item 1: Pull all deployed edge functions into the repo
+
+Deployed functions and current versions (from `list_edge_functions`, 2026-07-29):
+
+| slug | version | in repo? |
+|---|---|---|
+| `invite-team-leader` | 9 | ✅ yes (may be stale vs deployed — diff it) |
+| `send-event-email` | 3 | ❌ |
+| `send-event-reminder` | 2 | ❌ |
+| `mint-registration` | 4 | ❌ |
+| `send-registration-email` | 4 | ❌ |
+| `cancel-registration` | 3 | ❌ |
+| `send-trainer-digest` | 2 | ❌ |
+| `send-ceu-certificate` | 3 | ❌ (tombstoned 410 per `9b01b22` — commit as-is, note it) |
+| `lookup-registration` | 2 | ❌ |
+
+- Write each deployed source to `supabase/functions/<slug>/index.ts`, matching the deployed code **exactly** (no drive-by cleanups, no reformatting — this commit is a faithful snapshot so the next diff is meaningful).
+- **Diff `invite-team-leader` against the deployed v9 first** and report whether the repo copy had drifted; if it had, take the deployed version as truth and say so.
+- Note in each file's header comment that it is deployed with `--no-verify-jwt` (all 10 are).
+- Add a short "Edge functions" section to `INFRASTRUCTURE.md`: the table above, the deploy command, and the rule that **the repo is now the source of truth — edit here and deploy, never edit in the dashboard**, because a dashboard edit silently desyncs git.
+- Do NOT change behavior in this item. Snapshot only.
+
+#### Item 2: Rebuild the registration email template (Outlook-safe, readable)
+
+All in `send-registration-email`'s `html` string. Josh's screenshot of the received email is the reference; his three complaints plus two defects Cowork found:
+
+**Root cause of "font size is all over the place":** the template mixes `px` and `rem`/`em` and leaves headings unstyled. Outlook renders with the **Word engine**, which handles `rem`/`em` unreliably and applies its own heading defaults. Current offenders: `h2` (no size), `h3 { font-size: 1rem }`, `padding-left: 1.2rem`, `margin-bottom: 0.25rem`, `margin-top: 1.25rem`, alongside `14px` / `13px` / `11px`.
+
+- **Pin every element in `px`.** No `rem`, no `em`, anywhere. Set an explicit `font-size` and `line-height` on every text element including headings. Suggested scale: title 22px, section heading 16px, body 15px, secondary 13px, footer 11px.
+- **Convert the event list from `<ul>` to a table** (also what Outlook wants): columns **Session | Date | Time | Join**. Keep it to a `<table role="presentation" cellpadding cellspacing border=0>` with explicit widths, `px` fonts, a subtle header row (navy text, light background), and per-row bottom borders. Must stay legible at ~600px and degrade gracefully on mobile.
+- **Show START and END time** ("10:00 AM to 2:30 PM"). Currently only `start_time.slice(0,5)` is shown, so a 4.5-hour learning session is indistinguishable from a 1-hour call. Format 12-hour with AM/PM, not 24-hour.
+- **Include the year in dates.** Currently `weekday, month, day` only — this cohort crosses into 2027, so "Tuesday, January 5" is ambiguous. Use e.g. "Tue, Jan 5, 2027".
+- **Program-aware section heading.** Replace hardcoded "Events covered" with a program-derived label, e.g. **"TIPE Learning Collaborative Events"**. Select `collaboratives(name, program_type)` (the query already joins `collaboratives`) and map `program_type` → label in the function: `tipe_lc` → "TIPE Learning Collaborative", `tic_lc` → "TIC Learning Collaborative", `sts_bsc` → "STS Breakthrough Series Collaborative". Fall back to "Events covered" for anything unmapped. **Keep the mapping in one place** in the function; do not import frontend config into an edge function.
+- Keep the plain-text alternative in sync (same times, years, and heading).
+- Apply the same treatment to all four kinds (confirmation, waitlisted, promoted, cancellation) so they stay visually consistent.
+- **Verify by actually sending** to Josh's address and viewing in Outlook, not just by reading the HTML. Note in the ship summary that Outlook is the primary target client.
+
+#### Item 3: Upgrade the `.ics` calendar attachment
+
+In `buildIcs()`. The current output is otherwise correct (verified against a real received `registration.ics`: all 8 AWARE events, right dates, right Eastern times, RFC-5545 escaping working). Add:
+
+- **`VALARM` reminders** on every event: one at **1 day before** and one at **15 minutes before** (`TRIGGER:-P1D` and `TRIGGER:-PT15M`, `ACTION:DISPLAY`, with a `DESCRIPTION`). Currently there are no alarms at all, so these land silently on participants' calendars.
+- **`ORGANIZER`** on every event: `ORGANIZER;CN=UK CTAC:mailto:no-reply@ctac.app`.
+  ⚠️ **Keep `METHOD:PUBLISH`. Do NOT switch to `METHOD:REQUEST`.** These are informational attachments, not meeting invitations; a REQUEST from an unmonitored `no-reply@` mailbox would invite RSVP replies that bounce and can leave odd tentative states in Outlook. RSVPs are already handled properly by the separate reminder emails (`event_rsvps`).
+- **Prefix each `SUMMARY` with a short program tag** so the calendar entry is self-identifying in a month view: `TIPE LC: Learning Session 1`. Derive the tag from the same `program_type` map as item 2 (short form: "TIPE LC", "TIC LC", "STS-BSC"). This is what Josh actually asked for with "a label that shows it is a Learning Collaborative."
+- **Add a `VTIMEZONE` component** for `America/New_York` with correct STD/DST rules. The file currently uses `DTSTART;TZID=America/New_York` with no `VTIMEZONE` definition, which is technically invalid iCalendar; well-known clients resolve the Olson name anyway, but strict parsers may float the times. Note this cohort spans a DST boundary (Oct/Nov 2026 sessions are EDT, Dec-Jan are EST), so the rules must be right, not hardcoded to one offset.
+- **`X-WR-CALNAME`** at the calendar level (e.g. the collaborative name) for clients that display it.
+- Optional if cheap: `CATEGORIES:CTAC Learning Collaborative`.
+- Keep `UID:<event_id>@bsc.ctac.app` exactly as-is — stable UIDs mean re-importing updates entries instead of duplicating them, which is correct and worth preserving.
+- **Verify** by importing the generated file into Outlook (and ideally Google Calendar): 8 entries, prefixed titles, correct EDT/EST times, alarms present, no duplicates on re-import.
+
+#### Longer-term question, NOT in this batch
+
+Josh asked whether he can edit the emails himself. After item 1 the workflow is "Claude Code edits the repo and deploys," which is safe but keeps him dependent. If editing email copy becomes frequent, the real answer is DB-backed templates (a table of subject/body templates with token substitution, editable in `/admin`), which is a genuine feature with real scope: template versioning, safe token validation, HTML sanitization, preview-before-send. Do not start it as part of this batch. Revisit if copy edits become a recurring ask.
