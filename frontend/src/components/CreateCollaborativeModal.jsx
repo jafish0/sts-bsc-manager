@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { supabase } from '../utils/supabase'
 import { useAuth } from '../contexts/AuthContext'
 import { PROGRAM_TYPE_COLORS, CREATABLE_PROGRAM_TYPES, getProgramBranding } from '../config/programConfig'
+import { parseScheduleLines, htmlToScheduleLines, rowsToBscEvents } from '../utils/scheduleParser'
 
 // Build the locked, pre-populated event list for a given program type.
 // Falls back to STS-BSC defaults if program has none defined.
@@ -213,6 +214,70 @@ function CreateCollaborativeModal({ onClose, onSuccess }) {
   }
 
   const endDrag = () => { setDragIdx(null); setDragOverIdx(null); setDragArmedIdx(null) }
+
+  // --- Schedule document import ---
+  // CTAC schedules arrive as Word tables (session label / date / time range).
+  // Parsed client-side; NEVER auto-applied — the preview below requires an
+  // explicit Confirm, and a failed parse leaves whatever is already typed alone.
+  const [importing, setImporting] = useState(false)
+  const [importError, setImportError] = useState('')
+  const [importPreview, setImportPreview] = useState(null) // { rows, unmatched, source }
+  const [pasteOpen, setPasteOpen] = useState(false)
+  const [pasteText, setPasteText] = useState('')
+  const [dropActive, setDropActive] = useState(false)
+
+  // Rows the user has already filled in — Confirm replaces them, so warn first.
+  const typedRowCount = bscEvents.filter(
+    e => e.event_date || e.start_time || e.end_time || e.zoom_link
+  ).length
+
+  const runImport = (lines, source) => {
+    const { rows, unmatched } = parseScheduleLines(lines)
+    if (rows.length === 0) {
+      setImportPreview(null)
+      setImportError(
+        source === 'file'
+          ? 'Could not read a schedule from this file — please enter the dates manually.'
+          : 'Could not read a schedule from that text — please enter the dates manually.'
+      )
+      return
+    }
+    setImportError('')
+    setImportPreview({ rows, unmatched, source })
+  }
+
+  const handleScheduleFile = async (file) => {
+    if (!file) return
+    if (!file.name.toLowerCase().endsWith('.docx')) {
+      setImportPreview(null)
+      setImportError('That is not a .docx file — use "or paste your schedule" below for PDFs, emails, or Excel.')
+      return
+    }
+    setImporting(true)
+    setImportError('')
+    try {
+      // Loaded on demand so mammoth stays out of the initial bundle.
+      const mod = await import('mammoth')
+      const mammoth = mod.default || mod
+      const arrayBuffer = await file.arrayBuffer()
+      const { value: html } = await mammoth.convertToHtml({ arrayBuffer })
+      runImport(htmlToScheduleLines(html), 'file')
+    } catch (err) {
+      console.error('Schedule import failed:', err)
+      setImportPreview(null)
+      setImportError('Could not read a schedule from this file — please enter the dates manually.')
+    } finally {
+      setImporting(false)
+    }
+  }
+
+  const applyImport = () => {
+    if (!importPreview?.rows?.length) return
+    setBscEvents(rowsToBscEvents(importPreview.rows))
+    setImportPreview(null)
+    setPasteOpen(false)
+    setPasteText('')
+  }
 
   const handleSubmit = async (e) => {
     e.preventDefault()
@@ -476,6 +541,137 @@ function CreateCollaborativeModal({ onClose, onSuccess }) {
             <p style={{ color: '#6b7280', fontSize: '0.8rem', marginBottom: '1rem' }}>
               Default schedule pre-populated from the program's standard agenda. Set dates for at least the first and last Learning Sessions — assessment windows are auto-calculated from those. Other dates (calls, intermediate sessions) are optional; leave blank to skip. Every title can be renamed to match your program's wording.
             </p>
+
+            {/* Schedule import: drop a .docx, or paste any tabular text.
+                Always previews first — never auto-applies. */}
+            <div
+              onDragOver={(e) => { e.preventDefault(); setDropActive(true) }}
+              onDragLeave={() => setDropActive(false)}
+              onDrop={(e) => {
+                e.preventDefault()
+                setDropActive(false)
+                handleScheduleFile(e.dataTransfer?.files?.[0])
+              }}
+              style={{
+                border: `2px dashed ${dropActive ? '#00A79D' : '#bbf7d0'}`,
+                background: dropActive ? '#ecfdf5' : 'white',
+                borderRadius: '8px', padding: '0.85rem', marginBottom: '0.75rem', textAlign: 'center',
+              }}
+            >
+              <div style={{ fontSize: '0.85rem', color: '#374151', fontWeight: 600 }}>
+                {importing ? 'Reading document…' : 'Drop a schedule document here to fill in dates'}
+              </div>
+              <div style={{ fontSize: '0.75rem', color: '#6b7280', marginTop: '0.2rem' }}>
+                Word .docx ·{' '}
+                <label style={{ color: '#00A79D', cursor: 'pointer', textDecoration: 'underline' }}>
+                  browse
+                  <input
+                    type="file"
+                    accept=".docx"
+                    onChange={(e) => { handleScheduleFile(e.target.files?.[0]); e.target.value = '' }}
+                    style={{ display: 'none' }}
+                  />
+                </label>{' '}
+                ·{' '}
+                <button
+                  type="button"
+                  onClick={() => setPasteOpen(o => !o)}
+                  style={{ background: 'none', border: 'none', color: '#00A79D', cursor: 'pointer', textDecoration: 'underline', fontSize: '0.75rem', padding: 0 }}
+                >
+                  or paste your schedule
+                </button>
+              </div>
+
+              {pasteOpen && (
+                <div style={{ marginTop: '0.6rem', textAlign: 'left' }}>
+                  <textarea
+                    value={pasteText}
+                    onChange={(e) => setPasteText(e.target.value)}
+                    rows={5}
+                    placeholder={'Paste rows from a PDF, email, or spreadsheet — one per line, e.g.\nLearning Session 1    10/27/26    10:00 am - 2:30 pm'}
+                    style={{ ...inputStyle, fontFamily: 'inherit', resize: 'vertical' }}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => runImport(pasteText.split(/\r?\n/), 'paste')}
+                    disabled={!pasteText.trim()}
+                    style={{
+                      marginTop: '0.4rem', background: pasteText.trim() ? '#00A79D' : '#d1d5db',
+                      color: 'white', border: 'none', borderRadius: '6px',
+                      padding: '0.4rem 1rem', fontSize: '0.8rem', fontWeight: 600,
+                      cursor: pasteText.trim() ? 'pointer' : 'not-allowed',
+                    }}
+                  >Read schedule</button>
+                </div>
+              )}
+
+              {importError && (
+                <div style={{ marginTop: '0.5rem', fontSize: '0.78rem', color: '#b45309', background: '#fffbeb', border: '1px solid #fde68a', borderRadius: '6px', padding: '0.4rem 0.6rem', textAlign: 'left' }}>
+                  {importError}
+                </div>
+              )}
+            </div>
+
+            {/* Parsed preview — explicit Confirm required before anything changes */}
+            {importPreview && (
+              <div style={{ background: 'white', border: '2px solid #00A79D', borderRadius: '8px', padding: '0.85rem', marginBottom: '0.75rem' }}>
+                <div style={{ fontSize: '0.85rem', fontWeight: 700, color: '#0E1F56', marginBottom: '0.4rem' }}>
+                  Found {importPreview.rows.length} event{importPreview.rows.length === 1 ? '' : 's'} — review before applying
+                </div>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.75rem' }}>
+                  <thead>
+                    <tr style={{ background: '#f9fafb', color: '#374151' }}>
+                      <th style={{ textAlign: 'left', padding: '0.3rem 0.4rem' }}>Title</th>
+                      <th style={{ textAlign: 'left', padding: '0.3rem 0.4rem' }}>Type</th>
+                      <th style={{ textAlign: 'left', padding: '0.3rem 0.4rem' }}>Date</th>
+                      <th style={{ textAlign: 'left', padding: '0.3rem 0.4rem' }}>Start</th>
+                      <th style={{ textAlign: 'left', padding: '0.3rem 0.4rem' }}>End</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {importPreview.rows.map((r, i) => (
+                      <tr key={i} style={{ borderTop: '1px solid #f3f4f6' }}>
+                        <td style={{ padding: '0.3rem 0.4rem' }}>{r.title}</td>
+                        <td style={{ padding: '0.3rem 0.4rem', color: '#6b7280' }}>
+                          {r.event_type === 'learning_session' ? 'Learning Session' : 'All-Team Call'}
+                        </td>
+                        <td style={{ padding: '0.3rem 0.4rem' }}>{r.event_date}</td>
+                        <td style={{ padding: '0.3rem 0.4rem' }}>{r.start_time || '—'}</td>
+                        <td style={{ padding: '0.3rem 0.4rem' }}>{r.end_time || '—'}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+
+                {importPreview.unmatched.length > 0 && (
+                  <div style={{ marginTop: '0.5rem', fontSize: '0.75rem', color: '#b45309', background: '#fffbeb', border: '1px solid #fde68a', borderRadius: '6px', padding: '0.4rem 0.6rem' }}>
+                    <strong>{importPreview.unmatched.length} row{importPreview.unmatched.length === 1 ? '' : 's'} could not be interpreted</strong> and will be skipped — add {importPreview.unmatched.length === 1 ? 'it' : 'them'} manually:
+                    <ul style={{ margin: '0.25rem 0 0', paddingLeft: '1.1rem' }}>
+                      {importPreview.unmatched.map((u, i) => (
+                        <li key={i}>“{u.raw}” — {u.problems.join('; ')}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+
+                {typedRowCount > 0 && (
+                  <div style={{ marginTop: '0.5rem', fontSize: '0.75rem', color: '#92400e' }}>
+                    ⚠️ This replaces the {bscEvents.length} row{bscEvents.length === 1 ? '' : 's'} below, including {typedRowCount} you have already filled in.
+                  </div>
+                )}
+
+                <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.6rem' }}>
+                  <button type="button" onClick={applyImport} style={{
+                    background: '#00A79D', color: 'white', border: 'none', borderRadius: '6px',
+                    padding: '0.45rem 1.1rem', fontSize: '0.8rem', fontWeight: 700, cursor: 'pointer',
+                  }}>Confirm — use these dates</button>
+                  <button type="button" onClick={() => setImportPreview(null)} style={{
+                    background: 'none', color: '#6b7280', border: '1px solid #e5e7eb', borderRadius: '6px',
+                    padding: '0.45rem 0.9rem', fontSize: '0.8rem', fontWeight: 600, cursor: 'pointer',
+                  }}>Cancel</button>
+                </div>
+              </div>
+            )}
 
             {bscEvents.map((evt, idx) => (
               <div
