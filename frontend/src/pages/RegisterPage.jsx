@@ -1,9 +1,42 @@
 import { useEffect, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import { supabase } from '../utils/supabase'
+import { eventsHeading, formatEventDate, formatTimeRange } from '../config/programConfig'
+import ctacLogo from '../assets/UKCTAC_logoasuite_web__primary_tagline_color.png'
+import ukLogo from '../assets/UK_Lockup-286.png'
 
 const NAVY = '#0E1F56'
 const TEAL = '#00A79D'
+
+// Breakpoint hook shared by the two responsive pieces below.
+//
+// matchMedia is the authority for the VALUE (correct on first paint, no
+// off-by-one against CSS), but we subscribe to both its `change` event and
+// `resize`. Some embedded/automated browsers resize the viewport without
+// dispatching a matchMedia change — observed while verifying this page — and a
+// stale layout there means a 3-column table on a 360px screen. Listening to
+// both costs nothing and can't be wrong in either direction.
+function useMaxWidth(px) {
+  const query = `(max-width: ${px}px)`
+  const read = () =>
+    typeof window !== 'undefined' && window.matchMedia
+      ? window.matchMedia(query).matches
+      : false
+  const [matches, setMatches] = useState(read)
+  useEffect(() => {
+    if (typeof window === 'undefined' || !window.matchMedia) return
+    const mql = window.matchMedia(query)
+    const sync = () => setMatches(mql.matches)
+    sync()
+    mql.addEventListener('change', sync)
+    window.addEventListener('resize', sync)
+    return () => {
+      mql.removeEventListener('change', sync)
+      window.removeEventListener('resize', sync)
+    }
+  }, [query])
+  return matches
+}
 
 // Public registration form. URL: /register/:token
 // Renders dynamically from event_registration_links.form_schema, validates,
@@ -15,6 +48,7 @@ export default function RegisterPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [link, setLink] = useState(null)
+  const [collab, setCollab] = useState(null) // { collaborative_name, program_type }
   const [events, setEvents] = useState([])
   const [windowStatus, setWindowStatus] = useState('open') // 'open' | 'pre_open' | 'closed'
 
@@ -31,12 +65,21 @@ export default function RegisterPage() {
       try {
         const { data: l, error: lErr } = await supabase
           .from('event_registration_links')
-          .select('*, collaboratives(name)')
+          .select('*')
           .eq('token', token)
           .maybeSingle()
         if (cancelled) return
         if (lErr || !l) { setError('Invalid registration link.'); setLoading(false); return }
         setLink(l)
+
+        // Collaborative name + program_type via RPC. anon can read
+        // event_registration_links but NOT collaboratives, so the previous
+        // `collaboratives(name, program_type)` embed silently returned null —
+        // which dropped the name subtitle entirely and made the program-aware
+        // heading fall back to the generic wording. Verified in-browser.
+        const { data: collabRows } = await supabase
+          .rpc('registration_link_public', { p_token: token })
+        if (!cancelled) setCollab(Array.isArray(collabRows) ? collabRows[0] : collabRows)
 
         // Window status
         const now = new Date()
@@ -46,13 +89,19 @@ export default function RegisterPage() {
           setWindowStatus('pre_open')
         }
 
-        // Pull events covered
-        const { data: linkEvents } = await supabase
-          .from('event_registration_link_events')
-          .select('event_id, bsc_events(id, title, event_date, start_time, end_time, location, zoom_link)')
-          .eq('registration_link_id', l.id)
+        // Pull events covered, through a SECURITY DEFINER RPC.
+        //
+        // This used to embed `bsc_events(...)` off event_registration_link_events,
+        // but anon's only SELECT path on bsc_events requires an ACTIVE
+        // session_link — which no future session has — so the embed resolved to
+        // NULL for every row and this list rendered EMPTY. Verified against the
+        // real AWARE link: 8 rows returned, bsc_events null on all 8. The RPC is
+        // token-scoped and deliberately does not return zoom_link (Zoom belongs
+        // in the confirmation email, not on a public page).
+        const { data: evs } = await supabase
+          .rpc('registration_link_events', { p_token: token })
         if (!cancelled) {
-          setEvents((linkEvents || []).map(le => le.bsc_events).filter(Boolean).sort((a, b) => (a.event_date || '').localeCompare(b.event_date || '')))
+          setEvents((evs || []).map(e => ({ ...e, id: e.event_id })))
         }
       } catch (err) {
         if (!cancelled) setError(err.message || String(err))
@@ -118,7 +167,7 @@ export default function RegisterPage() {
   }
 
   const schema = link.form_schema || []
-  const collabName = link.collaboratives?.name
+  const collabName = collab?.collaborative_name
 
   return (
     <Shell wide>
@@ -126,20 +175,7 @@ export default function RegisterPage() {
       {collabName && <div style={{ color: '#6b7280', fontSize: '0.9rem', marginBottom: '1rem' }}>{collabName}</div>}
       {link.description && <p style={{ color: '#374151' }}>{link.description}</p>}
 
-      {events.length > 0 && (
-        <>
-          <h3 style={{ color: NAVY, fontSize: '1rem', marginTop: '1.25rem', marginBottom: '0.4rem' }}>Events covered</h3>
-          <ul style={{ paddingLeft: '1.2rem', marginTop: 0, fontSize: '0.9rem' }}>
-            {events.map(e => (
-              <li key={e.id} style={{ marginBottom: '0.4rem' }}>
-                <strong>{e.title}</strong> — {new Date(e.event_date + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
-                {e.start_time && ` at ${e.start_time.slice(0,5)}`}
-                {e.location && ` · ${e.location}`}
-              </li>
-            ))}
-          </ul>
-        </>
-      )}
+      {events.length > 0 && <EventsTable events={events} programType={collab?.program_type} />}
 
       {windowStatus === 'closed' && (
         <Banner color="#991b1b" bg="#fee2e2">Registration is closed.</Banner>
@@ -233,19 +269,129 @@ function FieldRenderer({ field, value, onChange }) {
   )
 }
 
+// Session list, matching the rebuilt confirmation email (bbd7adc) minus the
+// Join column — Zoom belongs in the confirmation email and reminders, not on a
+// public pre-registration page.
+//
+// Two layouts rather than one responsive table: a real 3-column table on wider
+// screens, and stacked label/value cards below 560px. A 3-column table with
+// "10:00 AM to 2:30 PM ET" in it cannot wrap cleanly at 360px, and many
+// educators will register from a phone.
+function EventsTable({ events, programType }) {
+  const narrow = useMaxWidth(559)
+  const heading = eventsHeading(programType)
+  const headingStyle = {
+    color: NAVY, fontSize: '1rem', fontWeight: 700,
+    margin: '1.5rem 0 0.5rem', lineHeight: 1.4,
+  }
+
+  if (narrow) {
+    return (
+      <>
+        <h3 style={headingStyle}>{heading}</h3>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+          {events.map(e => (
+            <div key={e.id} style={{
+              border: '1px solid #e5e7eb', borderRadius: '6px', padding: '0.6rem 0.75rem',
+              background: '#f9fafb',
+            }}>
+              <div style={{ fontWeight: 700, color: NAVY, fontSize: '0.9rem', lineHeight: 1.35 }}>{e.title}</div>
+              <div style={{ fontSize: '0.82rem', color: '#374151', marginTop: '0.2rem', lineHeight: 1.45 }}>
+                {formatEventDate(e.event_date)}
+              </div>
+              <div style={{ fontSize: '0.82rem', color: '#374151', lineHeight: 1.45 }}>
+                {formatTimeRange(e.start_time, e.end_time, e.timezone)}
+              </div>
+              {e.location && (
+                <div style={{ fontSize: '0.78rem', color: '#6b7280', marginTop: '0.15rem', lineHeight: 1.4 }}>{e.location}</div>
+              )}
+            </div>
+          ))}
+        </div>
+      </>
+    )
+  }
+
+  const th = { textAlign: 'left', padding: '0.5rem 0.6rem', fontSize: '0.72rem', fontWeight: 700, color: NAVY, textTransform: 'uppercase', letterSpacing: '0.04em', background: '#f1f5f9', borderBottom: '2px solid #cbd5e1' }
+  const td = { padding: '0.55rem 0.6rem', fontSize: '0.85rem', color: '#1f2937', borderBottom: '1px solid #e5e7eb', verticalAlign: 'top', lineHeight: 1.45 }
+
+  return (
+    <>
+      <h3 style={headingStyle}>{heading}</h3>
+      <table style={{ width: '100%', borderCollapse: 'collapse', tableLayout: 'fixed' }}>
+        <thead>
+          <tr>
+            <th scope="col" style={{ ...th, width: '44%' }}>Session</th>
+            <th scope="col" style={{ ...th, width: '25%' }}>Date</th>
+            <th scope="col" style={{ ...th, width: '31%' }}>Time</th>
+          </tr>
+        </thead>
+        <tbody>
+          {events.map(e => (
+            <tr key={e.id}>
+              <td style={td}>
+                <span style={{ fontWeight: 700, color: NAVY }}>{e.title}</span>
+                {e.location && (
+                  <span style={{ display: 'block', fontSize: '0.78rem', color: '#6b7280', marginTop: '0.1rem' }}>{e.location}</span>
+                )}
+              </td>
+              <td style={td}>{formatEventDate(e.event_date)}</td>
+              <td style={td}>{formatTimeRange(e.start_time, e.end_time, e.timezone)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </>
+  )
+}
+
+// Every render state of this page goes through Shell — the form, the closed and
+// pre-open banners, the error state, and the success/waitlist/duplicate screen —
+// so putting the branding here means the last thing a registrant sees carries it
+// too, without touching five call sites.
+//
+// Chose INLINE styles over importing TeamCodeEntry.css: this file is inline-only
+// per project convention and imports no stylesheet, and pulling in a stylesheet
+// scoped to a different page's class names would half-apply two systems. The
+// dimensions below are copied deliberately from .logo-top / .logo-bottom
+// (255px / 250px, 2px #e5e7eb divider, 200px under 640px) so the public pages
+// stay visually identical.
 function Shell({ children, wide = false }) {
+  const small = useMaxWidth(640) // matches TeamCodeEntry.css's mobile breakpoint
+
   return (
     <div style={{
       minHeight: '100vh', display: 'flex', alignItems: 'flex-start', justifyContent: 'center',
-      background: '#f9fafb', padding: '1rem',
+      // Same teal-to-navy gradient the assessment entry page already uses
+      // (.team-code-container), so the two public entry points match.
+      // backgroundAttachment: fixed stops the gradient re-tiling down a long
+      // form — this page can be much taller than the viewport.
+      background: `linear-gradient(135deg, ${TEAL} 0%, ${NAVY} 100%)`,
+      backgroundAttachment: 'fixed',
+      padding: small ? '1rem 0.75rem' : '2rem 1rem',
     }}>
       <div style={{
-        background: 'white', borderRadius: '0.75rem', padding: '2rem',
-        boxShadow: '0 4px 20px rgba(0,0,0,0.08)',
+        background: 'white', borderRadius: '0.75rem',
+        padding: small ? '1.5rem 1.25rem' : '2rem',
+        // Deeper shadow than before to lift the card off the gradient.
+        boxShadow: '0 10px 40px rgba(0,0,0,0.18)',
         maxWidth: wide ? '640px' : '520px', width: '100%',
-        marginTop: '2rem',
+        marginTop: small ? '1rem' : '2rem', marginBottom: small ? '1rem' : '2rem',
       }}>
+        <div style={{ marginBottom: '1.75rem', display: 'flex', justifyContent: 'center' }}>
+          <img src={ctacLogo} alt="Center on Trauma and Children"
+            style={{ maxWidth: small ? '200px' : '255px', width: '100%', height: 'auto' }} />
+        </div>
+
         {children}
+
+        <div style={{
+          marginTop: '2rem', paddingTop: '2rem', borderTop: '2px solid #e5e7eb',
+          display: 'flex', justifyContent: 'center',
+        }}>
+          <img src={ukLogo} alt="University of Kentucky"
+            style={{ maxWidth: small ? '200px' : '250px', width: '100%', height: 'auto' }} />
+        </div>
       </div>
     </div>
   )

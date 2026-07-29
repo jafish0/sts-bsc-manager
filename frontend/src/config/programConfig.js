@@ -205,6 +205,76 @@ export const PROGRAM_TYPE_COLORS = {
   fourc: { bg: '#ede9fe', color: '#5b21b6', label: 'FourC' },
 }
 
+// Long/short program labels used in participant-facing copy — email headings,
+// the public registration page, .ics SUMMARY prefixes.
+//
+// ⚠️ This map is DUPLICATED inside supabase/functions/send-registration-email
+// and send-event-reminder. That is deliberate: edge functions run in Deno with
+// no bundler and cannot import from the frontend tree, and the browser cannot
+// import from an edge function. Keep the three copies in sync by hand — if you
+// add a program type here, add it there too.
+export const PROGRAM_LABELS = {
+  sts_bsc: { long: 'STS Breakthrough Series Collaborative', short: 'STS-BSC' },
+  tic_lc: { long: 'TIC Learning Collaborative', short: 'TIC LC' },
+  tipe_lc: { long: 'TIPE Learning Collaborative', short: 'TIPE LC' },
+  fourc: { long: 'FourC Collaborative', short: 'FourC' },
+}
+
+// Heading for a list of a collaborative's sessions. Falls back to the old
+// generic wording so an unmapped program_type never yields a blank heading.
+export function eventsHeading(programType) {
+  const label = programType ? PROGRAM_LABELS[programType]?.long : null
+  return label ? `${label} Events` : 'Events covered'
+}
+
+// '14:30:00' -> '2:30 PM'. Parsed off the string rather than via Date so no
+// timezone conversion can shift the value.
+export function formatTime12h(t) {
+  if (!t) return ''
+  const [hRaw, mRaw] = String(t).split(':')
+  let h = Number(hRaw)
+  if (!Number.isFinite(h)) return ''
+  const m = (mRaw ?? '00').padStart(2, '0')
+  const ampm = h >= 12 ? 'PM' : 'AM'
+  h = h % 12
+  if (h === 0) h = 12
+  return `${h}:${m} ${ampm}`
+}
+
+// Short timezone label. Degrades to the raw IANA name rather than hardcoding
+// "ET", so a future Central-time cohort isn't silently mislabelled.
+export function timezoneLabel(tz) {
+  if (!tz) return ''
+  const KNOWN = {
+    'America/New_York': 'ET',
+    'America/Chicago': 'CT',
+    'America/Denver': 'MT',
+    'America/Los_Angeles': 'PT',
+  }
+  return KNOWN[tz] || tz
+}
+
+// "10:00 AM to 2:30 PM ET" — both ends, so a 4.5-hour learning session is
+// distinguishable from a 1-hour call.
+export function formatTimeRange(start, end, tz) {
+  const s = formatTime12h(start)
+  if (!s) return 'Time TBD'
+  const e = formatTime12h(end)
+  const zone = timezoneLabel(tz)
+  const range = e && e !== s ? `${s} to ${e}` : s
+  return zone ? `${range} ${zone}` : range
+}
+
+// "Tue, Oct 27, 2026" — the year matters, cohorts cross a calendar boundary.
+// Pinned to UTC because event_date is a bare date; parsing it as local time
+// would shift the day for anyone west of UTC.
+export function formatEventDate(eventDate) {
+  if (!eventDate) return ''
+  return new Date(eventDate + 'T00:00:00Z').toLocaleDateString('en-US', {
+    weekday: 'short', month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC',
+  })
+}
+
 // Program types that can be selected when CREATING a new collaborative.
 // FourC is intentionally excluded: it has no assessment routes or score
 // columns, so a FourC collaborative would land on broken/empty dashboards.

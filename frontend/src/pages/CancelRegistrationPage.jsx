@@ -1,7 +1,10 @@
 import { useEffect, useState } from 'react'
 import { useParams } from 'react-router-dom'
+import ctacLogo from '../assets/UKCTAC_logoasuite_web__primary_tagline_color.png'
+import ukLogo from '../assets/UK_Lockup-286.png'
 
 const NAVY = '#0E1F56'
+const TEAL = '#00A79D'
 const RED = '#991b1b'
 
 // Public cancel page reached from the cancel link in confirmation emails.
@@ -120,19 +123,66 @@ export default function CancelRegistrationPage() {
   )
 }
 
+// Branding only — this page's behaviour is untouched. It routes through the
+// lookup-registration and cancel-registration edge functions and that logic is
+// correct; the Shell is purely presentational, so matching RegisterPage here
+// means a registrant who cancels doesn't land on a visually unrelated page.
 function Shell({ children }) {
+  const small = useMaxWidth(640)
+
   return (
     <div style={{
       minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center',
-      background: '#f9fafb', padding: '1rem',
+      background: `linear-gradient(135deg, ${TEAL} 0%, ${NAVY} 100%)`,
+      backgroundAttachment: 'fixed',
+      padding: small ? '1rem 0.75rem' : '2rem 1rem',
     }}>
       <div style={{
-        background: 'white', borderRadius: '0.75rem', padding: '2rem',
-        boxShadow: '0 4px 20px rgba(0,0,0,0.08)',
+        background: 'white', borderRadius: '0.75rem',
+        padding: small ? '1.5rem 1.25rem' : '2rem',
+        boxShadow: '0 10px 40px rgba(0,0,0,0.18)',
         maxWidth: '520px', width: '100%',
+        marginTop: small ? '1rem' : '2rem', marginBottom: small ? '1rem' : '2rem',
       }}>
+        <div style={{ marginBottom: '1.75rem', display: 'flex', justifyContent: 'center' }}>
+          <img src={ctacLogo} alt="Center on Trauma and Children"
+            style={{ maxWidth: small ? '200px' : '255px', width: '100%', height: 'auto' }} />
+        </div>
+
         {children}
+
+        <div style={{
+          marginTop: '2rem', paddingTop: '2rem', borderTop: '2px solid #e5e7eb',
+          display: 'flex', justifyContent: 'center',
+        }}>
+          <img src={ukLogo} alt="University of Kentucky"
+            style={{ maxWidth: small ? '200px' : '250px', width: '100%', height: 'auto' }} />
+        </div>
       </div>
     </div>
   )
+}
+
+// Same breakpoint hook as RegisterPage — matchMedia for the value, subscribed to
+// both `change` and `resize` because some embedded browsers fire only the latter.
+function useMaxWidth(px) {
+  const query = `(max-width: ${px}px)`
+  const read = () =>
+    typeof window !== 'undefined' && window.matchMedia
+      ? window.matchMedia(query).matches
+      : false
+  const [matches, setMatches] = useState(read)
+  useEffect(() => {
+    if (typeof window === 'undefined' || !window.matchMedia) return
+    const mql = window.matchMedia(query)
+    const sync = () => setMatches(mql.matches)
+    sync()
+    mql.addEventListener('change', sync)
+    window.addEventListener('resize', sync)
+    return () => {
+      mql.removeEventListener('change', sync)
+      window.removeEventListener('resize', sync)
+    }
+  }, [query])
+  return matches
 }
