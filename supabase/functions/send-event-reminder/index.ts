@@ -141,8 +141,29 @@ function buildIcs(event: any, programType?: string | null): string {
   ].filter(Boolean).join('\r\n')
 }
 
+// "Tue, Oct 27, 2026" — year included, and pinned to UTC so a bare date can't
+// shift a day depending on the isolate's zone.
+function fmtDate(eventDate: string): string {
+  return new Date(eventDate + 'T00:00:00Z').toLocaleDateString('en-US', {
+    weekday: 'short', month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC',
+  })
+}
+
+// '14:30:00' -> '2:30 PM'. Parsed off the string so no timezone can enter.
+function fmtTime(t?: string | null): string | null {
+  if (!t) return null
+  const [hRaw, mRaw] = String(t).split(':')
+  let h = Number(hRaw)
+  if (!Number.isFinite(h)) return null
+  const m = (mRaw ?? '00').padStart(2, '0')
+  const ampm = h >= 12 ? 'PM' : 'AM'
+  h = h % 12
+  if (h === 0) h = 12
+  return `${h}:${m} ${ampm}`
+}
+
 function reminderSubject(event: any, reminderType: string): string {
-  const dt = new Date(event.event_date + 'T00:00:00').toLocaleDateString('en-US', { month: 'long', day: 'numeric' })
+  const dt = new Date(event.event_date + 'T00:00:00Z').toLocaleDateString('en-US', { month: 'long', day: 'numeric', timeZone: 'UTC' })
   switch (reminderType) {
     case 'week_before':  return `One week out: ${event.title} on ${dt}`
     case 'day_before':   return `Tomorrow: ${event.title}`
@@ -152,13 +173,23 @@ function reminderSubject(event: any, reminderType: string): string {
   }
 }
 
-function reminderHeadline(event: any, reminderType: string): string {
+// Copy now uses the event's OWN title and the program label instead of
+// hardcoding "Learning Session". The old wording claimed every event in every
+// program was a Learning Session, so a TIPE "Implementation Session 2 (call)"
+// was announced as a Learning Session — the same STS-BSC carryover Josh has
+// flagged elsewhere.
+function reminderHeadline(event: any, reminderType: string, programType?: string | null): string {
+  const program = programType ? PROGRAM_LABELS[programType]?.long : null
+  const what = event.title ? `“${event.title}”` : 'your session'
   switch (reminderType) {
-    case 'week_before':  return 'You’re registered for an upcoming Learning Session in one week.'
-    case 'day_before':   return 'A friendly reminder — your session is tomorrow.'
-    case 'hour_before':  return 'Heads up — your session starts in an hour.'
-    case 'starting_now': return 'We’re live now — join us!'
-    default:             return 'A reminder about an upcoming session.'
+    case 'week_before':
+      return program
+        ? `${what} is one week away, as part of the ${program}.`
+        : `${what} is one week away.`
+    case 'day_before':   return `A friendly reminder — ${what} is tomorrow.`
+    case 'hour_before':  return `Heads up — ${what} starts in an hour.`
+    case 'starting_now': return `${what} is starting now — join us!`
+    default:             return `A reminder about ${what}.`
   }
 }
 
@@ -330,11 +361,17 @@ Deno.serve(async (req) => {
       console.error(logNotes)
     }
     const subject = reminderSubject(event, reminder_type)
-    const headline = reminderHeadline(event, reminder_type)
-    const eventDateLabel = new Date(event.event_date + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })
-    const timeLabel = event.start_time
-      ? (event.end_time ? `${event.start_time.slice(0,5)}–${event.end_time.slice(0,5)} ${event.timezone === 'America/New_York' ? 'ET' : event.timezone || ''}`
-                        : `${event.start_time.slice(0,5)} ${event.timezone === 'America/New_York' ? 'ET' : event.timezone || ''}`)
+    const headline = reminderHeadline(event, reminder_type, programType)
+    const eventDateLabel = fmtDate(event.event_date)
+    // 12-hour with "to", matching the registration email. This used to render
+    // "10:00–14:30 ET" — 24-hour, and with an en dash Josh dislikes in prose.
+    const tzLabel = event.timezone === 'America/New_York' ? 'ET' : (event.timezone || '')
+    const startLabel = fmtTime(event.start_time)
+    const endLabel = fmtTime(event.end_time)
+    const timeLabel = startLabel
+      ? (endLabel && endLabel !== startLabel
+          ? `${startLabel} to ${endLabel}${tzLabel ? ' ' + tzLabel : ''}`
+          : `${startLabel}${tzLabel ? ' ' + tzLabel : ''}`)
       : null
 
     // Each recipient gets their own personalised message (own rsvp_token, and
@@ -355,27 +392,51 @@ Deno.serve(async (req) => {
           ? { url: `https://bsc.ctac.app/cancel-registration/${r.cancel_token}`, label: 'Cancel my registration' }
           : null
 
-      const html = `<!doctype html><html><body style="font-family: Arial, Helvetica, sans-serif; color: #1f2937; line-height: 1.5;">
-        <div style="max-width: 640px; margin: 0 auto; padding: 1rem;">
-          <h2 style="color: #0E1F56; margin-bottom: 0.25rem;">${esc(event.title)}</h2>
-          <div style="color: #6b7280; font-size: 14px;">${esc(event.collaboratives?.name || '')}</div>
-          <p style="margin-top: 1rem;">${esc(headline)}</p>
-          <table cellpadding="6" style="margin: 0.75rem 0; font-size: 14px;">
-            <tr><td style="color:#6b7280;">When</td><td><strong>${esc(eventDateLabel)}</strong>${timeLabel ? ` at ${esc(timeLabel)}` : ''}</td></tr>
-            ${event.location ? `<tr><td style="color:#6b7280;">Where</td><td>${esc(event.location)}</td></tr>` : ''}
-            ${event.zoom_link ? `<tr><td style="color:#6b7280;">Join</td><td><a href="${esc(event.zoom_link)}" style="color:#2563eb;">${esc(event.zoom_link)}</a></td></tr>` : ''}
-          </table>
-          <div style="margin: 1.5rem 0;">
-            <a href="${attendUrl}" style="display:inline-block; background:#16a34a; color:white; text-decoration:none; padding:0.6rem 1rem; border-radius:6px; margin-right:0.5rem; font-weight:600;">✓ I plan to attend</a>
-            <a href="${declineUrl}" style="display:inline-block; background:#fee2e2; color:#991b1b; text-decoration:none; padding:0.6rem 1rem; border-radius:6px; margin-right:0.5rem; font-weight:600;">✕ Can't attend</a>
-          </div>
-          ${icsBase64 ? `<p style="font-size: 13px; color: #6b7280;">An <strong>add-to-calendar</strong> file (event.ics) is attached — open it in Apple Calendar, Outlook, or Google Calendar to RSVP locally.</p>` : ''}
-          <hr style="margin-top: 2rem; border: 0; border-top: 1px solid #e5e7eb;"/>
-          <p style="font-size: 11px; color: #9ca3af;">
-            You're receiving this because you're ${r.source === 'member' ? 'a member of' : 'registered for'} <strong>${esc(event.collaboratives?.name || 'a collaborative')}</strong> on the CTAC BSC Manager.
-            ${footerLink ? `<a href="${footerLink.url}" style="color:#9ca3af; text-decoration: underline;">${esc(footerLink.label)}</a>.` : ''}
-          </p>
-        </div></body></html>`
+      // Same Outlook-first rules as send-registration-email v5: every size in
+      // px with an explicit line-height, no rem/em, no h1-h6 (Word imposes its
+      // own heading defaults), and an outer 100% table wrapping a fixed 600px
+      // table because Word ignores max-width on a div.
+      const FONT = 'font-family: Arial, Helvetica, sans-serif;'
+      const labelTd = `style="${FONT} font-size: 13px; line-height: 18px; color: #6b7280; padding: 4px 12px 4px 0; vertical-align: top; white-space: nowrap;"`
+      const valueTd = `style="${FONT} font-size: 13px; line-height: 18px; color: #1f2937; padding: 4px 0; vertical-align: top;"`
+
+      // RSVP buttons as TABLE CELLS, not padded <a> tags. Word renders
+      // display:inline-block with padding and border-radius inconsistently and
+      // can collapse the buttons into bare text; a table cell with bgcolor
+      // always paints.
+      const button = (url: string, label: string, bg: string, fg: string) =>
+        `<table cellpadding="0" cellspacing="0" border="0" style="display: inline-table; margin: 0 8px 8px 0;"><tr>
+                  <td bgcolor="${bg}" style="border-radius: 6px; padding: 10px 16px;">
+                    <a href="${url}" style="${FONT} font-size: 14px; line-height: 18px; color: ${fg}; text-decoration: none; font-weight: bold; display: inline-block;">${label}</a>
+                  </td></tr></table>`
+
+      const html = `<!doctype html><html><body style="margin: 0; padding: 0; background-color: #f8fafc;">
+  <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color: #f8fafc;">
+    <tr>
+      <td align="center" style="padding: 24px 12px;">
+        <table width="600" cellpadding="0" cellspacing="0" border="0" style="width: 600px; max-width: 600px; background-color: #ffffff; border: 1px solid #e5e7eb;">
+          <tr><td style="padding: 24px;">
+            <p style="${FONT} font-size: 22px; line-height: 28px; color: #0E1F56; font-weight: bold; margin: 0 0 4px 0;">${esc(event.title)}</p>
+            <p style="${FONT} font-size: 13px; line-height: 18px; color: #6b7280; margin: 0 0 20px 0;">${esc(event.collaboratives?.name || '')}</p>
+            <p style="${FONT} font-size: 15px; line-height: 22px; color: #1f2937; margin: 0 0 16px 0;">${esc(headline)}</p>
+            <table cellpadding="0" cellspacing="0" border="0" style="margin: 0 0 20px 0;">
+              <tr><td ${labelTd}>When</td><td ${valueTd}><span style="font-weight: bold;">${esc(eventDateLabel)}</span>${timeLabel ? `<br />${esc(timeLabel)}` : ''}</td></tr>
+              ${event.location ? `<tr><td ${labelTd}>Where</td><td ${valueTd}>${esc(event.location)}</td></tr>` : ''}
+              ${event.zoom_link ? `<tr><td ${labelTd}>Join</td><td ${valueTd}><a href="${esc(event.zoom_link)}" style="color: #00A79D; text-decoration: underline; word-break: break-all;">${esc(event.zoom_link)}</a></td></tr>` : ''}
+            </table>
+            ${button(attendUrl, '&#10003; I plan to attend', '#16a34a', '#ffffff')}${button(declineUrl, "&#10007; Can't attend", '#fee2e2', '#991b1b')}
+            ${icsBase64 ? `<p style="${FONT} font-size: 13px; line-height: 18px; color: #6b7280; margin: 12px 0 0 0;">An <span style="font-weight: bold;">add-to-calendar</span> file (event.ics) is attached — open it in Apple Calendar, Outlook, or Google Calendar to add this session.</p>` : ''}
+            <table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin: 24px 0 0 0;"><tr><td style="border-top: 1px solid #e5e7eb; font-size: 0; line-height: 0;">&nbsp;</td></tr></table>
+            <p style="${FONT} font-size: 11px; line-height: 15px; color: #9ca3af; margin: 12px 0 0 0;">
+              You're receiving this because you're ${r.source === 'member' ? 'a member of' : 'registered for'} <span style="font-weight: bold;">${esc(event.collaboratives?.name || 'a collaborative')}</span> on the CTAC BSC Manager.
+              ${footerLink ? `<a href="${footerLink.url}" style="color: #9ca3af; text-decoration: underline;">${esc(footerLink.label)}</a>.` : ''}
+            </p>
+          </td></tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body></html>`
 
       const text = [
         event.title,
