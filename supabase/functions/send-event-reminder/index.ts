@@ -28,9 +28,74 @@ function esc(s: string) {
     .replace(/"/g, '&quot;').replace(/'/g, '&#39;')
 }
 
+// Program labels, mirroring send-registration-email. Duplicated on purpose —
+// an edge function runs in Deno with no bundler and must not reach into the
+// frontend tree. Short forms match PROGRAM_TYPE_COLORS.
+const PROGRAM_LABELS: Record<string, { long: string; short: string }> = {
+  sts_bsc: { long: 'STS Breakthrough Series Collaborative', short: 'STS-BSC' },
+  tic_lc:  { long: 'TIC Learning Collaborative',            short: 'TIC LC'  },
+  tipe_lc: { long: 'TIPE Learning Collaborative',           short: 'TIPE LC' },
+  fourc:   { long: 'FourC Collaborative',                   short: 'FourC'   },
+}
+
+// btoa() only accepts code points 0-255 and THROWS above U+00FF. This function
+// built the base64 ONCE before the recipient loop, so a single curly apostrophe
+// or em dash in a title — i.e. anything from an imported Word schedule — took
+// down the reminder for EVERY participant, on a cron nobody is watching.
+function utf8ToBase64(str: string): string {
+  const bytes = new TextEncoder().encode(str)
+  let binary = ''
+  const chunk = 0x8000
+  for (let i = 0; i < bytes.length; i += chunk) {
+    binary += String.fromCharCode(...bytes.subarray(i, i + chunk))
+  }
+  return btoa(binary)
+}
+
+// RFC 5545 TEXT values must escape backslash, semicolon, comma and newlines.
+// SUMMARY/LOCATION/DESCRIPTION were interpolated raw, so a comma in a title
+// ("Cognitive Coping, Part 1") was parsed as a value separator.
+function escIcsText(s: string): string {
+  return String(s ?? '')
+    .replace(/\\/g, '\\\\')
+    .replace(/;/g, '\\;')
+    .replace(/,/g, '\\,')
+    .replace(/\r?\n/g, '\\n')
+}
+
+// Same VTIMEZONE as send-registration-email: RRULE-based (DST 2nd Sunday March
+// -> 1st Sunday November) rather than a fixed offset, so a cohort spanning the
+// boundary resolves correctly off one definition.
+const VTIMEZONES: Record<string, string[]> = {
+  'America/New_York': [
+    'BEGIN:VTIMEZONE',
+    'TZID:America/New_York',
+    'X-LIC-LOCATION:America/New_York',
+    'BEGIN:DAYLIGHT',
+    'TZOFFSETFROM:-0500',
+    'TZOFFSETTO:-0400',
+    'TZNAME:EDT',
+    'DTSTART:19700308T020000',
+    'RRULE:FREQ=YEARLY;BYMONTH=3;BYDAY=2SU',
+    'END:DAYLIGHT',
+    'BEGIN:STANDARD',
+    'TZOFFSETFROM:-0400',
+    'TZOFFSETTO:-0500',
+    'TZNAME:EST',
+    'DTSTART:19701101T020000',
+    'RRULE:FREQ=YEARLY;BYMONTH=11;BYDAY=1SU',
+    'END:STANDARD',
+    'END:VTIMEZONE',
+  ],
+}
+
 // Build an ICS calendar file for the event.
 // All-day events not supported here — we require start_time.
-function buildIcs(event: any): string {
+//
+// Deliberately does NOT emit VALARM, unlike send-registration-email. A reminder
+// email IS the alarm; attaching a day-before popup to a calendar entry that was
+// delivered an hour before the event would be incoherent.
+function buildIcs(event: any, programType?: string | null): string {
   const dtStamp = new Date().toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z'
   const tz = event.timezone || 'America/New_York'
   // Build ISO-style strings for DTSTART/DTEND in TZID format.
@@ -40,26 +105,32 @@ function buildIcs(event: any): string {
   const dateNoDash = event.event_date.replace(/-/g, '')
   const start = `${dateNoDash}T${startBits[0]}${startBits[1]}${startBits[2] || '00'}`
   const end = `${dateNoDash}T${endBits[0]}${endBits[1]}${endBits[2] || '00'}`
+  const tag = programType ? PROGRAM_LABELS[programType]?.short : null
+  const summary = tag ? `${tag}: ${event.title}` : event.title
   const description = [
     event.title,
     event.zoom_link ? `Join: ${event.zoom_link}` : null,
     event.location ? `Location: ${event.location}` : null,
-  ].filter(Boolean).join('\\n')
+  ].filter(Boolean).map(part => escIcsText(part as string)).join('\\n')
   return [
     'BEGIN:VCALENDAR',
     'VERSION:2.0',
     'PRODID:-//CTAC//BSC Manager//EN',
     'CALSCALE:GREGORIAN',
     'METHOD:PUBLISH',
+    event.collaboratives?.name ? `X-WR-CALNAME:${escIcsText(event.collaboratives.name)}` : '',
+    ...(VTIMEZONES[tz] || []),
     'BEGIN:VEVENT',
     `UID:${event.id}@bsc.ctac.app`,
     `DTSTAMP:${dtStamp}`,
     `DTSTART;TZID=${tz}:${start}`,
     `DTEND;TZID=${tz}:${end}`,
-    `SUMMARY:${event.title}`,
+    `SUMMARY:${escIcsText(summary)}`,
     `DESCRIPTION:${description}`,
-    event.location ? `LOCATION:${event.location}` : '',
+    event.location ? `LOCATION:${escIcsText(event.location)}` : '',
     event.zoom_link ? `URL:${event.zoom_link}` : '',
+    'ORGANIZER;CN=UK CTAC:mailto:no-reply@ctac.app',
+    'CATEGORIES:CTAC Learning Collaborative',
     'END:VEVENT',
     'END:VCALENDAR',
   ].filter(Boolean).join('\r\n')
@@ -121,7 +192,7 @@ Deno.serve(async (req) => {
     // Fetch event + collaborative.
     const { data: event, error: eventErr } = await admin
       .from('bsc_events')
-      .select('id, title, event_date, start_time, end_time, location, zoom_link, timezone, collaborative_id, collaboratives(name)')
+      .select('id, title, event_date, start_time, end_time, location, zoom_link, timezone, collaborative_id, collaboratives(name, program_type)')
       .eq('id', event_id)
       .single()
     if (eventErr || !event) {
@@ -159,8 +230,22 @@ Deno.serve(async (req) => {
     const tokenByEmail = new Map<string, string>((rsvps || []).map(r => [r.email.toLowerCase(), r.rsvp_token]))
 
     // Build common email pieces.
-    const ics = buildIcs(event)
-    const icsBase64 = btoa(ics)
+    //
+    // The calendar attachment is now BEST-EFFORT. Previously a throw here (see
+    // utf8ToBase64's note) propagated out of the handler, so: no email to
+    // anyone, and no event_reminder_log row — which meant the every-5-minutes
+    // imminent-reminders cron retried the same poisoned event forever, silently.
+    // A missing .ics is a far smaller problem than a missing reminder, so a
+    // calendar failure now degrades to sending without the attachment.
+    const programType = (event as any).collaboratives?.program_type as string | undefined
+    let icsBase64: string | null = null
+    let logNotes: string | null = null
+    try {
+      icsBase64 = utf8ToBase64(buildIcs(event, programType))
+    } catch (icsErr) {
+      logNotes = `.ics build failed, sent without calendar attachment: ${(icsErr as Error).message}`
+      console.error(logNotes)
+    }
     const subject = reminderSubject(event, reminder_type)
     const headline = reminderHeadline(event, reminder_type)
     const eventDateLabel = new Date(event.event_date + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })
@@ -217,14 +302,16 @@ Deno.serve(async (req) => {
         `Unsubscribe: ${unsubUrl}`,
       ].filter(Boolean).join('\n')
 
-      const resendPayload = {
+      const resendPayload: Record<string, unknown> = {
         from: 'CTAC <no-reply@ctac.app>',
         to: [r.email],
         subject,
         html, text,
-        attachments: [
+      }
+      if (icsBase64) {
+        resendPayload.attachments = [
           { filename: 'event.ics', content: icsBase64, content_type: 'text/calendar' },
-        ],
+        ]
       }
 
       const resp = await fetch('https://api.resend.com/emails', {
@@ -235,10 +322,21 @@ Deno.serve(async (req) => {
       if (resp.ok) sent += 1; else failed += 1
     }
 
-    await admin.from('event_reminder_log').insert({ event_id, reminder_type, recipient_count: sent })
+    // `failed` used to be computed and thrown away, so a send where most
+    // recipients errored looked identical to a clean one. Persist it.
+    await admin.from('event_reminder_log').insert({
+      event_id, reminder_type,
+      recipient_count: sent,
+      failed_count: failed,
+      notes: logNotes,
+    })
 
-    return new Response(JSON.stringify({ success: true, sent, failed, recipient_count: recipients.length }),
-      { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+    return new Response(JSON.stringify({
+      success: true, sent, failed,
+      recipient_count: recipients.length,
+      calendar_attached: !!icsBase64,
+      notes: logNotes,
+    }), { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
   } catch (err) {
     return new Response(JSON.stringify({ error: (err as Error).message }), { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
   }
