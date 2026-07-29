@@ -91,6 +91,38 @@ Microsoft Outlook on Windows uses Word's rendering engine, which does not suppor
 
 ---
 
+## Edge functions
+
+**The repo is the source of truth. Edit `supabase/functions/<slug>/index.ts`, then deploy. Never edit a function in the Supabase dashboard** — a dashboard edit silently desyncs git, and the next person to deploy from the repo will overwrite it without knowing.
+
+Until 2026-07-29 only `invite-team-leader` was committed; the other eight lived solely as deployed artifacts with no history, no diffs and no rollback. All nine are now snapshotted.
+
+| slug | deployed version at snapshot | notes |
+|---|---|---|
+| `invite-team-leader` | 9 | All role invites. Repo copy was already byte-identical — no drift. |
+| `send-event-email` | 3 | Trainer-composed email about one event. One send per recipient (no BCC) for per-user unsubscribe links. |
+| `send-event-reminder` | 2 | Cron-driven reminders + RSVP buttons + `.ics`. |
+| `mint-registration` | 4 | Public registration intake: validate, capacity/waitlist, dedupe, then fire the confirmation. |
+| `send-registration-email` | 4 | Confirmation / waitlist / promoted / cancellation email + `.ics`. |
+| `cancel-registration` | 3 | Public cancel by token; cancels + promotes the next waitlister atomically. |
+| `send-trainer-digest` | 2 | Weekly Monday digest per trainer. |
+| `send-ceu-certificate` | 3 | **Retired** — a 410 tombstone. Certificates come from the desktop Training Manager tool. Safe to delete from the dashboard; the MCP toolset can't delete functions. |
+| `lookup-registration` | 2 | Token-scoped read for the cancel page, so the browser needs no SELECT on `event_registrations`. |
+
+**All nine are deployed with `--no-verify-jwt`** (gateway JWT check off). Each function does its own authorization: the public ones treat their token as the credential, the admin ones verify the caller's JWT and role themselves. Keep that property in mind when adding a function — with the gateway check off, an endpoint with no internal auth is world-callable.
+
+Deploy:
+
+```bash
+supabase functions deploy <slug> --project-ref jhnquklmwoubpbbmnrjf --no-verify-jwt
+```
+
+The committed `index.ts` files are **byte-exact snapshots of what was deployed**, deliberately with no added header comments, so that a future `diff` between repo and deployed shows only real drift instead of permanent boilerplate noise. That is also why the `--no-verify-jwt` fact is recorded here rather than in each file.
+
+Secrets these functions read from the Supabase function env: `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` (both injected automatically) and `RESEND_API_KEY` (set manually — see the Email pipeline section).
+
+---
+
 ## Supabase Auth allowlist
 
 Authentication → URL Configuration:
