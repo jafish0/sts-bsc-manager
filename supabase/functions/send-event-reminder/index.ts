@@ -68,6 +68,66 @@ function escIcsText(s: string): string {
     .replace(/\r?\n/g, '\\n')
 }
 
+// ---------------------------------------------------------------------------
+// Wall-clock -> UTC, DST-correct. Mirrors send-registration-email; the calendar
+// deep links below carry absolute instants, unlike the .ics which carries local
+// time plus a TZID. Verified against IANA for all 8 real AWARE events.
+function tzOffsetMs(utcMs: number, tz: string): number {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: tz, hour12: false,
+    year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit', second: '2-digit',
+  }).formatToParts(new Date(utcMs))
+  const get = (t: string) => Number(parts.find(p => p.type === t)!.value)
+  let hour = get('hour')
+  if (hour === 24) hour = 0
+  return Date.UTC(get('year'), get('month') - 1, get('day'), hour, get('minute'), get('second')) - utcMs
+}
+
+function wallTimeToUtc(dateStr: string, timeStr: string, tz: string): Date {
+  const [y, mo, d] = String(dateStr).split('-').map(Number)
+  const [h = 0, mi = 0, s = 0] = String(timeStr || '00:00:00').split(':').map(Number)
+  const naive = Date.UTC(y, mo - 1, d, h, mi, s)
+  let utc = naive - tzOffsetMs(naive, tz)
+  const refined = naive - tzOffsetMs(utc, tz)
+  if (refined !== utc) utc = refined
+  return new Date(utc)
+}
+
+const gcalStamp = (d: Date) => d.toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, '')
+const isoStamp = (d: Date) => d.toISOString().replace(/\.\d{3}Z$/, 'Z')
+
+// This email attaches a SINGLE-event .ics, so it never hit the multi-event card
+// failure that broke the registration confirmation — but it carries the same
+// friction, so it gets the same links.
+function calendarLinks(e: any, programType?: string | null): { google: string; outlook: string } | null {
+  if (!e.start_time || !e.event_date) return null
+  const tz = e.timezone || 'America/New_York'
+  const start = wallTimeToUtc(e.event_date, e.start_time, tz)
+  const end = wallTimeToUtc(e.event_date, e.end_time || e.start_time, tz)
+  const tag = programType ? PROGRAM_LABELS[programType]?.short : null
+  const title = tag ? `${tag}: ${e.title}` : String(e.title || 'CTAC Session')
+  const details = [
+    e.zoom_link ? `Join: ${e.zoom_link}` : null,
+    e.location ? `Location: ${e.location}` : null,
+  ].filter(Boolean).join('\n')
+
+  const google = 'https://calendar.google.com/calendar/render?action=TEMPLATE'
+    + `&text=${encodeURIComponent(title)}`
+    + `&dates=${gcalStamp(start)}/${gcalStamp(end)}`
+    + (details ? `&details=${encodeURIComponent(details)}` : '')
+    + (e.location ? `&location=${encodeURIComponent(e.location)}` : '')
+
+  const outlook = 'https://outlook.office.com/calendar/0/deeplink/compose?path=%2Fcalendar%2Faction%2Fcompose&rru=addevent'
+    + `&subject=${encodeURIComponent(title)}`
+    + `&startdt=${encodeURIComponent(isoStamp(start))}`
+    + `&enddt=${encodeURIComponent(isoStamp(end))}`
+    + (details ? `&body=${encodeURIComponent(details)}` : '')
+    + (e.location ? `&location=${encodeURIComponent(e.location)}` : '')
+
+  return { google, outlook }
+}
+
 // Same VTIMEZONE as send-registration-email: RRULE-based (DST 2nd Sunday March
 // -> 1st Sunday November) rather than a fixed offset, so a cohort spanning the
 // boundary resolves correctly off one definition.
@@ -392,6 +452,8 @@ Deno.serve(async (req) => {
           ? { url: `https://bsc.ctac.app/cancel-registration/${r.cancel_token}`, label: 'Cancel my registration' }
           : null
 
+      const cal = calendarLinks(event, programType)
+
       // Same Outlook-first rules as send-registration-email v5: every size in
       // px with an explicit line-height, no rem/em, no h1-h6 (Word imposes its
       // own heading defaults), and an outer 100% table wrapping a fixed 600px
@@ -425,7 +487,15 @@ Deno.serve(async (req) => {
               ${event.zoom_link ? `<tr><td ${labelTd}>Join</td><td ${valueTd}><a href="${esc(event.zoom_link)}" style="color: #00A79D; text-decoration: underline; word-break: break-all;">${esc(event.zoom_link)}</a></td></tr>` : ''}
             </table>
             ${button(attendUrl, '&#10003; I plan to attend', '#16a34a', '#ffffff')}${button(declineUrl, "&#10007; Can't attend", '#fee2e2', '#991b1b')}
-            ${icsBase64 ? `<p style="${FONT} font-size: 13px; line-height: 18px; color: #6b7280; margin: 12px 0 0 0;">An <span style="font-weight: bold;">add-to-calendar</span> file (event.ics) is attached — open it in Apple Calendar, Outlook, or Google Calendar to add this session.</p>` : ''}
+            ${/* Visually subordinate to the RSVP buttons on purpose: those
+                  remain the primary call to action, and they are the ONLY thing
+                  that records a response. The previous copy said the attachment
+                  let you "RSVP locally", which is actively misleading — adding a
+                  calendar entry tells CTAC nothing. */''}
+            <p style="${FONT} font-size: 12px; line-height: 17px; color: #6b7280; margin: 4px 0 0 0;">
+              Add this session to your calendar:${cal ? ` <a href="${esc(cal.google)}" style="color: #00A79D; text-decoration: underline; white-space: nowrap;">Google</a> &nbsp;·&nbsp; <a href="${esc(cal.outlook)}" style="color: #00A79D; text-decoration: underline; white-space: nowrap;">Outlook</a>` : ''}${icsBase64 ? `${cal ? ' &nbsp;·&nbsp; ' : ' '}or import the attached <span style="font-weight: bold;">event.ics</span>.` : ''}
+              <br />Adding it to your calendar does not tell us whether you're coming — please use the buttons above.
+            </p>
             <table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin: 24px 0 0 0;"><tr><td style="border-top: 1px solid #e5e7eb; font-size: 0; line-height: 0;">&nbsp;</td></tr></table>
             <p style="${FONT} font-size: 11px; line-height: 15px; color: #9ca3af; margin: 12px 0 0 0;">
               You're receiving this because you're ${r.source === 'member' ? 'a member of' : 'registered for'} <span style="font-weight: bold;">${esc(event.collaboratives?.name || 'a collaborative')}</span> on the CTAC BSC Manager.
@@ -450,6 +520,9 @@ Deno.serve(async (req) => {
         '',
         `I'm attending: ${attendUrl}`,
         `Can't attend:  ${declineUrl}`,
+        '',
+        cal ? `Add to calendar: ${cal.google}` : null,
+        "(Adding it to your calendar does not tell us whether you're coming — use the links above.)",
         '',
         footerLink ? `${footerLink.label}: ${footerLink.url}` : null,
       ].filter(p => p !== null).join('\n')
