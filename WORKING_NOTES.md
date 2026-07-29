@@ -72,7 +72,9 @@ A bidirectional scratchpad shared between Josh, Claude Cowork (Claude desktop ch
 
 <!-- Add new drafts BELOW this line, newest at the bottom so Claude Code works through them in submission order. -->
 
-**READY: Collaborative-creation usability batch (4 items) — see the draft at the BOTTOM of this file.** Rename locked events, drag-reorder, schedule-doc upload, per-program registration fields. Driven by the first REAL cohort: a TIPE LC starting 10/27/26.
+**READY (2 drafts queued at the BOTTOM of this file, work them in order):**
+1. **Collaborative-creation usability batch (4 items)** — rename locked events, drag-reorder, schedule-doc upload, per-program registration fields. Driven by the first REAL cohort: a TIPE LC starting 10/27/26.
+2. **🔴 Registration hardening round 2 (4 items)** — **must ship before the first real registration link goes out.** Item 1 is a live data-exposure bug (`event_registrations` has `qual = true` public read/write policies); item 2 is QR check-in silently never firing. Registration has never run against real data.
 
 **Anchor Lab demo prep batch (4 items) — ✅ ALL SHIPPED 2026-07-17** (`8e3ec98`, `b3f1da6`, `e9cce6c`, `2fd7a30`; see Recently shipped for details incl. the STS-carryover audit + RLS caveat). Two features remain ⏳ **blocked on Ginny** (see the callout directly below). _(Shipped 2026-06-10: full demo rebuild `bac319c`, TIPE tile `a2d3cbf`, CSV export `5cedac2`, TIPE seed fixes `66293f0`, TIPE library LOADED; config guardrails `37d5bd1`, View-as `774416a`, session materials `14ad573`; earlier: demo-data seed `2624ed2`, feedback triage `00f15ce`, ProQOL burnout-only `ae1fd09`, CEU course-correction `9b01b22`, feedback widget `a52463d`.)_
 
@@ -382,3 +384,81 @@ The biggest time saver. CTAC schedules arrive as Word docs shaped like the table
 - Existing links are unaffected because each link stores its own `form_schema` snapshot; confirm that in your ship summary.
 
 **Out of scope for this batch:** drag support in the registration field list (arrows work; Josh is fine), and readable keys for custom fields (currently `custom_<base36>`, which makes CSV export headers cryptic — worth a future item if it bites).
+
+---
+
+### 2026-07-17: Registration hardening round 2 — MUST SHIP BEFORE THE FIRST REAL REGISTRATION LINK GOES OUT
+
+> **Why:** the registration system has **never run end to end against real data** (verified live: `event_registration_links`, `event_registration_link_events`, `event_registrations`, and `session_attendance` are all **0 rows**). The TIPE LC starting **10/27/26** will be the first real use, collecting **names, emails, schools, and districts from real educators**. A code trace surfaced three defects that a live cohort would hit immediately. Item 1 is a data-exposure bug and is the priority. Nothing is exposed today only because the tables are empty.
+>
+> Items are independent; one commit each. Order as written.
+
+#### Item 1: 🔴 SECURITY — `event_registrations` is world-readable and world-writable
+
+**Verified live via `pg_policies` and `information_schema.role_table_grants`.** Two policies whose *names* claim token scoping have predicates of literally `true`:
+
+| policy | cmd | roles | qual | with_check |
+|---|---|---|---|---|
+| `Public can read registration by cancel token` | SELECT | public | `true` | — |
+| `Public can update registration by cancel token` | UPDATE | public | `true` | `true` |
+
+`anon` also holds full `SELECT, INSERT, UPDATE, DELETE` on the table. Since the publishable key ships in the client bundle, **anyone can read every registrant's name, email, and full `responses` jsonb across every collaborative, harvest every `cancel_token`, and modify arbitrary rows** (status, waitlist_position, email). `event_registration_links` likewise has unconditional public SELECT, which lets anyone enumerate every link token in the system.
+
+**Fix (preferred): stop reading this table from the browser at all.** The cancel *write* already routes through the `cancel-registration` edge function; the only reason for a public policy is `CancelRegistrationPage.jsx`'s initial read of the row by `cancel_token`.
+
+1. Add a small edge function (e.g. `lookup-registration`) that takes a `cancel_token`, and with the service role returns ONLY what the page renders: `full_name`, `email`, `status`, link `title`, collaborative `name`. No jsonb blob, no ids.
+2. Point `CancelRegistrationPage.jsx` at it.
+3. Then **DROP both public policies** on `event_registrations` and `REVOKE` anon's write privileges:
+   - `DROP POLICY "Public can read registration by cancel token" ON public.event_registrations;`
+   - `DROP POLICY "Public can update registration by cancel token" ON public.event_registrations;`
+   - `REVOKE INSERT, UPDATE, DELETE ON public.event_registrations FROM anon;` (inserts come from `mint-registration` via service role, so anon needs nothing)
+   - Keep the `Admins manage registrations` policy exactly as-is (it is correctly scoped via `is_admin_for_collaborative`).
+4. `event_registration_links`: the public SELECT is load-bearing (`RegisterPage.jsx` reads the link by token with the anon key) so it can stay for now, but **narrow the grants** — `REVOKE INSERT, UPDATE, DELETE ... FROM anon` — and note in the ship summary that token enumeration remains possible. If it is cheap, restrict the public SELECT to non-sensitive columns via a view.
+
+**If the edge-function route balloons**, the acceptable interim is a genuinely token-scoped policy rather than `true`, plus the same REVOKEs. Do not leave `qual = true` in place either way. **Verify after:** re-run the `pg_policies` query and confirm, with the publishable key, that an unauthenticated `select *` on `event_registrations` returns no rows.
+
+#### Item 2: QR check-in silently never links a registration to attendance
+
+`SessionSignIn.jsx` (~lines 115-137) tries to find a matching registration with a PostgREST embed:
+
+```js
+.from('event_registrations')
+.select('id, status, registration_link_id, event_registration_link_events!inner(event_id)')
+.eq('event_registration_link_events.event_id', eventInfo.id)
+```
+
+**There is no foreign key between `event_registrations` and `event_registration_link_events`** (confirmed via `pg_constraint`: both tables point *to* `event_registration_links`, which is not an embeddable relationship). PostgREST cannot resolve it, the request errors, and the code destructures only `data` — the `error` is discarded, so nothing is logged and the surrounding `try/catch` never fires. Net effect: **no registration ever becomes `checked_in`**, `checked_in_at` and `session_attendance_id` stay NULL forever, and the roster's "Checked in" filter plus the CSV's "Checked In At" column are permanently empty.
+
+**Fix:** replace the embed with a two-step query.
+
+1. `event_registration_link_events` → `select('registration_link_id').eq('event_id', eventInfo.id)`
+2. `event_registrations` → `.in('registration_link_id', ids).eq('email', lowerEmail).neq('status','cancelled')`
+
+Also: **check the `error` on both queries and `console.warn` on failure** — the silent-failure pattern is what hid this. Then verify end to end for real: create a link, register, sign in via the session link with the same email, confirm the row flips to `checked_in` with `session_attendance_id` populated and the blue pill showing in the roster.
+
+While in this file, replace `.ilike('email', ...)` with `.eq('email', ...)`. Emails are stored pre-lowercased, and `_` / `%` are LIKE wildcards, so `a_b@x.com` currently matches `axb@x.com`. Same fix in `mint-registration`'s dedupe lookup.
+
+#### Item 3: Confirmation emails can fail invisibly (one failure mode is likely)
+
+Three separate problems in `send-registration-email` / its callers:
+
+- **`btoa()` crashes on smart punctuation.** The `.ics` attachment is built with `btoa(buildIcs(events))`, and `btoa` throws on any code point above U+00FF. A curly apostrophe, em dash, or smart quote in an event **title, location, or Zoom description** (i.e. anything pasted from Word or Outlook) throws → 500 → **no email at all**, not merely a missing attachment. The app's own email copy already contains curly apostrophes, so this is not hypothetical. Fix: `btoa(unescape(encodeURIComponent(str)))` or a `TextEncoder` + byte-wise base64 path.
+- **Fire-and-forget sends.** `mint-registration` and `cancel-registration` both call the email function with an un-awaited `fetch(...).catch(() => {})`. On Deno Deploy the isolate can be torn down once the response returns, so the send may never leave. Await the call (or use the platform's background-task API) so a failure is at least detectable. Keep the behavior that a failed email never blocks the registration itself.
+- **Cancellation emails leave no trace.** `confirmation_sent_at` is stamped only for `confirmation` / `promoted`, so there is no equivalent of the "⚠ not sent" badge for cancellations. Low priority; note it rather than over-building.
+
+**Verify:** register with an event title containing a curly apostrophe and an em dash, and confirm the email arrives with a working `.ics`.
+
+#### Item 4 (small, same area): admin "Promote" skips the notification and the capacity check
+
+`RegistrationRosterModal.jsx`'s `promoteWaitlister` does a bare `.update({ status: 'registered', waitlist_position: null })`. Unlike auto-promotion (which goes through `cancel-registration` and sends the "Spot opened" email), the admin path **never tells the person they got a spot** and **ignores capacity**. The same file already routes Cancel through an edge function for exactly this reason.
+
+**Fix:** have admin promote POST to `send-registration-email` with `kind: 'promoted'` after the update, and warn (do not hard-block) if promoting would exceed `capacity`.
+
+#### Noted, explicitly NOT in this batch
+
+- **Standalone trainings cannot use registration at all**: `event_registration_links.collaborative_id` is `NOT NULL` while standalone events have a NULL `collaborative_id`, and every creation path is collaborative-first. Worse, `session_attendance.collaborative_id` is also `NOT NULL` and `SessionSignIn` passes `eventInfo.collaborative_id`, so **QR sign-in for a standalone training would fail with a not-null violation**. Latent (zero standalone trainings exist), but it means the standalone training feature is not actually usable yet. Needs its own scoped decision, not a drive-by fix.
+- `send-registration-email` and `cancel-registration` are callable unauthenticated by anyone (`--no-verify-jwt`), so a known `registration_id` can be email-bombed and a known `cancel_token` cancelled. Partly mitigated by item 1 (no more token harvesting). Real fix is a shared secret or rate limiting — separate item.
+- Racy capacity check (count-then-insert, no lock) can let two simultaneous submissions both land as `registered` at the capacity boundary. Low volume, low stakes.
+- `.ics` omits `VTIMEZONE` despite using `TZID=America/New_York`, and multi-day events (`bsc_events.end_date`) import as single-day.
+- Honeypot trip returns `{ success: true }` with no status, so `RegisterPage` renders "You're registered!" with a broken cancel link. An aggressive autofill would show a real human a fake success. Cheap fix if convenient: return a marker the UI can distinguish.
+- Registration emails are outside the `unsubscribe_token` system (registrants are not `user_profiles` rows), so there is no unsubscribe link.
