@@ -444,7 +444,7 @@ function CreateCollaborativeModal({ onClose, onSuccess }) {
               BSC Schedule *
             </h3>
             <p style={{ color: '#6b7280', fontSize: '0.8rem', marginBottom: '1rem' }}>
-              Default schedule pre-populated from the program's standard agenda. Set dates for at least the first and last Learning Sessions — assessment windows are auto-calculated from those. Other dates (calls, intermediate sessions) are optional; leave blank to skip.
+              Default schedule pre-populated from the program's standard agenda. Set dates for at least the first and last Learning Sessions — assessment windows are auto-calculated from those. Other dates (calls, intermediate sessions) are optional; leave blank to skip. Every title can be renamed to match your program's wording.
             </p>
 
             {bscEvents.map((evt, idx) => (
@@ -452,13 +452,30 @@ function CreateCollaborativeModal({ onClose, onSuccess }) {
                 background: 'white', border: evt.locked ? '2px solid #00A79D30' : '1px solid #e5e7eb',
                 borderRadius: '8px', padding: '0.75rem', marginBottom: '0.5rem'
               }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
-                  <span style={{ fontSize: '0.8rem', fontWeight: '700', color: evt.locked ? '#00A79D' : '#374151' }}>
-                    {evt.title}
-                  </span>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem', gap: '0.5rem' }}>
+                  {/* Title is editable on EVERY row, including pre-populated
+                      (locked) ones — CTAC's real schedules rename the defaults
+                      (e.g. "Learning Call 1" → "Implementation Session 1 (call)").
+                      Only the title changes; event_type / sequence_number are
+                      untouched, so the assessment-window calculation (which keys
+                      off learning_session dates) is unaffected. */}
+                  <input
+                    type="text"
+                    value={evt.title || ''}
+                    onChange={(e) => updateEvent(idx, 'title', e.target.value)}
+                    placeholder="Event title"
+                    title="Rename this event"
+                    style={{
+                      flex: 1, minWidth: 0,
+                      fontSize: '0.8rem', fontWeight: '700',
+                      color: evt.locked ? '#00A79D' : '#374151',
+                      background: 'white', border: '1px solid #e5e7eb',
+                      borderRadius: '4px', padding: '0.3rem 0.4rem',
+                    }}
+                  />
                   <button type="button" onClick={() => removeEvent(idx)} title="Remove this event" style={{
                     background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer',
-                    fontSize: '1.1rem', padding: '0', lineHeight: '1'
+                    fontSize: '1.1rem', padding: '0', lineHeight: '1', flexShrink: 0
                   }}>×</button>
                 </div>
                 <div style={{ display: 'grid', gridTemplateColumns: evt.locked ? '1fr 1fr 1fr' : '1fr 1fr 1fr 1fr 1fr', gap: '0.4rem' }}>
