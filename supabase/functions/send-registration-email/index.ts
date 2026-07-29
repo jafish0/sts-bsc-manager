@@ -28,6 +28,57 @@ function esc(s: string) {
     .replace(/"/g, '&quot;').replace(/'/g, '&#39;')
 }
 
+// Program labels. Deliberately duplicated here rather than imported from
+// frontend/src/config/programConfig.js — an edge function runs in Deno with no
+// bundler and must not reach into the frontend tree. Keep the two in sync by
+// hand; the short forms match PROGRAM_TYPE_COLORS labels.
+const PROGRAM_LABELS: Record<string, { long: string; short: string }> = {
+  sts_bsc: { long: 'STS Breakthrough Series Collaborative', short: 'STS-BSC' },
+  tic_lc:  { long: 'TIC Learning Collaborative',            short: 'TIC LC'  },
+  tipe_lc: { long: 'TIPE Learning Collaborative',           short: 'TIPE LC' },
+  fourc:   { long: 'FourC Collaborative',                   short: 'FourC'   },
+}
+
+// Heading for the events section. Falls back to the old wording for any
+// program_type not in the map, so a new program never produces a blank heading.
+function eventsHeading(programType?: string | null): string {
+  const label = programType ? PROGRAM_LABELS[programType]?.long : null
+  return label ? `${label} Events` : 'Events covered'
+}
+
+// "Tue, Jan 5, 2027". The YEAR matters: cohorts cross a calendar boundary, so
+// "Tuesday, January 5" alone is ambiguous. timeZone is pinned to UTC because
+// event_date is a bare date and 'T00:00:00' would otherwise be interpreted in
+// whatever zone the isolate happens to run in, which can shift the day.
+function fmtDate(eventDate: string): string {
+  return new Date(eventDate + 'T00:00:00Z').toLocaleDateString('en-US', {
+    weekday: 'short', month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC',
+  })
+}
+
+// '14:30:00' -> '2:30 PM'. Parsed off the string rather than via Date so no
+// timezone can enter the picture — start_time/end_time are local wall times.
+function fmtTime(t?: string | null): string | null {
+  if (!t) return null
+  const [hRaw, mRaw] = String(t).split(':')
+  let h = Number(hRaw)
+  if (!Number.isFinite(h)) return null
+  const m = (mRaw ?? '00').padStart(2, '0')
+  const ampm = h >= 12 ? 'PM' : 'AM'
+  h = h % 12
+  if (h === 0) h = 12
+  return `${h}:${m} ${ampm}`
+}
+
+// Both ends, so a 4.5-hour learning session is distinguishable from a 1-hour
+// call. Previously only the start showed.
+function fmtTimeRange(start?: string | null, end?: string | null): string {
+  const s = fmtTime(start)
+  if (!s) return 'TBD'
+  const e = fmtTime(end)
+  return e && e !== s ? `${s} to ${e}` : s
+}
+
 // btoa() only accepts code points 0-255 and THROWS on anything above U+00FF.
 // Event titles/locations routinely contain curly apostrophes and em dashes
 // (anything pasted from Word or Outlook — and titles now come straight from
@@ -112,7 +163,7 @@ Deno.serve(async (req) => {
 
     const { data: link } = await admin
       .from('event_registration_links')
-      .select('title, description, collaborative_id, collaboratives(name)')
+      .select('title, description, collaborative_id, collaboratives(name, program_type)')
       .eq('id', reg.registration_link_id)
       .single()
 
@@ -149,40 +200,84 @@ Deno.serve(async (req) => {
       headline = `You're registered. Save the dates below — a calendar file is attached so you can add them to Outlook, Apple Calendar, or Google Calendar in one click.`
     }
 
-    const eventsHtml = events.map(e => {
-      const dt = new Date(e.event_date + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })
-      return `<li style="margin-bottom: 0.5rem;"><strong>${esc(e.title)}</strong> — ${esc(dt)}${e.start_time ? ` at ${esc(e.start_time.slice(0,5))}` : ''}${e.location ? ` · ${esc(e.location)}` : ''}${e.zoom_link ? ` · <a href="${esc(e.zoom_link)}">Zoom</a>` : ''}</li>`
+    const programType = link?.collaboratives?.program_type as string | undefined
+    const heading = eventsHeading(programType)
+
+    // Every size below is in px with an explicit line-height, and there is no
+    // rem/em anywhere in this template. Outlook renders with the Word engine,
+    // which handles rem/em unreliably and imposes its own heading defaults —
+    // that mix is what made the received email's type sizes look random.
+    // Scale: title 22 / section heading 16 / body 15 / secondary 13 / footer 11.
+    const FONT = "font-family: Arial, Helvetica, sans-serif;"
+
+    // A real data table, not role="presentation": this IS tabular data, and a
+    // presentation role would hide the column structure from screen readers.
+    // Outlook-safety comes from the cellpadding/cellspacing/border attributes,
+    // fixed widths and inline px styles — not from the role.
+    const th = (label: string, width: string, align = 'left') =>
+      `<th scope="col" width="${width}" style="${FONT} font-size: 12px; line-height: 16px; color: #0E1F56; text-align: ${align}; padding: 8px 10px; background-color: #f1f5f9; border-bottom: 2px solid #cbd5e1; font-weight: bold;">${label}</th>`
+
+    const eventsRows = events.map(e => {
+      const td = 'style="' + FONT + ' font-size: 13px; line-height: 18px; color: #1f2937; padding: 8px 10px; border-bottom: 1px solid #e5e7eb; vertical-align: top;"'
+      return `<tr>
+              <td ${td}><span style="font-weight: bold;">${esc(e.title)}</span>${e.location ? `<br /><span style="font-size: 12px; line-height: 16px; color: #6b7280;">${esc(e.location)}</span>` : ''}</td>
+              <td ${td}>${esc(fmtDate(e.event_date))}</td>
+              <td ${td}>${esc(fmtTimeRange(e.start_time, e.end_time))}</td>
+              <td ${td}>${e.zoom_link ? `<a href="${esc(e.zoom_link)}" style="color: #00A79D; font-weight: bold; text-decoration: underline;">Zoom</a>` : '<span style="color: #9ca3af;">—</span>'}</td>
+            </tr>`
     }).join('')
+
+    const eventsTable = events.length === 0 ? '' : `
+          <p style="${FONT} font-size: 16px; line-height: 22px; color: #0E1F56; font-weight: bold; margin: 24px 0 8px 0;">${esc(heading)}</p>
+          <table width="100%" cellpadding="0" cellspacing="0" border="0" style="border-collapse: collapse; width: 100%; max-width: 600px;">
+            <tr>${th('Session', '40%')}${th('Date', '20%')}${th('Time', '28%')}${th('Join', '12%')}</tr>
+            ${eventsRows}
+          </table>`
+
     const eventsText = events.map(e => {
-      const dt = new Date(e.event_date + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })
-      return `• ${e.title} — ${dt}${e.start_time ? ' at ' + e.start_time.slice(0,5) : ''}${e.location ? ' (' + e.location + ')' : ''}${e.zoom_link ? '\n  Zoom: ' + e.zoom_link : ''}`
+      const when = `${fmtDate(e.event_date)}, ${fmtTimeRange(e.start_time, e.end_time)}`
+      return `• ${e.title}\n    ${when}${e.location ? `\n    ${e.location}` : ''}${e.zoom_link ? `\n    Zoom: ${e.zoom_link}` : ''}`
     }).join('\n')
 
-    const html = `<!doctype html><html><body style="font-family: Arial, Helvetica, sans-serif; color: #1f2937; line-height: 1.5;">
-      <div style="max-width: 640px; margin: 0 auto; padding: 1rem;">
-        <h2 style="color: #0E1F56; margin-bottom: 0.25rem;">${esc(link?.title || 'Event Registration')}</h2>
-        <div style="color: #6b7280; font-size: 14px;">${esc(link?.collaboratives?.name || '')}</div>
-        <p style="margin-top: 1rem;">Hi ${esc(reg.full_name)},</p>
-        <p>${esc(headline)}</p>
-        ${link?.description ? `<p style="color:#374151; font-size: 14px;">${esc(link.description)}</p>` : ''}
-        ${events.length > 0 ? `<h3 style="color: #0E1F56; font-size: 1rem; margin-top: 1.25rem; margin-bottom: 0.4rem;">Events covered</h3><ul style="padding-left: 1.2rem;">${eventsHtml}</ul>` : ''}
-        ${kind !== 'cancellation' ? `<p style="font-size: 13px; color: #6b7280;">Need to cancel? <a href="${cancelUrl}">Cancel my registration</a>.</p>` : ''}
-        <hr style="margin-top: 2rem; border: 0; border-top: 1px solid #e5e7eb;"/>
-        <p style="font-size: 11px; color: #9ca3af;">Sent by the CTAC BSC Manager. If this was unexpected, you can ignore it.</p>
-      </div></body></html>`
+    // Outer 100%-width table with a fixed-width inner table is the layout that
+    // survives Outlook; max-width alone on a div does not.
+    const html = `<!doctype html><html><body style="margin: 0; padding: 0; background-color: #f8fafc;">
+  <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color: #f8fafc;">
+    <tr>
+      <td align="center" style="padding: 24px 12px;">
+        <table width="600" cellpadding="0" cellspacing="0" border="0" style="width: 600px; max-width: 600px; background-color: #ffffff; border: 1px solid #e5e7eb;">
+          <tr><td style="padding: 24px;">
+            <p style="${FONT} font-size: 22px; line-height: 28px; color: #0E1F56; font-weight: bold; margin: 0 0 4px 0;">${esc(link?.title || 'Event Registration')}</p>
+            <p style="${FONT} font-size: 13px; line-height: 18px; color: #6b7280; margin: 0 0 20px 0;">${esc(link?.collaboratives?.name || '')}</p>
+            <p style="${FONT} font-size: 15px; line-height: 22px; color: #1f2937; margin: 0 0 12px 0;">Hi ${esc(reg.full_name)},</p>
+            <p style="${FONT} font-size: 15px; line-height: 22px; color: #1f2937; margin: 0 0 12px 0;">${esc(headline)}</p>
+            ${link?.description ? `<p style="${FONT} font-size: 13px; line-height: 18px; color: #374151; margin: 0 0 12px 0;">${esc(link.description)}</p>` : ''}
+            ${eventsTable}
+            ${kind !== 'cancellation' ? `<p style="${FONT} font-size: 13px; line-height: 18px; color: #6b7280; margin: 20px 0 0 0;">Need to cancel? <a href="${cancelUrl}" style="color: #0E1F56; text-decoration: underline;">Cancel my registration</a>.</p>` : ''}
+            <table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin: 24px 0 0 0;"><tr><td style="border-top: 1px solid #e5e7eb; font-size: 0; line-height: 0;">&nbsp;</td></tr></table>
+            <p style="${FONT} font-size: 11px; line-height: 15px; color: #9ca3af; margin: 12px 0 0 0;">Sent by the CTAC BSC Manager. If this was unexpected, you can ignore it.</p>
+          </td></tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body></html>`
 
+    // Filter on `=== null`, not Boolean: the '' entries are intentional blank
+    // lines, and the old .filter(Boolean) stripped every one of them, so the
+    // plain-text alternative arrived as one dense unbroken block.
     const text = [
       link?.title || 'Event Registration',
-      link?.collaboratives?.name || '',
+      link?.collaboratives?.name || null,
       '',
       `Hi ${reg.full_name},`,
       headline,
-      link?.description || '',
+      link?.description || null,
       '',
-      events.length > 0 ? 'Events covered:\n' + eventsText : '',
+      events.length > 0 ? heading + ':\n' + eventsText : null,
       '',
-      kind !== 'cancellation' ? `Cancel: ${cancelUrl}` : '',
-    ].filter(Boolean).join('\n')
+      kind !== 'cancellation' ? `Cancel: ${cancelUrl}` : null,
+    ].filter(p => p !== null).join('\n')
 
     const attachments: any[] = []
     if (kind !== 'cancellation' && events.some(e => e.start_time)) {
