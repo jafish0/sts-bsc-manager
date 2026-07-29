@@ -113,12 +113,17 @@ Anonymous demographic data collection
 - `team_leader` - Team leaders
 - `senior_leader` - Higher-level organizational view
 
-### **Aggregate Views** (Auto-updating)
-- `team_completion_status`
-- `team_stss_aggregates`
-- `team_proqol_aggregates`
-- `team_stsioa_aggregates`
-- `team_demographics_summary`
+### **Aggregate Views** — REMOVED 2026-07-29
+These five views (`team_completion_status`, `team_stss_aggregates`,
+`team_proqol_aggregates`, `team_stsioa_aggregates`,
+`team_demographics_summary`) were dropped: they were SECURITY DEFINER views
+(owner `postgres`, `security_invoker` unset) with `anon` SELECT, so they
+bypassed RLS — `team_completion_status` exposed every `team_codes.code` in
+plaintext to anyone with the publishable key. Nothing in `frontend/src` used
+them; CompletionTracking, DataVisualization and TeamReport compute their own
+aggregates. Definitions are preserved in the
+`drop_security_definer_aggregate_views` migration if they're ever needed
+(recreate with `security_invoker = on` and without granting `anon`).
 
 **Note:** All Phase 2 database tables, relationships, triggers, and Row Level Security policies are already configured in Supabase.
 
