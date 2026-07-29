@@ -105,11 +105,9 @@ A bidirectional scratchpad shared between Josh, Claude Cowork (Claude desktop ch
 
 **✅ BOTH QUEUED DRAFTS SHIPPED 2026-07-17** (collaborative-creation usability + registration hardening round 2 — see Recently shipped). The `RESEND_API_KEY` blocker found during that work was **resolved the same day** — Josh set the secret and the email pipeline is verified end to end. Registration is now safe to use with real registrants. Superseded queue note follows:
 
-**READY (2 drafts queued at the bottom of this file, work them in order):**
-1. **Registration link duplicate-save bug + delete affordance (2 items)** — saving a newly-created link twice inserts a duplicate (branches on the `editingLink` prop, ignoring the just-created `savedLink` state). Item 2 adds the delete action that would have let Josh clean up without SQL.
-2. **Edge functions into git + registration email/calendar overhaul (3 items)** — ⚠️ **9 of 10 deployed edge functions are not in the repo** (every participant-facing email exists only as a deployed artifact, no history, no rollback). Item 1 snapshots them into `supabase/functions/`; items 2 and 3 rebuild the registration email HTML (Outlook-safe px units, event table, start+end times, years, program-aware heading) and upgrade the `.ics` (alarms, organizer, title prefixes, `VTIMEZONE`).
+**READY: Reminder pipeline before the Oct 27 cohort (4 items) — see the LAST draft at the bottom of this file.** ⚠️ Headline finding: **automated reminders never reach registrants** — recipients resolve from team members only, and the real AWARE cohort has 0 teams, so the crons would report success while sending zero email to 297 registered educators. Also back-ports the `btoa` + RFC-5545 `.ics` fixes that `send-event-reminder` never received (cron-driven, so one curly apostrophe silently kills every reminder for an event), applies the Outlook-first email treatment, and restores non-super_admin test accounts so Claude Code can click-through verify again.
 
-_(Earlier drafts, both shipped: collaborative-creation usability batch `a1f07ea`; registration hardening round 2 `44b183f`.)_
+_(Earlier drafts, all shipped: collaborative-creation usability `a1f07ea`; registration hardening round 2 `44b183f`; duplicate-save + delete `574531d`; edge functions into git + email/calendar overhaul `81ef175`.)_
 
 **Anchor Lab demo prep batch (4 items) — ✅ ALL SHIPPED 2026-07-17** (`8e3ec98`, `b3f1da6`, `e9cce6c`, `2fd7a30`; see Recently shipped for details incl. the STS-carryover audit + RLS caveat). Two features remain ⏳ **blocked on Ginny** (see the callout directly below). _(Shipped 2026-06-10: full demo rebuild `bac319c`, TIPE tile `a2d3cbf`, CSV export `5cedac2`, TIPE seed fixes `66293f0`, TIPE library LOADED; config guardrails `37d5bd1`, View-as `774416a`, session materials `14ad573`; earlier: demo-data seed `2624ed2`, feedback triage `00f15ce`, ProQOL burnout-only `ae1fd09`, CEU course-correction `9b01b22`, feedback widget `a52463d`.)_
 
@@ -624,6 +622,69 @@ Impact is worse here than it was for registration email, because this function i
 
 Lower severity than the `team_codes` case: a registration form is meant to be shared, and no PII sits in the links table. The real risks are (a) spam/nuisance registrations on a link before Josh distributes it, and (b) `capacity` being consumed by bad actors now that the waitlist is live. **Not a one-liner** — `RegisterPage` reads the link by token from the browser, so closing it needs a `validate_registration_link(token)` SECURITY DEFINER RPC in the shape of `validate_team_code`, returning only the fields the form renders. Same pattern, already proven.
 
-#### 3. Stale test-account documentation
+#### 3. Stale test-account documentation (superseded — now scoped as item 4 of the draft below)
 
 `CLAUDE.md` lists `test@uky.edu` / `1234` as a live agency_admin test account. It no longer authenticates (`invalid_credentials`), and `user_profiles` currently contains **only super_admins** — the non-admin accounts went away in the collaborative rebuild. This matters more than it looks: it means **no admin-gated or team-scoped UI can be click-through verified by Claude Code at all**, so every such item ships with verification deferred to Josh. Recreating one agency_admin and one team_member test account (Josh's job — account creation) would restore that ability. Update `CLAUDE.md` either way so it stops documenting a dead credential.
+
+---
+
+### 2026-07-29: Reminder pipeline before the Oct 27 cohort (4 items) — READY
+
+> **Why now.** The AWARE Year 4 TIPE LC opens registration imminently (capacity 297, first session **10/27/26**). `send-event-reminder` drives every automated reminder through four pg_cron jobs, has **never run against a real event**, and Cowork verified three problems in it — one of which means **registrants would receive no reminders at all**. Item 1 is the correctness bug, item 2 is the one that changes who gets email (biggest, needs Josh's read on the questions in it), item 3 is presentation, item 4 unblocks Claude Code's own verification.
+>
+> All of items 1 to 3 are in `supabase/functions/send-event-reminder/index.ts`, which is now in the repo (`fd1dfbd`). **Deploy note:** deploying via the Supabase MCP tool silently flips `verify_jwt` to `true` (it did to `send-registration-email`). This function is called by **pg_cron via pg_net** as well as by the admin UI, so confirm the cron path still authenticates after any deploy, or restore `verify_jwt = false`. The Supabase CLI is not installed on the machine.
+
+#### Item 1: 🐞 `.ics` builder will 500 the whole send on any non-ASCII or punctuated title
+
+Two defects, both already fixed in `send-registration-email` on 2026-07-17 and never back-ported. Verified in the deployed v2 source:
+
+- `const icsBase64 = btoa(ics)` — `btoa` throws `DOMException` on any code point above U+00FF.
+- `SUMMARY:${event.title}`, `LOCATION:${event.location}`, and the DESCRIPTION parts are interpolated with **no RFC-5545 escaping**, so a comma or semicolon corrupts the entry.
+
+Worse here than in the registration email, for three reasons: it is cron-driven (nobody is watching), `icsBase64` is computed **once before the recipient loop** so a throw kills the send for **every** participant, and event titles now come straight from imported Word schedules, which is exactly where curly apostrophes and em dashes originate. Latent only because the AWARE titles happen to be plain ASCII.
+
+**Fix:** import/copy `utf8ToBase64()` and `escIcsText()` from `send-registration-email` and route SUMMARY / LOCATION / DESCRIPTION through `escIcsText`.
+
+**Also, while in the failure path:** a throw means `event_reminder_log` is never written, so the every-5-minutes `imminent-reminders` cron will retry the same poisoned event indefinitely. That is arguably better than recording a false success, but it is silent either way. Wrap the per-event `.ics` build so a calendar failure **degrades to sending without the attachment** rather than sending nothing, and log it. Also persist the `failed` count — it is currently computed and thrown away (`event_reminder_log.recipient_count` receives `sent` only), so partial failures are invisible.
+
+**Consider (decide, don't assume):** whether the item-3 `.ics` upgrades from `3b350ad` (VALARM, ORGANIZER, VTIMEZONE, program-tagged SUMMARY) belong here too. Cowork's read: **yes for `VTIMEZONE`, `ORGANIZER` and the program tag** (consistency, and the missing `VTIMEZONE` is the same latent invalidity), but **no for `VALARM`** — a reminder email is itself the alarm, and adding a day-before popup to a calendar entry delivered an hour before the event is incoherent.
+
+#### Item 2: ⚠️ Reminders never reach registrants — they only reach team members
+
+**Verified live.** `send-event-reminder` resolves recipients as: teams in the collaborative → `user_profiles` with those `team_id`s → active, not unsubscribed. Registrants are **not** `user_profiles` rows (registration deliberately creates no account). Current state of the real cohort:
+
+| Collaborative | Teams | Active members | Registrants |
+|---|---|---|---|
+| **AWARE Year 4 TIPE LC 2026-2027** | **0** | **0** | 1 (Josh's test) |
+
+So today the function returns early with `reason: 'no_teams'` and sends **zero** emails. Come October, 297 educators could register, receive their confirmation, and then get **no week-before, day-before, hour-before, or starting-now reminder** — while the crons report success. This is the single biggest gap between the app and a working October cohort.
+
+**The fix is cheaper than it looks:** `event_rsvps.user_id` is already **nullable**, so registrants can hold RSVP tokens without fake accounts.
+
+- Extend recipient resolution to the union of (a) current team members and (b) non-cancelled `event_registrations` whose registration link covers **this event** (via `event_registration_link_events`).
+- **Dedupe on lowercased email** — one person may be both a team member and a registrant; they must not get two copies. Prefer the team-member record when both exist (it has `full_name`, `unsubscribe_token`, and a real `user_id`).
+- `event_rsvps` upsert already keys on `(event_id, email)`, so registrant rows work with `user_id: null`. Confirm the `/rsvp/:token` page renders for a row with a null `user_id`.
+- **Unsubscribe:** registrants have no `unsubscribe_token`, and the footer's unsubscribe link currently interpolates it unconditionally (a null would produce `/unsubscribe/null`). Decide the approach and say which you chose. Cowork's recommendation: reuse the registration's `cancel_token` for a registrant-facing "cancel my registration" link instead of an unsubscribe link, since for a registrant those are effectively the same intent and it avoids minting a second token system. Do **not** ship a broken or dead link in the footer.
+- Guard the early return: `no_teams` must no longer short-circuit when registrants exist. That check is the actual current bug.
+- **Sequential sends:** the loop awaits one Resend call per recipient. At 297 recipients that is 297 sequential HTTP round trips in one edge-function invocation, which risks the execution time limit. Assess and report: either batch (note Resend's batch endpoint historically does **not** support attachments, so verify before relying on it), or send in bounded-concurrency chunks, or paginate across invocations. **Do not silently leave a 297-recipient send untested** — this is the scale it will actually run at.
+
+**Josh's open questions, answer before building:** should reminders go to *all* registrants, or only those whose RSVP is not `not_attending`? And should a waitlisted registrant get session reminders (Cowork's view: no — they do not have a seat, and it would read as a confirmation they are in).
+
+#### Item 3: Apply the Outlook-first email treatment to the reminder email
+
+The reminder email has the same defects that `bbd7adc` just fixed in the registration email: `rem`/`em` units throughout (`padding: 1rem`, `margin-bottom: 0.25rem`, `margin: 1.5rem 0`, `padding: 0.6rem 1rem`), an unstyled `<h2>`, and `max-width` on a `div` (which Outlook's Word engine ignores). Reuse the patterns from `send-registration-email` v5 rather than reinventing:
+
+- Every size in `px` with an explicit `line-height`; no `rem`/`em`; no `h1`-`h6`; outer 100% table wrapping a fixed 600px table.
+- **12-hour times.** Currently `${start.slice(0,5)}–${end.slice(0,5)}` renders "10:00–14:30 ET". Match the registration email's "10:00 AM to 2:30 PM". (Also note the en dash there, which Josh dislikes in prose; in email body copy use "to".)
+- **The RSVP buttons must survive Outlook** — they are `<a>` tags with padding and `border-radius`, which Word renders inconsistently. Convert to table-cell buttons (VML is not required, but the button must not collapse into bare text).
+- **Program-aware copy.** `reminderHeadline()` hardcodes "You're registered for an upcoming **Learning Session** in one week" for every program. For the TIPE cohort the events are "Implementation Session N (call)" and plain learning sessions, so this is another STS-BSC carryover of the kind Josh flagged earlier. Use the event's own `title` and/or the `program_type` label map already in `send-registration-email`.
+- Keep the text alternative in sync, and **note the blank-line bug pattern**: this function's `text` array uses `''` entries with `.filter(Boolean)`, the same defect just fixed in the registration email, so its plain-text reminders are also arriving as one dense block. Fix it here too.
+
+#### Item 4: Restore non-super_admin test accounts + fix the stale docs
+
+`CLAUDE.md` documents `test@uky.edu` / `1234` as a live agency_admin. It does not authenticate, and `user_profiles` holds **only super_admins**, so Claude Code currently cannot click-through verify any team-scoped or admin-gated UI — which is why a growing number of items ship "verification deferred to Josh."
+
+- **Josh creates the accounts** (account creation stays with him): one `agency_admin` and one `team_member`, both assigned to a team in a **demo** collaborative, never the AWARE cohort.
+- Claude Code then updates `CLAUDE.md`'s Test Accounts section to the real credentials-in-use (email + role + team, **no passwords in the repo**) and removes the dead entry.
+- Note in `INFRASTRUCTURE.md` that these exist for verification and belong to demo collaboratives only.
+- Once they exist, use them: re-verify the two items that shipped with deferred checks (the guarded Delete's disabled-tooltip state, and the View-as CTAC Admin preview).
