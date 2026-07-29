@@ -19,6 +19,7 @@ export default function RegistrationRosterModal({ linkId, linkTitle, onClose, on
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState('all')
   const [loading, setLoading] = useState(true)
+  const [capacity, setCapacity] = useState(null)
 
   const load = async () => {
     setLoading(true)
@@ -28,15 +29,51 @@ export default function RegistrationRosterModal({ linkId, linkTitle, onClose, on
       .eq('registration_link_id', linkId)
       .order('registered_at', { ascending: false })
     setRows(data || [])
+    // Capacity is needed to warn before an admin promote overfills the event.
+    const { data: link } = await supabase
+      .from('event_registration_links')
+      .select('capacity')
+      .eq('id', linkId)
+      .maybeSingle()
+    setCapacity(link?.capacity ?? null)
     setLoading(false)
   }
 
   useEffect(() => { load() }, [linkId])
 
+  // Admin promote. Auto-promotion (via cancel-registration) sends the "Spot
+  // opened" email; this path used to be a bare UPDATE, so the person was never
+  // told they got a spot and capacity was ignored entirely.
   const promoteWaitlister = async (regId) => {
-    if (!window.confirm('Promote this person off the waitlist to registered?')) return
-    await supabase.from('event_registrations')
+    const registeredCount = rows.filter(r => r.status === 'registered').length
+    const overCapacity = capacity != null && registeredCount >= capacity
+    const msg = overCapacity
+      // Warn, don't block — an admin may legitimately choose to overfill.
+      ? `This event is already at capacity (${registeredCount}/${capacity}). Promoting this person will put you over. Continue?`
+      : 'Promote this person off the waitlist to registered? They will be emailed that a spot opened.'
+    if (!window.confirm(msg)) return
+
+    const { error: updErr } = await supabase.from('event_registrations')
       .update({ status: 'registered', waitlist_position: null }).eq('id', regId)
+    if (updErr) { alert('Promote failed: ' + updErr.message); return }
+
+    // Notify them, same as auto-promotion does. A failed email must not undo
+    // the promotion — surface it so the admin can resend from the roster.
+    try {
+      const url = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-registration-email`
+      const resp = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ registration_id: regId, kind: 'promoted' }),
+      })
+      if (!resp.ok) {
+        const json = await resp.json().catch(() => ({}))
+        alert(`Promoted, but the notification email failed (${json.error || `HTTP ${resp.status}`}). Use "Resend" to try again.`)
+      }
+    } catch (err) {
+      alert(`Promoted, but the notification email failed (${err.message || String(err)}). Use "Resend" to try again.`)
+    }
+
     await load()
     onChange?.()
   }
