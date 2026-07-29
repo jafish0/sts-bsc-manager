@@ -112,9 +112,11 @@ A bidirectional scratchpad shared between Josh, Claude Cowork (Claude desktop ch
 
 **✅ BOTH QUEUED DRAFTS SHIPPED 2026-07-17** (collaborative-creation usability + registration hardening round 2 — see Recently shipped). The `RESEND_API_KEY` blocker found during that work was **resolved the same day** — Josh set the secret and the email pipeline is verified end to end. Registration is now safe to use with real registrants. Superseded queue note follows:
 
-**READY: "Add to calendar" links in emails (3 items) — see the LAST draft at the bottom of this file.** Real-world testing showed the `.ics` attachment is unusable for participants: Gmail shows its own "Unable to load event" card (its smart-card handles ONE event, our file has eight) and Outlook Web dead-ends the same way. Fix is per-event Google/Outlook add-to-calendar **links** in the events table, keeping the attachment as a fallback and fixing copy that currently promises one-click adding. A subscribe feed was considered and **declined** (dates rarely move). `METHOD:REQUEST` explicitly rejected (would silently lose RSVPs).
+**READY (2 drafts queued at the bottom of this file, work them in order):**
+1. **"Add to calendar" links in emails (3 items)** — the `.ics` attachment is unusable for participants: Gmail shows its own "Unable to load event" card (those cards handle ONE event, our file has eight) and Outlook Web dead-ends the same way. Fix is per-event Google/Outlook add-to-calendar **links**, keeping the attachment as a fallback. Subscribe feed **declined** (dates rarely move); `METHOD:REQUEST` **rejected** (would silently lose RSVPs).
+2. **Public registration page: branding + readable event list (4 items)** — event list becomes a table like the email (no Zoom links), all times gain start+end and an **ET** suffix, CTAC logo top / UK lockup bottom reusing the existing `.logo-top`/`.logo-bottom` pattern, and a brand-color background. Includes ⚠️ optimizing `UK_Lockup-286.png` (**3.08 MB** rendered at 250px wide — also slows the public assessment pages).
 
-**READY: Reminder pipeline before the Oct 27 cohort (4 items) — see the LAST draft at the bottom of this file.** ⚠️ Headline finding: **automated reminders never reach registrants** — recipients resolve from team members only, and the real AWARE cohort has 0 teams, so the crons would report success while sending zero email to 297 registered educators. Also back-ports the `btoa` + RFC-5545 `.ics` fixes that `send-event-reminder` never received (cron-driven, so one curly apostrophe silently kills every reminder for an event), applies the Outlook-first email treatment, and restores non-super_admin test accounts so Claude Code can click-through verify again.
+**✅ SHIPPED: Reminder pipeline before the Oct 27 cohort** (items 1-3 shipped `4e3a9fd`/`119884d`/`61087b8`, plus `0545f5b` for the RSVP page crash the verification step uncovered; **item 4, the test accounts, is still Josh's**). ⚠️ Headline finding: **automated reminders never reach registrants** — recipients resolve from team members only, and the real AWARE cohort has 0 teams, so the crons would report success while sending zero email to 297 registered educators. Also back-ports the `btoa` + RFC-5545 `.ics` fixes that `send-event-reminder` never received (cron-driven, so one curly apostrophe silently kills every reminder for an event), applies the Outlook-first email treatment, and restores non-super_admin test accounts so Claude Code can click-through verify again.
 
 _(Earlier drafts, all shipped: collaborative-creation usability `a1f07ea`; registration hardening round 2 `44b183f`; duplicate-save + delete `574531d`; edge functions into git + email/calendar overhaul `81ef175`.)_
 
@@ -760,3 +762,68 @@ Switching the `.ics` to `METHOD:REQUEST` would make Gmail and Outlook show their
 - Click the Google link for one **EDT** event (Oct 27) and one **EST** event (Dec 1 or later) and confirm each prefills **10:00 AM to 2:30 PM**.
 - Confirm a title containing a curly apostrophe, an em dash and a comma survives the URL round-trip intact.
 - The Gmail "Unable to load event" card **may still appear** — that is Gmail reacting to the attachment and is outside our control. Confirm the in-email links work regardless, and **say this in the ship summary** rather than implying the card is fixed, so Josh knows it is expected and why.
+
+---
+
+### 2026-07-29: Public registration page — branding + readable event list — READY
+
+> **Josh's feedback after viewing the live AWARE form** (`/register/d186363f…`, screenshot reviewed): the "Events covered" list is hard to digest, times don't state a timezone, the white card is unbranded, and the background is flat. He wants it to look like the (now much better) confirmation email, plus CTAC/UK logos and a more interesting background drawn from the logo colors.
+>
+> **Reuse, do not reinvent:** `AssessmentComplete.jsx` and `AssessmentFlow.jsx` already implement exactly this layout — CTAC logo centered at top, UK lockup centered at bottom — via `.logo-top` / `.logo-bottom` in `frontend/src/styles/TeamCodeEntry.css` (255px / 250px max-width, responsive at 640px, with a `2px solid #e5e7eb` divider above the bottom logo). Match that pattern so the public-facing pages stay consistent.
+>
+> All items are in `frontend/src/pages/RegisterPage.jsx` except item 4.
+
+#### Item 1: Make the event list read like the confirmation email
+
+Currently a `<ul>` (line ~132) rendering `**Title** — Tuesday, October 27 at 10:00 · Virtual`. Three separate problems: bullets are hard to scan, the time is 24-hour with **no end time**, and there is **no timezone**.
+
+Replace with a table matching the email's rebuilt version (`bbd7adc`), minus the Join column:
+
+- Columns: **Session | Date | Time**. **No Zoom links** — Josh was explicit; Zoom belongs in the confirmation email and reminders, not on a public pre-registration page.
+- **Program-aware heading**, same as the email: "TIPE Learning Collaborative Events" rather than "Events covered". The page already selects the link with `collaboratives(name)`; extend to `program_type` and reuse the same label map the email uses (`tipe_lc` → "TIPE Learning Collaborative", `tic_lc` → "TIC Learning Collaborative", `sts_bsc` → "STS Breakthrough Series Collaborative", fallback "Events covered"). **Keep one copy of that map** — it currently lives inside `send-registration-email`; the browser cannot import from an edge function, so put the shared map in `frontend/src/config/programConfig.js` (which already holds program branding) and leave the edge function's copy as-is. Note the duplication in the ship summary rather than trying to share code across the runtime boundary.
+- **Times: 12-hour, start AND end, with the timezone.** e.g. `10:00 AM to 2:30 PM ET`. Derive the suffix from `bsc_events.timezone` (already selected in the email path; add it to this page's select) — `America/New_York` → `ET`, and degrade gracefully for anything else rather than hardcoding "ET". Parse from the time string; do not construct a `Date` that could shift the value.
+- **Dates include the year** — this cohort runs Oct 2026 into Jan 2027, so "Tuesday, January 5" is ambiguous.
+- Keep `location` (currently rendered as `· Virtual`); fold it into the row without a leading interpunct.
+- **Mobile matters here more than in the email.** Many educators will register from a phone. A 3-column table must not overflow at ~360px: either allow the table to stack (label/value pairs per row under a breakpoint) or constrain column widths so it wraps cleanly. Verify at 360px, not just desktop.
+
+#### Item 2: Add the CTAC and UK logos to the white card
+
+- **CTAC logo, centered at top** of the white card, above the title: `src/assets/UKCTAC_logoasuite_web__primary_tagline_color.png` (the color logo suite — 901×414, 28 KB — the same asset `AssessmentComplete` uses).
+- **UK lockup, centered at bottom**, below the submit button, with the same divider treatment as `.logo-bottom` (top border + spacing): `src/assets/UK_Lockup-286.png`.
+- Reuse the `.logo-top` / `.logo-bottom` CSS rather than writing new inline styles — but note `RegisterPage` currently uses inline styles throughout (per project convention) and imports no stylesheet. Either import `TeamCodeEntry.css` (as `AssessmentComplete` does) or replicate those exact dimensions inline. Pick one and say which; do not half-apply both.
+- Include meaningful `alt` text ("Center on Trauma and Children", "University of Kentucky"), matching the existing pages.
+- Apply to **all render states of this page**, not just the form: the success screen ("You're registered!" / waitlist / duplicate) is the same component and should carry the same branding, since that is the last thing a registrant sees.
+
+#### Item 3: A more interesting background from the logo colors
+
+The page background is currently flat `#f9fafb` (line ~240). Use the brand palette from `utils/constants.js` — navy `#0E1F56`, teal `#00A79D`.
+
+- A subtle gradient is the safe choice, e.g. a navy-to-teal diagonal, or navy deepening toward the edges with the white card floating on top. Keep it calm: this is a professional public form for a trauma-informed program, not a marketing splash.
+- **Non-negotiable constraints:** the white card must stay high-contrast and legible; body text stays on white (do not put text directly on the gradient); add a soft shadow to lift the card off the new background; and the gradient must not create a hard seam on short viewports or when the page scrolls (use a fixed/`min-height: 100vh` treatment so a long form doesn't tile the gradient repeatedly).
+- Check both light and dark mode. `index.css` maps hardcoded colors to theme variables in dark mode (`3f47132`), so a hardcoded gradient may fight the dark theme — verify and handle it.
+- Keep the same background on the success/waitlist/error states so the page doesn't flash a different look after submit.
+
+#### Item 4: ⚠️ Optimize `UK_Lockup-286.png` before putting it on a public page
+
+`src/assets/UK_Lockup-286.png` is **1647×485 but 3.08 MB**, and it renders at a max width of **250px**. That is roughly two orders of magnitude more data than needed, on a form that a few hundred educators will open from school wifi and phones.
+
+- Resize to about 2× the display width (~500–600px wide) and compress; expect roughly 30–60 KB.
+- **This already affects the public assessment flow** (`TeamCodeEntry`, `AssessmentFlow`, `AssessmentComplete` all load it), so fixing the asset improves those pages too — a real win beyond this item.
+- Keep the filename so no imports change, or update all references if you rename. Do not delete the original without confirming nothing else references it.
+- Report the before/after byte size in the ship summary.
+
+#### Also worth doing for consistency (small)
+
+`CancelRegistrationPage.jsx` is the other public page in this flow and currently has neither logos nor the new background. Apply the same treatment so a registrant who cancels doesn't land on a visually unrelated page. Do NOT change its behavior — it routes through the `lookup-registration` and `cancel-registration` edge functions, and that logic is correct.
+
+#### Note for Josh (not a code task)
+
+Co-branded UK marks have institutional usage rules. The `UKCTAC_logoasuite_web__primary_tagline_color.png` asset appears to already be the approved co-brand lockup, and it is already in use on the public assessment pages, so this is very likely fine — but this is a public-facing enrollment form for a state-funded project, so worth a glance from whoever owns brand compliance at CTAC before the link goes out broadly.
+
+#### Verification
+
+- View the real AWARE registration link at desktop width **and at 360px**; confirm the event table is readable at both and nothing overflows horizontally.
+- Confirm all 8 sessions show `10:00 AM to 2:30 PM ET` (learning sessions) and `10:00 AM to 11:00 AM ET` (implementation calls), with years, and that the Jan 2027 dates read correctly.
+- Confirm both logos render (not broken image icons) and that the page still loads promptly after the asset optimization — measure the page weight before and after.
+- Check the success state by submitting a test registration, then **delete the test row** (registration tables should return to their pre-test state; there is currently exactly 1 registrant, Josh's earlier Gmail test).
+- Check dark mode.
