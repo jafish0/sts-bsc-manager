@@ -94,9 +94,9 @@ A bidirectional scratchpad shared between Josh, Claude Cowork (Claude desktop ch
 
 **✅ BOTH QUEUED DRAFTS SHIPPED 2026-07-17** (collaborative-creation usability + registration hardening round 2 — see Recently shipped). The `RESEND_API_KEY` blocker found during that work was **resolved the same day** — Josh set the secret and the email pipeline is verified end to end. Registration is now safe to use with real registrants. Superseded queue note follows:
 
-**READY (2 drafts queued at the BOTTOM of this file, work them in order):**
-1. **Collaborative-creation usability batch (4 items)** — rename locked events, drag-reorder, schedule-doc upload, per-program registration fields. Driven by the first REAL cohort: a TIPE LC starting 10/27/26.
-2. **🔴 Registration hardening round 2 (4 items)** — **must ship before the first real registration link goes out.** Item 1 is a live data-exposure bug (`event_registrations` has `qual = true` public read/write policies); item 2 is QR check-in silently never firing. Registration has never run against real data.
+**READY: Registration link duplicate-save bug + delete affordance (2 items) — see the LAST draft at the bottom of this file.** Found in live use building the first real registration link: saving a newly-created link twice inserts a duplicate (branches on the `editingLink` prop, ignoring the just-created `savedLink` state). Item 1 is the bug; item 2 adds the delete action that would have let Josh clean up without SQL.
+
+_(Earlier drafts, both shipped: collaborative-creation usability batch `a1f07ea`; registration hardening round 2 `44b183f`.)_
 
 **Anchor Lab demo prep batch (4 items) — ✅ ALL SHIPPED 2026-07-17** (`8e3ec98`, `b3f1da6`, `e9cce6c`, `2fd7a30`; see Recently shipped for details incl. the STS-carryover audit + RLS caveat). Two features remain ⏳ **blocked on Ginny** (see the callout directly below). _(Shipped 2026-06-10: full demo rebuild `bac319c`, TIPE tile `a2d3cbf`, CSV export `5cedac2`, TIPE seed fixes `66293f0`, TIPE library LOADED; config guardrails `37d5bd1`, View-as `774416a`, session materials `14ad573`; earlier: demo-data seed `2624ed2`, feedback triage `00f15ce`, ProQOL burnout-only `ae1fd09`, CEU course-correction `9b01b22`, feedback widget `a52463d`.)_
 
@@ -484,3 +484,41 @@ Three separate problems in `send-registration-email` / its callers:
 - `.ics` omits `VTIMEZONE` despite using `TZID=America/New_York`, and multi-day events (`bsc_events.end_date`) import as single-day.
 - Honeypot trip returns `{ success: true }` with no status, so `RegisterPage` renders "You're registered!" with a broken cancel link. An aggressive autofill would show a real human a fake success. Cheap fix if convenient: return a marker the UI can distinguish.
 - Registration emails are outside the `unsubscribe_token` system (registrants are not `user_profiles` rows), so there is no unsubscribe link.
+
+---
+
+### 2026-07-29: Registration link duplicate-save bug + delete affordance — READY
+
+> **Found in live use.** Josh built the first real registration link (AWARE Year 4 TIPE LC) and ended up with **three identical links** created 14 seconds apart. Not user error: it is a branching bug in the save handler. He had no way to remove the extras (only the `is_active` checkbox to close them), so Cowork deleted the two duplicates by SQL after confirming both had 0 registrations. One link survives: `1c6c754d-b4b8-4f14-8d1a-b486589ce3a0`, active, 8 events covered.
+>
+> Item 1 is the actual bug and should ship first. Item 2 is the missing affordance that made the bug unrecoverable from the UI.
+
+#### Item 1: 🐞 Saving a newly-created registration link a second time creates a duplicate
+
+`RegistrationLinkModal.jsx` `handleSave()` branches on `editingLink` (line ~163). `editingLink` is a **prop**, set only when opening an existing link from the table. On the create path it stays null and the freshly-inserted row lands in the `savedLink` **state** (line ~186). So the modal stays open after a successful create (by design, to show the share URL), and a second click of Save Changes re-enters the `else` branch and **inserts another row** — new id, new token, duplicated event rows. Repeat clicks, repeat links. Josh's three links are exactly this.
+
+**Fix:**
+- Introduce a single "what am I editing" value, e.g. `const target = editingLink || savedLink`, and use it for the update-vs-insert branch, the capacity-decrease guard (line ~137), and the `event_registration_link_events` delete-then-insert (line ~170). After the first successful create, every subsequent save must UPDATE that row.
+- **Disable the save button while `saving === true`** (it currently only changes its label) so a double-click cannot fire two inserts before the first returns.
+- Make sure the covered-events replacement still targets the right id after the switch, and keep the existing behavior that the share URL appears after the first save.
+- **Verify:** create a link, click Save Changes three times, confirm exactly ONE row exists in `event_registration_links` and its `event_registration_link_events` rows are not duplicated; then reopen it from the table via Edit and save again, still one row.
+
+While in this handler, note the pre-existing fragility flagged earlier: covered events are replaced with delete-then-insert, so a failure between the two leaves the link covering zero events. If it is cheap, move both into a single RPC or re-insert before deleting; otherwise leave it and say so.
+
+#### Item 2: Delete a registration link (guarded by whether anyone has registered)
+
+There is no delete anywhere in the UI — only the `is_active` checkbox, which closes a link but leaves it in the table forever. Add a **Delete** action to the registration links table (`RegistrationsAdmin.jsx`, next to Roster / Edit) and, if straightforward, to the per-collab Registrations panel on `CollaborativeDetail.jsx`.
+
+Behavior depends on registration count, because `event_registrations` has `ON DELETE CASCADE` from the link — deleting a link with registrants **destroys their registrations irreversibly**:
+
+- **0 registrations:** allow delete behind a confirm dialog naming the link title. Nothing is lost, so a plain confirm is sufficient.
+- **1 or more registrations (any status, including `cancelled`):** **do not offer delete.** Disable the button with a tooltip explaining that N people have registered, and point to the Close (`is_active = false`) control instead. Removing a link with real registrants should stay a deliberate DB operation, not a UI button.
+- Count registrations at click time (not from a stale list) so the guard cannot be raced.
+- Gate on the same permission as the rest of the page (`isAdminLevel` + `canAdminCollaborative`); RLS already scopes `Admins manage registrations` via `is_admin_for_collaborative`, so a non-admin delete should fail server-side too. Confirm that in the ship summary.
+- Refresh the table after delete, and surface any error rather than silently doing nothing.
+
+**Josh's suggestion, recorded:** a type-the-word-DELETE confirmation. Cowork's recommendation, which Josh agreed with, is to reserve that friction for genuinely unrecoverable deletes and NOT to allow deleting links that have registrants at all — so the type-to-confirm pattern is not needed for the 0-registration case. If a future need arises to force-delete a link with registrants, that is when the typed confirmation earns its place.
+
+#### Also noted (not code — Josh's to-do in the UI)
+
+The surviving AWARE link has **`capacity = NULL`**, so it accepts unlimited registrations and the waitlist logic never engages (`mint-registration` only evaluates capacity when it is non-null). Josh to set a capacity before distributing the link if the cohort is size-limited.
