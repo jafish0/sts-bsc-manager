@@ -18,26 +18,26 @@ function TeamCodeEntry() {
     setError('')
 
     try {
-      // Query team_codes with team → collaborative to get program_type
+      // Validate through a SECURITY DEFINER RPC rather than reading
+      // team_codes directly. A direct read required anon SELECT on the table,
+      // which allowed ENUMERATING every active code — and a code is the only
+      // credential needed to submit an assessment. The RPC returns just this
+      // one code's details, and enforces active + not-expired server-side.
       const { data, error: queryError } = await supabase
-        .from('team_codes')
-        .select('*, teams!inner(collaborative_id, collaboratives!inner(program_type))')
-        .eq('code', teamCode.toUpperCase())
-        .eq('active', true)
-        .single()
+        .rpc('validate_team_code', { p_code: teamCode.toUpperCase() })
 
-      if (queryError || !data) {
+      const row = Array.isArray(data) ? data[0] : data
+      if (queryError || !row) {
         setError('Invalid team code. Please check your code and try again.')
         setLoading(false)
         return
       }
 
-      const programType = data.teams?.collaboratives?.program_type || 'sts_bsc'
-
       // Valid code found - store in localStorage and navigate to demographics
-      localStorage.setItem('sts_teamCodeId', data.id)
-      localStorage.setItem('sts_teamCode', data.code)
-      localStorage.setItem('sts_programType', programType)
+      localStorage.setItem('sts_teamCodeId', row.team_code_id)
+      localStorage.setItem('sts_teamCode', row.code)
+      localStorage.setItem('sts_programType', row.program_type || 'sts_bsc')
+      localStorage.setItem('sts_timepoint', row.timepoint)
       navigate('/demographics')
 
     } catch (err) {

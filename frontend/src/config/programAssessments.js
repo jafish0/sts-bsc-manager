@@ -46,6 +46,7 @@ export function getStorageKeysToClear(programType) {
     'sts_teamCode',
     'sts_assessmentResponseId',
     'sts_programType',
+    'sts_timepoint',
     ...sequence.map(s => s.storageKey),
   ]
 }

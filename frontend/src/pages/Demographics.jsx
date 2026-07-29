@@ -66,14 +66,23 @@ function Demographics() {
       }
 
       try {
-        // First, get the timepoint from team_codes
-        const { data: teamCodeData, error: teamCodeError } = await supabase
-          .from('team_codes')
-          .select('timepoint')
-          .eq('id', teamCodeId)
-          .single()
-
-        if (teamCodeError) throw teamCodeError
+        // Timepoint comes from the code validation done on the entry page
+        // (stored in localStorage). anon can no longer read team_codes
+        // directly — that allowed enumerating every code. Fall back to
+        // re-validating the stored code for sessions started before this
+        // change.
+        let timepoint = localStorage.getItem('sts_timepoint')
+        if (!timepoint) {
+          const storedCode = localStorage.getItem('sts_teamCode')
+          if (!storedCode) throw new Error('Assessment session expired. Please re-enter your team code.')
+          const { data: v, error: vErr } = await supabase
+            .rpc('validate_team_code', { p_code: storedCode })
+          if (vErr) throw vErr
+          const row = Array.isArray(v) ? v[0] : v
+          if (!row) throw new Error('Assessment session expired. Please re-enter your team code.')
+          timepoint = row.timepoint
+          localStorage.setItem('sts_timepoint', timepoint)
+        }
 
         // Create assessment_response record with timepoint and program_type
         const programType = localStorage.getItem('sts_programType') || 'sts_bsc'
@@ -81,7 +90,7 @@ function Demographics() {
           .from('assessment_responses')
           .insert({
             team_code_id: teamCodeId,
-            timepoint: teamCodeData.timepoint,
+            timepoint,
             program_type: programType,
             demographics_complete: false,
             stss_complete: false,
