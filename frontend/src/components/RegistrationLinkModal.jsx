@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { supabase } from '../utils/supabase'
 import { useAuth } from '../contexts/AuthContext'
 import { getProgramBranding } from '../config/programConfig'
@@ -123,22 +123,36 @@ export default function RegistrationLinkModal({ collaborativeId, eventsForCollab
     setSchema(prev => [...prev, { ...preset }])
   }
 
+  // The Save button is already disabled while `saving`, but that relies on a
+  // re-render; this ref makes a rapid double-click impossible to race.
+  const savingRef = useRef(false)
+
   const handleSave = async () => {
+    if (savingRef.current) return
     setError(null)
     if (!title.trim()) { setError('Title is required'); return }
     if (capacity !== '' && (Number.isNaN(Number(capacity)) || Number(capacity) <= 0)) { setError('Capacity must be a positive number or blank'); return }
     if (selectedEventIds.size === 0) { setError('Pick at least one event'); return }
 
+    savingRef.current = true
     setSaving(true)
     try {
+      // What are we actually saving onto? `editingLink` is a PROP, set only
+      // when opening an existing link from the table. Creating a link leaves
+      // the new row in the `savedLink` STATE while the modal stays open to
+      // show the share URL — so branching on `editingLink` alone meant every
+      // subsequent Save re-INSERTED (Josh got three identical links 14s
+      // apart). Everything below branches on `target` instead.
+      const target = editingLink || savedLink
+
       // Capacity-decrease guard: don't allow setting capacity below the
       // current number of CONFIRMED registrations on this link. Waitlisted
       // rows don't count against capacity, so they don't block.
-      if (editingLink && capacity !== '') {
+      if (target && capacity !== '') {
         const { count: confirmedCount } = await supabase
           .from('event_registrations')
           .select('id', { count: 'exact', head: true })
-          .eq('registration_link_id', editingLink.id)
+          .eq('registration_link_id', target.id)
           .eq('status', 'registered')
         if ((confirmedCount ?? 0) > Number(capacity)) {
           setError(`Cannot set capacity to ${Number(capacity)} — there are already ${confirmedCount} confirmed registrations. Cancel some first to free room.`)
@@ -160,14 +174,12 @@ export default function RegistrationLinkModal({ collaborativeId, eventsForCollab
       }
 
       let saved
-      if (editingLink) {
+      if (target) {
         const { data, error: e } = await supabase
           .from('event_registration_links')
-          .update(payload).eq('id', editingLink.id).select().single()
+          .update(payload).eq('id', target.id).select().single()
         if (e) throw e
         saved = data
-        // Replace the events covered: simplest correct approach is delete-then-insert
-        await supabase.from('event_registration_link_events').delete().eq('registration_link_id', editingLink.id)
       } else {
         const { data, error: e } = await supabase
           .from('event_registration_links')
@@ -176,11 +188,33 @@ export default function RegistrationLinkModal({ collaborativeId, eventsForCollab
         saved = data
       }
 
-      // Insert event links
-      const eventRows = Array.from(selectedEventIds).map(eid => ({ registration_link_id: saved.id, event_id: eid }))
-      if (eventRows.length > 0) {
-        const { error: eErr } = await supabase.from('event_registration_link_events').insert(eventRows)
-        if (eErr) throw eErr
+      // Reconcile the covered events as a DIFF instead of delete-then-insert.
+      // The old approach left the link covering ZERO events if the insert
+      // failed after the delete had already committed; a diff also makes
+      // re-saving with no changes a genuine no-op (so repeat saves can't
+      // duplicate link_events rows either). Works unchanged on the create
+      // path, where there simply are no existing rows yet.
+      const { data: existingRows, error: exErr } = await supabase
+        .from('event_registration_link_events')
+        .select('event_id')
+        .eq('registration_link_id', saved.id)
+      if (exErr) throw exErr
+      const existing = new Set((existingRows || []).map(r => r.event_id))
+      const toAdd = Array.from(selectedEventIds).filter(id => !existing.has(id))
+      const toRemove = Array.from(existing).filter(id => !selectedEventIds.has(id))
+      if (toAdd.length > 0) {
+        const { error: aErr } = await supabase
+          .from('event_registration_link_events')
+          .insert(toAdd.map(eid => ({ registration_link_id: saved.id, event_id: eid })))
+        if (aErr) throw aErr
+      }
+      if (toRemove.length > 0) {
+        const { error: rErr } = await supabase
+          .from('event_registration_link_events')
+          .delete()
+          .eq('registration_link_id', saved.id)
+          .in('event_id', toRemove)
+        if (rErr) throw rErr
       }
 
       setSavedLink(saved)
@@ -188,6 +222,7 @@ export default function RegistrationLinkModal({ collaborativeId, eventsForCollab
     } catch (err) {
       setError(err.message || String(err))
     } finally {
+      savingRef.current = false
       setSaving(false)
     }
   }
