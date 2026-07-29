@@ -72,6 +72,8 @@ A bidirectional scratchpad shared between Josh, Claude Cowork (Claude desktop ch
 
 <!-- Add new drafts BELOW this line, newest at the bottom so Claude Code works through them in submission order. -->
 
+**READY: Collaborative-creation usability batch (4 items) — see the draft at the BOTTOM of this file.** Rename locked events, drag-reorder, schedule-doc upload, per-program registration fields. Driven by the first REAL cohort: a TIPE LC starting 10/27/26.
+
 **Anchor Lab demo prep batch (4 items) — ✅ ALL SHIPPED 2026-07-17** (`8e3ec98`, `b3f1da6`, `e9cce6c`, `2fd7a30`; see Recently shipped for details incl. the STS-carryover audit + RLS caveat). Two features remain ⏳ **blocked on Ginny** (see the callout directly below). _(Shipped 2026-06-10: full demo rebuild `bac319c`, TIPE tile `a2d3cbf`, CSV export `5cedac2`, TIPE seed fixes `66293f0`, TIPE library LOADED; config guardrails `37d5bd1`, View-as `774416a`, session materials `14ad573`; earlier: demo-data seed `2624ed2`, feedback triage `00f15ce`, ProQOL burnout-only `ae1fd09`, CEU course-correction `9b01b22`, feedback widget `a52463d`.)_
 
 ### ⏳ AWAITING GINNY — resolve ASAP (blocks 2 features)
@@ -312,3 +314,71 @@ Build the tic_lc branch of Data Visualization:
 #### Item 5 (added 2026-07-17, URGENT, ship first): staff login link on the team-code entry page — ✅ SHIPPED `2d4793a`
 
 The public root (`/`, TeamCodeEntry) currently has no path to `/login` at all. The Anchor Lab testers were just sent review guides whose login line points at the bare domain, so anyone who follows it dead-ends on the code-entry page. Add a small, unobtrusive "CTAC staff or team leader? Log in here" link on TeamCodeEntry that routes to `/login`. Placement: below the code-entry card, muted styling (small text, `--text-muted`), so it does not distract assessment respondents. This is also permanently correct: real users will always type the bare domain.
+
+---
+
+### 2026-07-17: Collaborative-creation usability batch (4 items) — READY
+
+> **Why now:** the first REAL cohort goes into the app next: a **TIPE LC starting 10/27/26** (AWARE 3 Year 4), with registration needing to open ASAP. Josh hit these while preparing to create it. Items 1 and 2 are small and unblock him today; items 3 and 4 are the bigger wins. All four are in/around `CreateCollaborativeModal.jsx` + `programConfig.js`. One commit per item.
+>
+> **Real-world target schedule** (drives items 1 to 3; all virtual, Tuesdays):
+>
+> | Session Type | Date | Time (ET) |
+> |---|---|---|
+> | Learning Session 1 | 10/27/26 | 10:00 am - 2:30 pm |
+> | Learning Session 2 | 11/10/26 | 10:00 am - 2:30 pm |
+> | Implementation Session 1 (call) | 11/17/26 | 10:00 am - 11:00 am |
+> | Learning Session 3 | 12/01/26 | 10:00 am - 2:30 pm |
+> | Implementation Session 2 (call) | 12/08/26 | 10:00 am - 11:00 am |
+> | Learning Session 4 | 01/05/27 | 10:00 am - 2:30 pm |
+> | Implementation Session 3 (call) | 01/12/27 | 10:00 am - 11:00 am |
+> | Learning Session 5 | 01/26/27 | 10:00 am - 2:30 pm |
+>
+> Note this is the shape TIPE actually uses: CTAC calls the calls **"Implementation Session N (call)"**, not the app's default "Learning Call N", and the sessions and calls **interleave** rather than being grouped by type. That is the gap items 1 and 2 close.
+
+#### Item 1: Let the pre-populated (locked) events be renamed
+
+In the BSC Schedule section, locked default events render their title as a static `<span>` (around line 456), so there is no way to change "Learning Call 1" to "Implementation Session 1 (call)" at creation time.
+
+- Make the title an editable text input for **every** event row, locked or not.
+- Keep the rest of the "locked" semantics as-is (no event_type dropdown, no remove for locked rows, teal border) — this change is title-only.
+- Renaming must not disturb `sequence_number`, the auto-title logic for newly added events, or the assessment-window calculation (which keys off `event_type === 'learning_session'` dates, not titles). Verify the windows still auto-calculate after a rename.
+
+#### Item 2: Drag to reorder the schedule rows
+
+Purely a creation-time convenience: Josh wants to drag rows so the list he is typing into matches the order on the real schedule document (interleaved sessions and calls). **He does NOT expect reordering to change any downstream behavior** and is not going to revisit the order later; everything downstream orders by `event_date`.
+
+- Add drag-and-drop reordering of the `bscEvents` array (HTML5 drag events are fine; no new dependency needed for a list this small).
+- Keep the existing ↑ ↓ affordance if it is cheaper to add alongside than to replace, but drag is the ask.
+- On reorder, recompute `sequence_number` within each `event_type` group so "Learning Session N" numbering stays consistent with visual order. Do NOT renumber across types.
+- Confirm in your ship summary whether reordering has any effect at all outside the modal (expected answer: none).
+
+#### Item 3: Upload a schedule document to pre-fill the dates
+
+The biggest time saver. CTAC schedules arrive as Word docs shaped like the table above (see `AWARE 3 YEAR 4 Proposed Schedule_June 2026.docx`, the reference test case).
+
+- Add a drop zone in the BSC Schedule section: **"Drop a schedule document here to fill in dates"**, accepting `.docx`.
+- Parse client-side with **`mammoth`** (new frontend dependency) to extract the document's table rows.
+- Also add a **"or paste your schedule" textarea** running the same parser on tab/pipe/multi-space-separated text. This costs little and covers PDFs, emails, and Excel, which the docx path cannot.
+- Parsing rules for a row: session-type label, date, time range.
+  - Dates: handle `MM/DD/YY` and `MM/DD/YYYY` (note this schedule crosses a year boundary: `10/27/26` through `01/26/27`).
+  - Times: `10:00 am - 2:30 pm` into `start_time` + `end_time`; tolerate en dash, em dash, and "to".
+  - Event type: label containing "learning session" maps to `learning_session`; a label containing "call" (e.g. "Implementation Session 1 (call)") maps to `all_team_call`. Otherwise leave unmatched rather than guessing.
+  - Strip leading footnote markers (`*Learning Session 5`) from titles and ignore prose lines outside the table (e.g. the "*Learning Session 5 will include..." footnote).
+  - **Use the document's own labels as the event titles**, so this composes with item 1.
+- **Never auto-apply.** Show a preview table of parsed rows: title, mapped event type, date, start, end, plus any row it could not interpret, and require an explicit **Confirm** click before the schedule fields are populated. Confirm replaces the default rows with the parsed ones (all editable afterward).
+- Fail soft: an unreadable or unexpected document shows "Could not read a schedule from this file, please enter the dates manually" and leaves the defaults untouched. Never throw away data the user already typed without warning.
+
+#### Item 4: Per-program default registration fields
+
+`SEEDED_SCHEMA` is hardcoded in `RegistrationLinkModal.jsx` (Name, Email, Confirm Email, Agency, Role at agency) for every program. Move it into `programConfig.js` as per-program config, matching how `defaultEvents` / `goalFields` / `addEventDefault` already work.
+
+- Add `registrationFields` to each program's branding; the modal uses `branding.registrationFields || SEEDED_SCHEMA` so anything unconfigured keeps today's behavior.
+- **Keep the three system fields universal**: `full_name`, `email`, `email_confirm` (email_confirm's `matches: 'email'`, and the denormalized email/full_name columns, depend on them).
+- **CRITICAL: vary labels, not keys.** Where semantics match, reuse the canonical keys so exports, rosters, and anything reading `agency` stay consistent across programs. TIPE's "School or District" field is still `key: 'agency'`; "Position or Title" is still `key: 'role'`. Do not fork the data model per program.
+- **TIPE LC defaults (confirmed by Josh):** Name, Email, Confirm Email, School or District (`agency`, required), Position or Title (`role`, required), District(s) Served (`districts`, optional), Grade Level(s) (`grade_levels`, optional).
+- **sts_bsc and tic_lc keep the current five** (Agency / Role at agency wording unchanged).
+- Optionally scope `COMMON_FIELD_PRESETS` per program too (schools-flavored presets for TIPE); keep the shared list as the fallback.
+- Existing links are unaffected because each link stores its own `form_schema` snapshot; confirm that in your ship summary.
+
+**Out of scope for this batch:** drag support in the registration field list (arrows work; Josh is fine), and readable keys for custom fields (currently `custom_<base36>`, which makes CSV export headers cryptic — worth a future item if it bites).
