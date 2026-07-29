@@ -165,7 +165,8 @@ Authentication → URL Configuration:
 1. **Enable leaked password protection.** Supabase dashboard → **Authentication → Passwords** → turn on the HaveIBeenPwned compromised-password check. This is the last remaining item from the 2026-07-29 security pass and still appears in the Advisor as `auth_leaked_password_protection`. Extra relevant right now because the three Anchor Lab testers are on passwords that were assigned to them rather than self-chosen.
 2. ~~**Set a capacity on the AWARE Year 4 TIPE LC registration link.**~~ ✅ **Done** — `capacity = 297` as of 2026-07-29.
 3. **Distribute the rotated CTAC staff assessment codes** (see "CTAC staff codes" below). The old ones are dead; anyone holding them gets an invalid-code error.
-4. **Turn `verify_jwt` back off for `send-registration-email`.** Supabase dashboard → **Edge Functions → send-registration-email → Settings** → disable the JWT verification toggle. It is the only one of the nine currently `true`; deploying via the MCP tool flipped it and the tool has no parameter to prevent that. Not urgent — a live send after the flip worked (200, `confirmation_sent_at` stamped) because every caller presents a valid JWT — but it should match the other eight. Installing the Supabase CLI would prevent recurrence, since `--no-verify-jwt` is a CLI flag.
+4. **Create two non-super_admin test accounts** (unblocks a lot). Every account in the system is currently a super_admin, and `test@uky.edu` / `1234` documented in `CLAUDE.md` no longer authenticates, so **no team-scoped or admin-gated UI can be click-through verified by Claude Code** — that's why recent items keep shipping "verification deferred to Josh." Create one `agency_admin` and one `team_member`, both on a team in a **demo** collaborative (never the AWARE cohort). Easiest path is the app's own invite UI on a demo team, which runs `invite-team-leader` and creates the `user_profiles` row properly. A third account as `trainer_admin` would also close out the long-open role verification below. ⚠️ There is **no trigger** creating `user_profiles` from `auth.users`, so a bare Supabase dashboard invite leaves an account that cannot use the app; either use the in-app invite or insert the profile row explicitly.
+5. **Turn `verify_jwt` back off for `send-registration-email`.** Supabase dashboard → **Edge Functions → send-registration-email → Settings** → disable the JWT verification toggle. It is the only one of the nine currently `true`; deploying via the MCP tool flipped it and the tool has no parameter to prevent that. Not urgent — a live send after the flip worked (200, `confirmation_sent_at` stamped) because every caller presents a valid JWT — but it should match the other eight. Installing the Supabase CLI would prevent recurrence, since `--no-verify-jwt` is a CLI flag.
 
 ### ✅ Done 2026-07-29: CTAC staff assessment codes rotated
 
@@ -200,22 +201,20 @@ All active, expiring 2027-12-31. Staff enter them at the `bsc.ctac.app` root (Te
   -- Verify: cron will pick it up on the next firing.
   SELECT public.fire_day_before_reminders();
   ```
-- **Test the day-before reminder pipeline end-to-end before relying on it in production.** Vault secret is in place (verified 2026-05-08); auth pipeline should work but hasn't been exercised against a real event yet. To test: (1) create a throwaway event in Demo 2026 with `event_date = tomorrow` and a populated `end_time`; (2) in the SQL editor run `SELECT public.fire_day_before_reminders();`; (3) check that a row was inserted into `event_reminder_log` and that the reminder email landed in Josh's inbox (Josh is a member of the Demo 2026 team); (4) delete the test event. If it doesn't fire, debug `vault.decrypted_secrets` lookup + `pg_net.http_post` response (visible via `SELECT * FROM net._http_response ORDER BY created DESC LIMIT 5`).
+- **Test the day-before reminder pipeline end-to-end before relying on it in production.** Vault secret is in place (verified 2026-05-08); auth pipeline should work but hasn't been exercised against a real event yet. ⚠️ **Blocked until the reminder-pipeline draft ships** (see `WORKING_NOTES.md`, "Reminder pipeline before the Oct 27 cohort"): recipients currently resolve from team members only, and **no team has any active members**, so a test today sends zero emails and proves nothing. Also note "Demo 2026" referenced in the original version of this item **no longer exists** (wiped in the 2026-06-10 rebuild `bac319c`); use a demo collaborative that has a team with a real member. To test: (1) create a throwaway event in a demo collaborative with `event_date = tomorrow` and a populated `end_time`; (2) in the SQL editor run `SELECT public.fire_day_before_reminders();`; (3) check that a row was inserted into `event_reminder_log` and that the reminder email landed in the recipient's inbox; (4) delete the test event. If it doesn't fire, debug `vault.decrypted_secrets` lookup + `pg_net.http_post` response (visible via `SELECT * FROM net._http_response ORDER BY created DESC LIMIT 5`).
 - **Re-evaluate SMARTIE goal comments (trainer feedback feature, May 8).** Currently DEACTIVATED via `ENABLE_GOAL_COMMENTS = false` at the top of `frontend/src/pages/SmartieGoals.jsx`. The `smartie_goal_comments` table, RLS policies, `submitComment` / `deleteComment` handlers, and inline comment UI all remain in place — flipping the flag to `true` re-enables the feature instantly with no migrations needed. Open question is whether this is the right interaction model for trainer-team coaching (vs. the existing forum, or the new parking-lot tool).
 <!-- Pruned 2026-06-10: registration system (`13386f9`), Active Participation Index, Resource Utilization Heatmap, and Weekly trainer summary digest (all `ed0a543`) shipped — removed from open follow-ups. -->
 - **Also test the imminent reminder crons end-to-end.** The newer `hour_before` / `starting_now` crons (`fire_imminent_reminders`, shipped `2ac9993`) share the same "never exercised against a real event" gap as the day/week-before pipeline above — fold them into the same test pass.
-- **Invite Ginny Sprang as super_admin.** In Supabase Auth dashboard → Invite User → `sprang@uky.edu`. After she sets her password and `user_profiles` auto-creates, run:
-  ```sql
-  UPDATE user_profiles SET role = 'super_admin', is_active = true
-  WHERE email = 'sprang@uky.edu';
-  ```
-- **Stand up a test `trainer_admin` and verify the role works end-to-end.** Same invite flow as above, then:
+<!-- Pruned 2026-07-29: "Invite Ginny Sprang as super_admin" — done. All three Anchor Lab testers (sprang@uky.edu, cacl231@uky.edu, larigg3@uky.edu) exist as super_admins, created 2026-07-17 directly in auth (auth.users + auth.identities + user_profiles in one transaction) rather than via the invite-then-promote flow this item described. Note for future account creation: there is NO trigger auto-creating user_profiles from auth.users — the row must be inserted explicitly, which the `invite-team-leader` edge function does and a bare dashboard invite does not. -->
+
+- **Verify the `trainer_admin` role end-to-end with a real account.** Still genuinely untested: no `trainer_admin` account has ever existed. (The View-as "CTAC Admin" preview shipped in `b3f1da6` simulates the role in the frontend only — RLS still runs as the real super_admin, so it cannot validate the server-side scoping below.) Create the account per item 4 of Josh's to-do list above, then:
   ```sql
   UPDATE user_profiles SET role = 'trainer_admin', is_active = true
   WHERE email = '<test_trainer_email>';
-
+  ```
+  ```sql
   INSERT INTO collaborative_trainers (collaborative_id, user_id)
-  SELECT 'aa91e6ec-c3a5-4eaf-a1ad-4af8af984299',  -- Demo 2026
+  SELECT '3d967456-d00b-41cf-8a12-7411b307e6b1',  -- TIPE LC Demo (a demo collab, never the AWARE cohort)
          id
   FROM user_profiles WHERE email = '<test_trainer_email>';
   ```
