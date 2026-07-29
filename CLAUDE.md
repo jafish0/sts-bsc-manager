@@ -105,9 +105,9 @@ If unsure, default to the "Standard pattern" above. RLS will refuse anything the
 
 ## Supabase Project
 - Project ref: `jhnquklmwoubpbbmnrjf`
-- Edge Functions deployed with `--no-verify-jwt` (gateway JWT check disabled)
+- Edge Functions **live in the repo** under `supabase/functions/<slug>/index.ts` — the repo is the source of truth; never edit one in the dashboard. Intended deploy flag is `--no-verify-jwt` (gateway JWT check disabled, each function authorizes its own callers), but deploying via the Supabase **MCP tool** silently sets `verify_jwt = true`, so check after every deploy. See INFRASTRUCTURE.md → Edge functions.
 - Storage bucket: `resources` (private, signed URLs for downloads)
-- Supabase: Free plan with custom SMTP via Resend (email rate limits effectively bypassed). Vercel: Pro plan.
+- Supabase: **Pro plan** ($25/mo — 8 GB DB, 100 GB file storage, daily backups, higher egress) with custom SMTP via Resend (email rate limits effectively bypassed). Vercel: **Pro plan**. Resend: **paid plan** (free-tier daily/monthly sending caps lifted — comfortable headroom for invites, reminders, registration + RSVP emails, trainer digests).
 
 ## Deployment
 - Vercel project: `sts-bsc-manager` at `https://bsc.ctac.app/`
@@ -151,4 +151,6 @@ Protected (all via ProtectedRoute):
 
 ## Test Accounts
 - `jafish0@uky.edu` — super_admin (Josh's account)
-- `test@uky.edu` / `1234` — agency_admin for "Bluegrass Family Services" team
+- ⚠️ **`test@uky.edu` / `1234` no longer exists.** Verified 2026-07-29: sign-in returns `invalid_credentials`, and `user_profiles` currently contains **only super_admins** — the non-admin accounts went away in the collaborative rebuild. Do not rely on it.
+
+**Consequence:** with no agency_admin or team_member account, Claude Code cannot click-through verify any team-scoped or admin-gated UI, so those items ship with verification deferred to Josh. Restoring one `agency_admin` and one `team_member` on a **demo** collaborative (never a real cohort) would fix that. Account creation is Josh's — see the to-do in `INFRASTRUCTURE.md`. Record the email + role + team here once they exist; **never a password**.
