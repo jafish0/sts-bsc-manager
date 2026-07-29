@@ -105,9 +105,62 @@ function escIcsText(s: string): string {
     .replace(/\r?\n/g, '\\n')
 }
 
-function buildIcs(events: any[]): string {
+// A real VTIMEZONE definition. DTSTART;TZID=America/New_York with no VTIMEZONE
+// component is technically invalid iCalendar; well-known clients resolve the
+// Olson name anyway, but strict parsers may float the times. The RRULEs encode
+// the post-2007 US rule (DST starts 2nd Sunday in March, ends 1st Sunday in
+// November) rather than a fixed offset, which matters here: a cohort running
+// October into January crosses the boundary, so Oct sessions are EDT (-0400)
+// and Nov onward are EST (-0500) off the same definition.
+const VTIMEZONES: Record<string, string[]> = {
+  'America/New_York': [
+    'BEGIN:VTIMEZONE',
+    'TZID:America/New_York',
+    'X-LIC-LOCATION:America/New_York',
+    'BEGIN:DAYLIGHT',
+    'TZOFFSETFROM:-0500',
+    'TZOFFSETTO:-0400',
+    'TZNAME:EDT',
+    'DTSTART:19700308T020000',
+    'RRULE:FREQ=YEARLY;BYMONTH=3;BYDAY=2SU',
+    'END:DAYLIGHT',
+    'BEGIN:STANDARD',
+    'TZOFFSETFROM:-0400',
+    'TZOFFSETTO:-0500',
+    'TZNAME:EST',
+    'DTSTART:19701101T020000',
+    'RRULE:FREQ=YEARLY;BYMONTH=11;BYDAY=1SU',
+    'END:STANDARD',
+    'END:VTIMEZONE',
+  ],
+}
+
+function buildIcs(events: any[], opts: { programType?: string | null; calendarName?: string | null } = {}): string {
   const dtStamp = new Date().toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z'
-  const blocks: string[] = ['BEGIN:VCALENDAR','VERSION:2.0','PRODID:-//CTAC//BSC Manager//EN','CALSCALE:GREGORIAN','METHOD:PUBLISH']
+  // Short program tag so an entry is self-identifying in a month view.
+  const tag = opts.programType ? PROGRAM_LABELS[opts.programType]?.short : null
+
+  const blocks: string[] = [
+    'BEGIN:VCALENDAR',
+    'VERSION:2.0',
+    'PRODID:-//CTAC//BSC Manager//EN',
+    'CALSCALE:GREGORIAN',
+    // METHOD:PUBLISH deliberately, NOT REQUEST. These are informational
+    // attachments, not meeting invitations — a REQUEST from the unmonitored
+    // no-reply@ mailbox would invite RSVP replies that bounce and can leave
+    // events stuck tentative in Outlook. RSVPs are handled by the separate
+    // reminder emails via event_rsvps.
+    'METHOD:PUBLISH',
+    opts.calendarName ? `X-WR-CALNAME:${escIcsText(opts.calendarName)}` : '',
+  ]
+
+  // Emit a VTIMEZONE for each zone actually used that we have rules for.
+  // Unknown zones fall through to a bare TZID, exactly as before — no regression.
+  const zones = [...new Set(events.filter(e => e.start_time).map(e => e.timezone || 'America/New_York'))]
+  for (const z of zones) {
+    if (VTIMEZONES[z]) blocks.push(...VTIMEZONES[z])
+  }
+
   for (const e of events) {
     if (!e.start_time) continue
     const tz = e.timezone || 'America/New_York'
@@ -116,18 +169,34 @@ function buildIcs(events: any[]): string {
     const dateNoDash = e.event_date.replace(/-/g, '')
     const start = `${dateNoDash}T${startBits[0]}${startBits[1]}${startBits[2] || '00'}`
     const end = `${dateNoDash}T${endBits[0]}${endBits[1]}${endBits[2] || '00'}`
+    const summary = tag ? `${tag}: ${e.title}` : e.title
     const description = [e.title, e.zoom_link ? `Join: ${e.zoom_link}` : null, e.location ? `Location: ${e.location}` : null]
       .filter(Boolean).map(part => escIcsText(part as string)).join('\\n')
     blocks.push(
       'BEGIN:VEVENT',
+      // UID stays <event_id>@bsc.ctac.app — stable UIDs mean re-importing
+      // updates the existing entry instead of duplicating it.
       `UID:${e.id}@bsc.ctac.app`,
       `DTSTAMP:${dtStamp}`,
       `DTSTART;TZID=${tz}:${start}`,
       `DTEND;TZID=${tz}:${end}`,
-      `SUMMARY:${escIcsText(e.title)}`,
+      `SUMMARY:${escIcsText(summary)}`,
       `DESCRIPTION:${description}`,
       e.location ? `LOCATION:${escIcsText(e.location)}` : '',
       e.zoom_link ? `URL:${e.zoom_link}` : '',
+      'ORGANIZER;CN=UK CTAC:mailto:no-reply@ctac.app',
+      'CATEGORIES:CTAC Learning Collaborative',
+      // Without alarms these land silently on participants' calendars.
+      'BEGIN:VALARM',
+      'ACTION:DISPLAY',
+      'TRIGGER:-P1D',
+      `DESCRIPTION:${escIcsText('Tomorrow: ' + summary)}`,
+      'END:VALARM',
+      'BEGIN:VALARM',
+      'ACTION:DISPLAY',
+      'TRIGGER:-PT15M',
+      `DESCRIPTION:${escIcsText('Starting in 15 minutes: ' + summary)}`,
+      'END:VALARM',
       'END:VEVENT'
     )
   }
@@ -281,7 +350,11 @@ Deno.serve(async (req) => {
 
     const attachments: any[] = []
     if (kind !== 'cancellation' && events.some(e => e.start_time)) {
-      attachments.push({ filename: 'registration.ics', content: utf8ToBase64(buildIcs(events)), content_type: 'text/calendar' })
+      const ics = buildIcs(events, {
+        programType,
+        calendarName: link?.collaboratives?.name || link?.title || null,
+      })
+      attachments.push({ filename: 'registration.ics', content: utf8ToBase64(ics), content_type: 'text/calendar' })
     }
 
     const resendPayload: any = {
