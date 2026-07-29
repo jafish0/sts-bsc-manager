@@ -105,6 +105,86 @@ function escIcsText(s: string): string {
     .replace(/\r?\n/g, '\\n')
 }
 
+// ---------------------------------------------------------------------------
+// Wall-clock -> UTC, DST-correct.
+//
+// Needed because the calendar deep links below carry absolute instants, unlike
+// the .ics which carries local time plus a TZID. Source data is a bare date, a
+// bare time, and a zone name. Getting this wrong is worse than having no links
+// at all, because a wrong time still looks plausible in the calendar UI.
+//
+// Verified against Node's IANA data for all 8 real AWARE events: Oct 27 resolves
+// EDT (14:00Z) and Nov 10 onward EST (15:00Z), each round-tripping back to
+// 10:00 local.
+function tzOffsetMs(utcMs: number, tz: string): number {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: tz, hour12: false,
+    year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit', second: '2-digit',
+  }).formatToParts(new Date(utcMs))
+  const get = (t: string) => Number(parts.find(p => p.type === t)!.value)
+  let hour = get('hour')
+  if (hour === 24) hour = 0 // some ICU builds emit hour 24 for midnight
+  return Date.UTC(get('year'), get('month') - 1, get('day'), hour, get('minute'), get('second')) - utcMs
+}
+
+function wallTimeToUtc(dateStr: string, timeStr: string, tz: string): Date {
+  const [y, mo, d] = String(dateStr).split('-').map(Number)
+  const [h = 0, mi = 0, s = 0] = String(timeStr || '00:00:00').split(':').map(Number)
+  const naive = Date.UTC(y, mo - 1, d, h, mi, s)
+  let utc = naive - tzOffsetMs(naive, tz)
+  // Second pass: the first guess can land on the far side of a DST transition.
+  const refined = naive - tzOffsetMs(utc, tz)
+  if (refined !== utc) utc = refined
+  return new Date(utc)
+}
+
+// Google wants UTC basic format; Outlook wants ISO 8601.
+const gcalStamp = (d: Date) => d.toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, '')
+const isoStamp = (d: Date) => d.toISOString().replace(/\.\d{3}Z$/, 'Z')
+
+// Per-event "add to calendar" deep links.
+//
+// Why these exist: the multi-event .ics attachment is effectively unusable for
+// participants. Gmail parses it, tries to build its own inline event card, and
+// shows "Unable to load event" because those cards handle ONE event and ours
+// carries eight; Outlook Web dead-ends on the same limitation. The attachment
+// stays (it works properly in Apple Mail and Outlook desktop, importing all
+// eight at once) but it is no longer the instruction.
+//
+// Every parameter is percent-encoded: titles come from imported Word schedules
+// and carry curly apostrophes, em dashes and commas, and a raw & or # would
+// silently truncate the URL. The `dates` slash is left literal because Google
+// requires it as a separator.
+function calendarLinks(e: any, programType?: string | null): { google: string; outlook: string } | null {
+  if (!e.start_time || !e.event_date) return null
+  const tz = e.timezone || 'America/New_York'
+  const start = wallTimeToUtc(e.event_date, e.start_time, tz)
+  const end = wallTimeToUtc(e.event_date, e.end_time || e.start_time, tz)
+  const tag = programType ? PROGRAM_LABELS[programType]?.short : null
+  const title = tag ? `${tag}: ${e.title}` : String(e.title || 'CTAC Session')
+  // Same content the .ics puts in DESCRIPTION, so the entry is self-sufficient.
+  const details = [
+    e.zoom_link ? `Join: ${e.zoom_link}` : null,
+    e.location ? `Location: ${e.location}` : null,
+  ].filter(Boolean).join('\n')
+
+  const google = 'https://calendar.google.com/calendar/render?action=TEMPLATE'
+    + `&text=${encodeURIComponent(title)}`
+    + `&dates=${gcalStamp(start)}/${gcalStamp(end)}`
+    + (details ? `&details=${encodeURIComponent(details)}` : '')
+    + (e.location ? `&location=${encodeURIComponent(e.location)}` : '')
+
+  const outlook = 'https://outlook.office.com/calendar/0/deeplink/compose?path=%2Fcalendar%2Faction%2Fcompose&rru=addevent'
+    + `&subject=${encodeURIComponent(title)}`
+    + `&startdt=${encodeURIComponent(isoStamp(start))}`
+    + `&enddt=${encodeURIComponent(isoStamp(end))}`
+    + (details ? `&body=${encodeURIComponent(details)}` : '')
+    + (e.location ? `&location=${encodeURIComponent(e.location)}` : '')
+
+  return { google, outlook }
+}
+
 // A real VTIMEZONE definition. DTSTART;TZID=America/New_York with no VTIMEZONE
 // component is technically invalid iCalendar; well-known clients resolve the
 // Olson name anyway, but strict parsers may float the times. The RRULEs encode
@@ -260,17 +340,33 @@ Deno.serve(async (req) => {
       headline = 'Your registration has been cancelled. We’re sorry you can’t make it.'
     } else if (kind === 'promoted') {
       subject = `Spot opened — you’re registered for ${link?.title || 'the event'}`
-      headline = 'Good news — a spot opened up and you’ve been moved off the waitlist.'
+      headline = 'Good news — a spot opened up and you’ve been moved off the waitlist. Use the "Add to calendar" links below to save each session.'
     } else if (reg.status === 'waitlisted') {
       subject = `You’re on the waitlist for ${link?.title || 'the event'}`
       headline = `Thanks for registering. You're currently #${reg.waitlist_position || '?'} on the waitlist; we'll email if a spot opens up.`
     } else {
       subject = `Registration confirmed: ${link?.title || 'Event'}`
-      headline = `You're registered. Save the dates below — a calendar file is attached so you can add them to Outlook, Apple Calendar, or Google Calendar in one click.`
+      // The old wording promised the attachment was a one-click add. Josh
+      // watched that fail in both Gmail and Outlook Web: an .ics holding eight
+      // events cannot be consumed by their inline event cards. The per-event
+      // links are now the primary path and the attachment is the fallback for
+      // the clients where it genuinely works (Apple Mail, Outlook desktop).
+      headline = `You're registered. Use the "Add to calendar" links below to save each session, or import the attached calendar file if your calendar app supports it.`
     }
 
     const programType = link?.collaboratives?.program_type as string | undefined
     const heading = eventsHeading(programType)
+
+    // Who gets the "Add to calendar" column. Cancellation is the one the draft
+    // called out: inviting someone who just cancelled to save the sessions
+    // would be absurd. Waitlisted is excluded on the same principle Josh
+    // applied to reminders — they have no seat, and a calendar-add prompt reads
+    // as confirmation that they are in.
+    // NOTE: the .ics attachment's own condition is left exactly as it was
+    // (everything except cancellation), so waitlisted still receives the file.
+    // That inconsistency is pre-existing, not introduced here — flagged for
+    // Josh rather than changed unasked.
+    const showCalendarLinks = kind !== 'cancellation' && reg.status !== 'waitlisted'
 
     // Every size below is in px with an explicit line-height, and there is no
     // rem/em anywhere in this template. Outlook renders with the Word engine,
@@ -288,24 +384,33 @@ Deno.serve(async (req) => {
 
     const eventsRows = events.map(e => {
       const td = 'style="' + FONT + ' font-size: 13px; line-height: 18px; color: #1f2937; padding: 8px 10px; border-bottom: 1px solid #e5e7eb; vertical-align: top;"'
+      const cal = showCalendarLinks ? calendarLinks(e, programType) : null
+      // Stacked rather than side by side so the column stays narrow at 600px.
+      const calCell = cal
+        ? `<a href="${esc(cal.google)}" style="color: #00A79D; text-decoration: underline; white-space: nowrap;">Google</a><br /><a href="${esc(cal.outlook)}" style="color: #00A79D; text-decoration: underline; white-space: nowrap;">Outlook</a>`
+        : '<span style="color: #9ca3af;">—</span>'
       return `<tr>
               <td ${td}><span style="font-weight: bold;">${esc(e.title)}</span>${e.location ? `<br /><span style="font-size: 12px; line-height: 16px; color: #6b7280;">${esc(e.location)}</span>` : ''}</td>
               <td ${td}>${esc(fmtDate(e.event_date))}</td>
               <td ${td}>${esc(fmtTimeRange(e.start_time, e.end_time))}</td>
               <td ${td}>${e.zoom_link ? `<a href="${esc(e.zoom_link)}" style="color: #00A79D; font-weight: bold; text-decoration: underline;">Zoom</a>` : '<span style="color: #9ca3af;">—</span>'}</td>
+              ${showCalendarLinks ? `<td ${td}>${calCell}</td>` : ''}
             </tr>`
     }).join('')
 
     const eventsTable = events.length === 0 ? '' : `
           <p style="${FONT} font-size: 16px; line-height: 22px; color: #0E1F56; font-weight: bold; margin: 24px 0 8px 0;">${esc(heading)}</p>
           <table width="100%" cellpadding="0" cellspacing="0" border="0" style="border-collapse: collapse; width: 100%; max-width: 600px;">
-            <tr>${th('Session', '40%')}${th('Date', '20%')}${th('Time', '28%')}${th('Join', '12%')}</tr>
+            <tr>${showCalendarLinks
+              ? `${th('Session', '30%')}${th('Date', '17%')}${th('Time', '21%')}${th('Join', '10%')}${th('Add to calendar', '22%')}`
+              : `${th('Session', '40%')}${th('Date', '20%')}${th('Time', '28%')}${th('Join', '12%')}`}</tr>
             ${eventsRows}
           </table>`
 
     const eventsText = events.map(e => {
       const when = `${fmtDate(e.event_date)}, ${fmtTimeRange(e.start_time, e.end_time)}`
-      return `• ${e.title}\n    ${when}${e.location ? `\n    ${e.location}` : ''}${e.zoom_link ? `\n    Zoom: ${e.zoom_link}` : ''}`
+      const cal = showCalendarLinks ? calendarLinks(e, programType) : null
+      return `• ${e.title}\n    ${when}${e.location ? `\n    ${e.location}` : ''}${e.zoom_link ? `\n    Zoom: ${e.zoom_link}` : ''}${cal ? `\n    Add to calendar: ${cal.google}` : ''}`
     }).join('\n')
 
     // Outer 100%-width table with a fixed-width inner table is the layout that
