@@ -1,12 +1,17 @@
 import { useEffect, useState } from 'react'
 import { useParams } from 'react-router-dom'
-import { supabase } from '../utils/supabase'
 
 const NAVY = '#0E1F56'
 const RED = '#991b1b'
 
 // Public cancel page reached from the cancel link in confirmation emails.
 // URL: /cancel-registration/:token
+//
+// Reads through the `lookup-registration` edge function rather than querying
+// event_registrations directly: that table holds every registrant's name,
+// email, responses jsonb and cancel_token, so it is no longer readable with
+// the publishable key. The function returns only the fields rendered below,
+// for the single row matching this token.
 export default function CancelRegistrationPage() {
   const { token } = useParams()
   const [loading, setLoading] = useState(true)
@@ -18,29 +23,33 @@ export default function CancelRegistrationPage() {
   const [alreadyCancelled, setAlreadyCancelled] = useState(false)
 
   useEffect(() => {
-    let cancelledLocal = false
+    let stale = false
     ;(async () => {
-      const { data: r } = await supabase
-        .from('event_registrations')
-        .select('id, full_name, email, status, registration_link_id')
-        .eq('cancel_token', token)
-        .maybeSingle()
-      if (cancelledLocal) return
-      if (!r) { setError('This cancel link is invalid.'); setLoading(false); return }
-      setReg(r)
-      if (r.status === 'cancelled') setAlreadyCancelled(true)
-
-      const { data: l } = await supabase
-        .from('event_registration_links')
-        .select('title, collaboratives(name)')
-        .eq('id', r.registration_link_id)
-        .maybeSingle()
-      if (!cancelledLocal) {
-        setLink(l)
+      try {
+        const url = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/lookup-registration`
+        const resp = await fetch(url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ cancel_token: token }),
+        })
+        const json = await resp.json().catch(() => ({}))
+        if (stale) return
+        if (!resp.ok) {
+          setError(resp.status === 404 ? 'This cancel link is invalid.' : (json.error || 'Could not load this registration.'))
+          setLoading(false)
+          return
+        }
+        setReg({ full_name: json.full_name, email: json.email, status: json.status })
+        setLink({ title: json.title, collaboratives: json.collaborative_name ? { name: json.collaborative_name } : null })
+        if (json.status === 'cancelled') setAlreadyCancelled(true)
+        setLoading(false)
+      } catch (err) {
+        if (stale) return
+        setError(err.message || String(err))
         setLoading(false)
       }
     })()
-    return () => { cancelledLocal = true }
+    return () => { stale = true }
   }, [token])
 
   const doCancel = async () => {
