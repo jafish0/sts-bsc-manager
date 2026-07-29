@@ -374,8 +374,8 @@ Deno.serve(async (req) => {
           : `${startLabel}${tzLabel ? ' ' + tzLabel : ''}`)
       : null
 
-    // Each recipient gets their own personalised message (own rsvp_token, and
-    // own footer link — see buildFooter).
+    // Each recipient gets their own personalised message: their own rsvp_token,
+    // and a footer link that depends on whether they are a member or registrant.
     const buildMessage = (r: Recipient, rsvpToken: string) => {
       const attendUrl = `https://bsc.ctac.app/rsvp/${rsvpToken}?status=attending`
       const declineUrl = `https://bsc.ctac.app/rsvp/${rsvpToken}?status=not_attending`

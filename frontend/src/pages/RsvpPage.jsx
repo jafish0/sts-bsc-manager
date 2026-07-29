@@ -7,6 +7,20 @@ const TEAL = '#00A79D'
 const GREEN = '#16a34a'
 const RED = '#991b1b'
 
+// '14:30:00' -> '2:30 PM'. Matches the reminder email, which now shows 12-hour
+// times; the page previously showed a bare 24-hour "14:30".
+function fmt12h(t) {
+  if (!t) return ''
+  const [hRaw, mRaw] = String(t).split(':')
+  let h = Number(hRaw)
+  if (!Number.isFinite(h)) return ''
+  const m = (mRaw ?? '00').padStart(2, '0')
+  const ampm = h >= 12 ? 'PM' : 'AM'
+  h = h % 12
+  if (h === 0) h = 12
+  return `${h}:${m} ${ampm}`
+}
+
 // Public RSVP confirmation page reached from one-click email links.
 // URL: /rsvp/:token?status=attending|not_attending
 // If a status query param is present, immediately persist it; otherwise show
@@ -27,22 +41,41 @@ export default function RsvpPage() {
     let cancelled = false
     const load = async () => {
       try {
-        const { data: r, error: rErr } = await supabase
-          .from('event_rsvps')
-          .select('id, status, event_id, email, bsc_events(id, title, event_date, start_time, end_time, location, zoom_link, collaboratives(name))')
-          .eq('rsvp_token', token)
-          .maybeSingle()
+        // Read through a SECURITY DEFINER RPC rather than embedding bsc_events.
+        // The embed silently returned NULL for any event without an ACTIVE
+        // session_link — anon's only SELECT path on bsc_events — which is every
+        // future session. `event` then came back null and the render crashed on
+        // event.event_date, so the RSVP buttons in every reminder email led to a
+        // blank page. Same pattern as validate_team_code / lookup-registration:
+        // one token-scoped lookup, no broadening of anon's table access.
+        const { data, error: rErr } = await supabase
+          .rpc('lookup_rsvp', { p_token: token })
         if (cancelled) return
+        const r = Array.isArray(data) ? data[0] : data
         if (rErr || !r) { setError('This RSVP link is invalid or has expired.'); setLoading(false); return }
-        setRsvp(r)
-        setEvent(r.bsc_events)
+        if (!r.event_id) { setError('The session for this RSVP link no longer exists.'); setLoading(false); return }
+        setRsvp({ id: r.rsvp_id, status: r.status, email: r.email, event_id: r.event_id })
+        setEvent({
+          id: r.event_id,
+          title: r.event_title,
+          event_date: r.event_date,
+          start_time: r.start_time,
+          end_time: r.end_time,
+          location: r.location,
+          zoom_link: r.zoom_link,
+          collaboratives: { name: r.collaborative_name },
+        })
         setSavedStatus(r.status)
         setLoading(false)
 
         // If the email link carried a status, persist it now.
+        // NOTE: rsvp_id, not id — the RPC names it rsvp_id, and passing the
+        // wrong key sends `undefined` into .eq() which Postgres rejects with
+        // 'invalid input syntax for type uuid'. This is the one-click path the
+        // email buttons use, so it is the one that must not break.
         if (requestedStatus && (requestedStatus === 'attending' || requestedStatus === 'not_attending')) {
           if (r.status !== requestedStatus) {
-            await persist(requestedStatus, r.id)
+            await persist(requestedStatus, r.rsvp_id)
           }
         }
       } catch (err) {
@@ -74,9 +107,14 @@ export default function RsvpPage() {
       <div style={{ color: '#6b7280', marginBottom: '1rem', fontSize: '0.9rem' }}>
         {event?.collaboratives?.name}
       </div>
+      {/* Optional-chained and year-bearing. This line used to read
+          event.event_date unguarded, so a null event was a white screen rather
+          than a degraded page. */}
       <div style={{ marginBottom: '1rem', fontSize: '0.95rem' }}>
-        <strong>{new Date(event.event_date + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}</strong>
-        {event?.start_time && (<> · {event.start_time.slice(0,5)}</>)}
+        {event?.event_date && (
+          <strong>{new Date(event.event_date + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}</strong>
+        )}
+        {event?.start_time && (<> · {fmt12h(event.start_time)}{event?.end_time && <> to {fmt12h(event.end_time)}</>}</>)}
         {event?.location && (<> · {event.location}</>)}
       </div>
       {event?.zoom_link && (
