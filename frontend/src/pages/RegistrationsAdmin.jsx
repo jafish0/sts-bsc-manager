@@ -3,6 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom'
 import { supabase } from '../utils/supabase'
 import { useAuth } from '../contexts/AuthContext'
 import { COLORS, cardStyle, cardHeaderStyle } from '../utils/constants'
+import { deleteRegistrationLink, deleteBlockedReason } from '../utils/registrationLinks'
 import RegistrationLinkModal from '../components/RegistrationLinkModal'
 import RegistrationRosterModal from '../components/RegistrationRosterModal'
 
@@ -13,7 +14,7 @@ import RegistrationRosterModal from '../components/RegistrationRosterModal'
 export default function RegistrationsAdmin() {
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
-  const { isAdminLevel } = useAuth()
+  const { isAdminLevel, canAdminCollaborative } = useAuth()
 
   const [collaboratives, setCollaboratives] = useState([])  // [{id, name, link_count, events: [...]}]
   const [registrationLinks, setRegistrationLinks] = useState([])  // flat array; each row has collaborative name joined in
@@ -28,6 +29,9 @@ export default function RegistrationsAdmin() {
 
   // Roster
   const [viewingRoster, setViewingRoster] = useState(null) // { id, title }
+
+  // Delete in flight (id of the link being deleted)
+  const [deletingId, setDeletingId] = useState(null)
 
   // Sort
   const [sortField, setSortField] = useState('created_at')
@@ -143,6 +147,15 @@ export default function RegistrationsAdmin() {
     setShowCreateModal(true)
   }
 
+  const handleDelete = async (link) => {
+    setDeletingId(link.id)
+    const result = await deleteRegistrationLink(link)
+    setDeletingId(null)
+    if (result.blocked) { alert(`Can't delete this link.\n\n${result.message}`); await loadAll(); return }
+    if (result.error) { alert(result.error); return }
+    if (result.deleted) await loadAll()
+  }
+
   if (!isAdminLevel) {
     return (
       <div style={{ padding: '4rem', textAlign: 'center', color: 'var(--text-muted)' }}>
@@ -229,6 +242,16 @@ export default function RegistrationsAdmin() {
                 <tbody>
                   {sortedLinks.map(link => {
                     const status = computeStatus(link)
+                    // Rendered guard: total across every status, because a
+                    // cancelled registration is still a person's record and
+                    // the FK cascade would take it with the link. The click
+                    // handler re-counts server-side; this only decides how the
+                    // button looks. Deleting is also collab-scoped, matching
+                    // the RLS policy that will refuse it server-side anyway.
+                    const totalRegs = Object.values(link.counts).reduce((a, b) => a + b, 0)
+                    const blockedReason = deleteBlockedReason(totalRegs)
+                    const canDeleteHere = canAdminCollaborative(link.collaborative_id)
+                    const deleteDisabled = !!blockedReason || !canDeleteHere || deletingId === link.id
                     return (
                       <tr key={link.id} style={{ borderBottom: '1px solid var(--border)' }}>
                         <td style={tdStyle}><strong style={{ color: COLORS.navy }}>{link.title}</strong></td>
@@ -244,6 +267,28 @@ export default function RegistrationsAdmin() {
                           <div style={{ display: 'flex', gap: '0.3rem' }}>
                             <button onClick={() => setViewingRoster({ id: link.id, title: link.title })} style={{ background: COLORS.navy, color: 'white', border: 'none', padding: '0.3rem 0.65rem', borderRadius: '4px', cursor: 'pointer', fontSize: '0.72rem' }}>Roster</button>
                             <button onClick={() => handleEdit(link)} style={{ background: 'transparent', color: COLORS.navy, border: `1px solid ${COLORS.navy}`, padding: '0.3rem 0.65rem', borderRadius: '4px', cursor: 'pointer', fontSize: '0.72rem' }}>Edit</button>
+                            {/* The title sits on the wrapper, not the button:
+                                Chrome and Safari swallow hover events on a
+                                disabled control, so a title on the button
+                                itself would never appear — and the tooltip IS
+                                the explanation for why delete is unavailable. */}
+                            <span title={
+                              blockedReason ? blockedReason
+                                : !canDeleteHere ? 'You are not an admin for this collaborative.'
+                                : `Delete "${link.title}" — nobody has registered through it.`
+                            }>
+                              <button
+                                onClick={() => handleDelete(link)}
+                                disabled={deleteDisabled}
+                                style={{
+                                  background: 'transparent',
+                                  color: deleteDisabled ? 'var(--text-faint)' : '#991b1b',
+                                  border: `1px solid ${deleteDisabled ? 'var(--border)' : '#991b1b'}`,
+                                  padding: '0.3rem 0.65rem', borderRadius: '4px',
+                                  cursor: deleteDisabled ? 'not-allowed' : 'pointer', fontSize: '0.72rem',
+                                }}
+                              >{deletingId === link.id ? 'Deleting…' : 'Delete'}</button>
+                            </span>
                           </div>
                         </td>
                       </tr>

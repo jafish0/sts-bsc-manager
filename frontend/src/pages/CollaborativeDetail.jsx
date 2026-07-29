@@ -10,6 +10,7 @@ import QrCodeModal from '../components/QrCodeModal'
 import RegistrationLinkModal from '../components/RegistrationLinkModal'
 import RegistrationRosterModal from '../components/RegistrationRosterModal'
 import { PROGRAM_TYPE_COLORS, getProgramBranding } from '../config/programConfig'
+import { deleteRegistrationLink, deleteBlockedReason } from '../utils/registrationLinks'
 import ctacLogo from '../assets/CTAC_white.png'
 
 const EVENT_TYPES = [
@@ -84,11 +85,12 @@ export default function CollaborativeDetail() {
   const [copiedEmail, setCopiedEmail] = useState(null)
 
   // Registration links state — Create lives on /admin/registrations now;
-  // CollaborativeDetail keeps the per-collab list + Edit + View Roster.
+  // CollaborativeDetail keeps the per-collab list + Edit + View Roster + Delete.
   const [registrationLinks, setRegistrationLinks] = useState([])
   const [showRegistrationModal, setShowRegistrationModal] = useState(false)
   const [editingLink, setEditingLink] = useState(null)
   const [viewingRosterFor, setViewingRosterFor] = useState(null) // { id, title }
+  const [deletingLinkId, setDeletingLinkId] = useState(null)
 
   // Session link & report state
   const [sessionLinks, setSessionLinks] = useState({})
@@ -167,6 +169,17 @@ export default function CollaborativeDetail() {
       counts[r.registration_link_id][r.status] = (counts[r.registration_link_id][r.status] || 0) + 1
     })
     setRegistrationLinks(links.map(l => ({ ...l, counts: counts[l.id] || { registered: 0, waitlisted: 0, cancelled: 0, checked_in: 0 } })))
+  }
+
+  // Delete a registration link. The guard (and the reason it exists) lives in
+  // utils/registrationLinks.js, shared with the /admin/registrations table.
+  const handleDeleteRegistrationLink = async (link) => {
+    setDeletingLinkId(link.id)
+    const result = await deleteRegistrationLink(link)
+    setDeletingLinkId(null)
+    if (result.blocked) { alert(`Can't delete this link.\n\n${result.message}`); await fetchRegistrationLinks(); return }
+    if (result.error) { alert(result.error); return }
+    if (result.deleted) await fetchRegistrationLinks()
   }
 
   // (Roster fetch / promote / cancel / CSV export now live in
@@ -1258,6 +1271,11 @@ export default function CollaborativeDetail() {
                         ? { label: 'Closed', color: '#991b1b', bg: '#fee2e2' }
                         : { label: 'Active', color: '#166534', bg: '#dcfce7' }
                   const shareUrl = `https://bsc.ctac.app/register/${link.token}`
+                  // Total across every status — a cancelled registration is
+                  // still someone's record, and both child tables cascade.
+                  const regDeleteBlocked = deleteBlockedReason(
+                    Object.values(c).reduce((a, b) => a + b, 0)
+                  )
                   return (
                     <div key={link.id} style={{
                       padding: '1rem', border: '1px solid #e5e7eb', borderRadius: '8px',
@@ -1286,6 +1304,26 @@ export default function CollaborativeDetail() {
                       <div style={{ display: 'flex', gap: '0.4rem', flexShrink: 0 }}>
                         <button onClick={() => setViewingRosterFor({ id: link.id, title: link.title })} style={{ background: '#0E1F56', color: 'white', border: 'none', padding: '0.4rem 0.75rem', borderRadius: '6px', cursor: 'pointer', fontSize: '0.78rem' }}>View Roster</button>
                         <button onClick={() => { setEditingLink(link); setShowRegistrationModal(true) }} style={{ background: 'transparent', color: '#0E1F56', border: '1px solid #0E1F56', padding: '0.4rem 0.75rem', borderRadius: '6px', cursor: 'pointer', fontSize: '0.78rem' }}>Edit</button>
+                        {/* Title on the wrapper — Chrome/Safari drop hover
+                            events on disabled buttons, and the tooltip is the
+                            whole explanation for why delete is unavailable. */}
+                        <span title={
+                          regDeleteBlocked
+                            ? regDeleteBlocked
+                            : `Delete "${link.title}" — nobody has registered through it.`
+                        }>
+                          <button
+                            onClick={() => handleDeleteRegistrationLink(link)}
+                            disabled={!!regDeleteBlocked || deletingLinkId === link.id}
+                            style={{
+                              background: 'transparent',
+                              color: regDeleteBlocked ? '#9ca3af' : '#991b1b',
+                              border: `1px solid ${regDeleteBlocked ? '#e5e7eb' : '#991b1b'}`,
+                              padding: '0.4rem 0.75rem', borderRadius: '6px',
+                              cursor: regDeleteBlocked ? 'not-allowed' : 'pointer', fontSize: '0.78rem',
+                            }}
+                          >{deletingLinkId === link.id ? 'Deleting…' : 'Delete'}</button>
+                        </span>
                       </div>
                     </div>
                   )
