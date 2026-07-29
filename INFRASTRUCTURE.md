@@ -50,6 +50,7 @@ Resend (smtp.resend.com:465) — API key auth, signs with SPF + DKIM
 Recipient inbox (UKY Exchange, Gmail, etc.)
 ```
 
+- **Resend plan:** Paid (free-tier daily/monthly sending caps lifted — ample headroom for invites, reminders, registration/RSVP emails, and trainer digests)
 - **Resend domain:** `ctac.app`, Verified
 - **Sender identity:** `CTAC <no-reply@ctac.app>` (program-agnostic on purpose — same identity will serve TIC LC / TIPE LC / FourC when they come online)
 - **Resend API key:** stored in Supabase Auth → SMTP Settings password field. Never commit.
@@ -122,6 +123,25 @@ Authentication → URL Configuration:
 
 ## Open follow-ups
 
+### ⬜ JOSH'S TO-DO — dashboard/UI only, cannot be automated (added 2026-07-29)
+
+1. **Enable leaked password protection.** Supabase dashboard → **Authentication → Passwords** → turn on the HaveIBeenPwned compromised-password check. This is the last remaining item from the 2026-07-29 security pass and still appears in the Advisor as `auth_leaked_password_protection`. Extra relevant right now because the three Anchor Lab testers are on passwords that were assigned to them rather than self-chosen.
+2. **Set a capacity on the AWARE Year 4 TIPE LC registration link.** Link `1c6c754d-b4b8-4f14-8d1a-b486589ce3a0` (the surviving one after the duplicate cleanup) currently has `capacity = NULL`, which means unlimited registrations and the waitlist logic never engages (`mint-registration` only evaluates capacity when non-null). Set it in `/admin/registrations` → Edit before distributing the link, if the cohort is size-limited.
+3. **Distribute the rotated CTAC staff assessment codes** (see "CTAC staff codes" below). The old ones are dead; anyone holding them gets an invalid-code error.
+
+### ✅ Done 2026-07-29: CTAC staff assessment codes rotated
+
+The four CTAC staff codes were **rotated** because `team_codes` was anon-enumerable until the same-day security fix (see `WORKING_NOTES.md`, security hardening pass) — anyone with the publishable key could have read them before distribution. All four had **zero responses** at rotation, so nothing was lost. Old codes (`UYWLJT`, `3AJ4HQ`, `QRC5NW`, `6H3AAR`) no longer exist.
+
+| Timepoint | Code |
+|---|---|
+| Baseline | `TCD7TP` |
+| Endline | `VC5975` |
+| 6-month follow-up | `5AJXFP` |
+| 12-month follow-up | `YH4HRJ` |
+
+All active, expiring 2027-12-31. Staff enter them at the `bsc.ctac.app` root (TeamCodeEntry). Generated from a 31-character alphabet excluding `0 O 1 I L` so they survive being read off a slide or email. Verified after rotation: 26 total codes, 26 distinct, demo codes untouched.
+
 - **2026-10-30 Supabase Data API grants change.** Supabase is removing the auto-grant of new `public`-schema tables to the Data API roles (`anon`, `authenticated`, `service_role`). **Existing tables keep their grants** — verified via audit on 2026-05-08 that all 41 public tables in this project are fully granted on all three roles, so nothing in production breaks at the cutover. The forward-looking change matters: every new `apply_migration` creating a `public` table that `supabase-js` (PostgREST / GraphQL / Realtime) touches must include explicit `GRANT` statements alongside RLS, otherwise `42501` errors. Pattern documented in `CLAUDE.md` → "Future migrations: explicit Data API grants" section. Re-run this audit query at any point to confirm current state:
   ```sql
   SELECT c.relname AS table_name,
@@ -144,10 +164,8 @@ Authentication → URL Configuration:
   ```
 - **Test the day-before reminder pipeline end-to-end before relying on it in production.** Vault secret is in place (verified 2026-05-08); auth pipeline should work but hasn't been exercised against a real event yet. To test: (1) create a throwaway event in Demo 2026 with `event_date = tomorrow` and a populated `end_time`; (2) in the SQL editor run `SELECT public.fire_day_before_reminders();`; (3) check that a row was inserted into `event_reminder_log` and that the reminder email landed in Josh's inbox (Josh is a member of the Demo 2026 team); (4) delete the test event. If it doesn't fire, debug `vault.decrypted_secrets` lookup + `pg_net.http_post` response (visible via `SELECT * FROM net._http_response ORDER BY created DESC LIMIT 5`).
 - **Re-evaluate SMARTIE goal comments (trainer feedback feature, May 8).** Currently DEACTIVATED via `ENABLE_GOAL_COMMENTS = false` at the top of `frontend/src/pages/SmartieGoals.jsx`. The `smartie_goal_comments` table, RLS policies, `submitComment` / `deleteComment` handlers, and inline comment UI all remain in place — flipping the flag to `true` re-enables the feature instantly with no migrations needed. Open question is whether this is the right interaction model for trainer-team coaching (vs. the existing forum, or the new parking-lot tool).
-- **Build the registration system (#7 in user's May 8 request).** Public `/register/:event_token` form, `event_registrations` table with capacity + waitlist, confirmation email with `.ics` attachment, and tokenized "Cancel my enrollment" link. ~60+ minutes of focused work; deserves its own dedicated plan.
-- **Active Participation Index widget for TrainerDashboard.** Composite metric blending forum post frequency, SMARTIE goal updates, and checklist completion rates per team.
-- **Resource Utilization Heatmap.** Track downloads from `resources` (and possibly `bsc_event_documents`) and show which STSI-OA domains are getting the most engagement.
-- **Weekly trainer summary edge function.** Cron-driven email digest at Monday 9 AM ET listing each assigned collab's progress for the prior week (new goals, completed PDSAs, recent evaluation responses, parking-lot items).
+<!-- Pruned 2026-06-10: registration system (`13386f9`), Active Participation Index, Resource Utilization Heatmap, and Weekly trainer summary digest (all `ed0a543`) shipped — removed from open follow-ups. -->
+- **Also test the imminent reminder crons end-to-end.** The newer `hour_before` / `starting_now` crons (`fire_imminent_reminders`, shipped `2ac9993`) share the same "never exercised against a real event" gap as the day/week-before pipeline above — fold them into the same test pass.
 - **Invite Ginny Sprang as super_admin.** In Supabase Auth dashboard → Invite User → `sprang@uky.edu`. After she sets her password and `user_profiles` auto-creates, run:
   ```sql
   UPDATE user_profiles SET role = 'super_admin', is_active = true
