@@ -261,6 +261,10 @@ export default function RegistrationsAdmin() {
           collaborativeId={createCollabId}
           eventsForCollab={eventsForCreateCollab}
           editingLink={editingLink}
+          programType={
+            // Editing: use the link's own collaborative; creating: the picker.
+            collaboratives.find(c => c.id === (editingLink?.collaborative_id || createCollabId))?.program_type
+          }
           onClose={() => { setShowCreateModal(false); setEditingLink(null) }}
           onSaved={() => { loadAll() }}
         />

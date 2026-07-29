@@ -1687,6 +1687,7 @@ export default function CollaborativeDetail() {
           collaborativeId={id}
           eventsForCollab={events}
           editingLink={editingLink}
+          programType={collaborative?.program_type}
           onClose={() => { setShowRegistrationModal(false); setEditingLink(null) }}
           onSaved={() => { fetchRegistrationLinks() }}
         />

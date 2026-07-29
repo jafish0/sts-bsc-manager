@@ -1,6 +1,18 @@
 // Program configuration for the multi-program BSC Platform
 // Each program type defines branding, assessment info, and feature flags
 
+// The three registration fields EVERY program must include. The public
+// registration form, the email_confirm match rule, and the denormalized
+// full_name / email columns on `event_registrations` all depend on these exact
+// keys, so they're shared here rather than redefined per program.
+// (Safe to share the objects: RegistrationLinkModal only ever replaces fields
+// immutably — see updateField.)
+const REGISTRATION_SYSTEM_FIELDS = [
+  { key: 'full_name', label: 'Name', type: 'text', required: true, system: true },
+  { key: 'email', label: 'Email', type: 'email', required: true, system: true },
+  { key: 'email_confirm', label: 'Confirm Email', type: 'email_confirm', required: true, system: true, matches: 'email' },
+]
+
 export const PROGRAM_BRANDING = {
   sts_bsc: {
     key: 'sts_bsc',
@@ -40,6 +52,14 @@ export const PROGRAM_BRANDING = {
     // sensible per-program default (label + event_type). The admin can still
     // change the type/title afterward.
     addEventDefault: { label: 'All-Team Call', event_type: 'all_team_call' },
+    // Default registration-form fields. Labels vary per program, KEYS do not —
+    // `agency` / `role` stay canonical so rosters, CSV exports, and anything
+    // reading those columns behave the same across programs.
+    registrationFields: [
+      ...REGISTRATION_SYSTEM_FIELDS,
+      { key: 'agency', label: 'Agency', type: 'text', required: true },
+      { key: 'role', label: 'Role at agency', type: 'text', required: true },
+    ],
   },
   tic_lc: {
     key: 'tic_lc',
@@ -74,6 +94,12 @@ export const PROGRAM_BRANDING = {
       { event_type: 'all_team_call', title: 'Coaching Call 4', sequence_number: 5 },
     ],
     addEventDefault: { label: 'Implementation Session', event_type: 'all_team_call' },
+    // Same five as STS-BSC (Agency / Role at agency wording unchanged).
+    registrationFields: [
+      ...REGISTRATION_SYSTEM_FIELDS,
+      { key: 'agency', label: 'Agency', type: 'text', required: true },
+      { key: 'role', label: 'Role at agency', type: 'text', required: true },
+    ],
   },
   tipe_lc: {
     key: 'tipe_lc',
@@ -107,6 +133,27 @@ export const PROGRAM_BRANDING = {
       { event_type: 'all_team_call', title: 'Learning Call 3', sequence_number: 3 },
     ],
     addEventDefault: { label: 'Implementation Session', event_type: 'all_team_call' },
+    // TIPE registrants are school/district staff, so the labels are
+    // schools-flavored — but the KEYS stay canonical (`agency` holds the school
+    // or district, `role` holds the position) so rosters/exports don't fork.
+    registrationFields: [
+      ...REGISTRATION_SYSTEM_FIELDS,
+      { key: 'agency', label: 'School or District', type: 'text', required: true },
+      { key: 'role', label: 'Position or Title', type: 'text', required: true },
+      { key: 'districts', label: 'District(s) Served', type: 'text', required: false },
+      { key: 'grade_levels', label: 'Grade Level(s)', type: 'text', required: false },
+    ],
+    // Schools-flavored "add a common field" presets (falls back to the shared
+    // list in RegistrationLinkModal when a program doesn't define these).
+    registrationFieldPresets: [
+      { key: 'phone', label: 'Phone (optional, for SMS reminders)', type: 'phone', required: false },
+      { key: 'school', label: 'School (building)', type: 'text', required: false },
+      { key: 'grade_levels', label: 'Grade Level(s)', type: 'text', required: false },
+      { key: 'subject_areas', label: 'Subject Area(s)', type: 'text', required: false },
+      { key: 'districts', label: 'District(s) Served', type: 'text', required: false },
+      { key: 'how_heard', label: 'How did you hear about this training?', type: 'textarea', required: false },
+      { key: 'accommodations', label: 'Accommodation needs (optional)', type: 'textarea', required: false },
+    ],
   },
   fourc: {
     key: 'fourc',

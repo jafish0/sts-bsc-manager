@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../utils/supabase'
 import { useAuth } from '../contexts/AuthContext'
+import { getProgramBranding } from '../config/programConfig'
 
 const NAVY = '#0E1F56'
 const TEAL = '#00A79D'
@@ -18,6 +19,9 @@ const FIELD_TYPES = [
   { value: 'number', label: 'Number' },
 ]
 
+// Fallback default schema for programs that don't define `registrationFields`
+// in programConfig.js. Per-program defaults live there (labels vary, keys stay
+// canonical); this keeps today's behavior for anything unconfigured.
 const SEEDED_SCHEMA = [
   { key: 'full_name', label: 'Name', type: 'text', required: true, system: true },
   { key: 'email', label: 'Email', type: 'email', required: true, system: true },
@@ -41,8 +45,15 @@ const COMMON_FIELD_PRESETS = [
 //   editingLink?: existing link row (if editing); null if creating
 //   onClose(): void
 //   onSaved(savedLink): void
-export default function RegistrationLinkModal({ collaborativeId, eventsForCollab, editingLink, onClose, onSaved }) {
+export default function RegistrationLinkModal({ collaborativeId, eventsForCollab, editingLink, programType, onClose, onSaved }) {
   const { user } = useAuth()
+
+  // Per-program default form fields + "common field" presets. Editing an
+  // existing link always uses that link's stored form_schema snapshot, so
+  // existing links are never re-shaped by a config change.
+  const branding = getProgramBranding(programType)
+  const seededSchema = branding.registrationFields || SEEDED_SCHEMA
+  const fieldPresets = branding.registrationFieldPresets || COMMON_FIELD_PRESETS
 
   const [title, setTitle] = useState(editingLink?.title || '')
   const [description, setDescription] = useState(editingLink?.description || '')
@@ -52,7 +63,7 @@ export default function RegistrationLinkModal({ collaborativeId, eventsForCollab
   const [closesAt, setClosesAt] = useState(editingLink?.registration_closes_at ? toLocal(editingLink.registration_closes_at) : '')
   const [isActive, setIsActive] = useState(editingLink?.is_active ?? true)
   const [selectedEventIds, setSelectedEventIds] = useState(new Set())
-  const [schema, setSchema] = useState(editingLink?.form_schema?.length ? editingLink.form_schema : SEEDED_SCHEMA)
+  const [schema, setSchema] = useState(editingLink?.form_schema?.length ? editingLink.form_schema : seededSchema)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState(null)
   const [savedLink, setSavedLink] = useState(null) // for share link display
@@ -314,7 +325,7 @@ export default function RegistrationLinkModal({ collaborativeId, eventsForCollab
             </ul>
             <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', marginTop: '0.5rem' }}>
               <button onClick={addCustomField} style={{ background: TEAL, color: 'white', border: 'none', padding: '0.4rem 0.75rem', borderRadius: '6px', cursor: 'pointer', fontSize: '0.78rem' }}>+ Add custom field</button>
-              {COMMON_FIELD_PRESETS.map(p => (
+              {fieldPresets.map(p => (
                 <button key={p.key} onClick={() => addCommonField(p)} disabled={schema.some(f => f.key === p.key)} style={{ background: 'transparent', color: NAVY, border: `1px solid ${NAVY}`, padding: '0.4rem 0.75rem', borderRadius: '6px', cursor: schema.some(f => f.key === p.key) ? 'not-allowed' : 'pointer', fontSize: '0.78rem', opacity: schema.some(f => f.key === p.key) ? 0.5 : 1 }}>+ {p.label}</button>
               ))}
             </div>
