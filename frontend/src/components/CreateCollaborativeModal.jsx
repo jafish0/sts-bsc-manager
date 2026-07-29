@@ -184,6 +184,36 @@ function CreateCollaborativeModal({ onClose, onSuccess }) {
     setBscEvents(prev => prev.filter((_, i) => i !== idx))
   }
 
+  // --- Schedule row reordering (drag handle + ↑/↓ buttons) ---
+  // Creation-time convenience only: it lets the list mirror the order printed
+  // on the real schedule document (CTAC interleaves sessions and calls rather
+  // than grouping by type). Nothing downstream depends on row order — every
+  // consumer of bsc_events sorts by event_date. sequence_number IS recomputed
+  // per event_type so "Learning Session N" numbering follows visual order;
+  // numbering is never mixed across types, and added rows (null sequence)
+  // stay null.
+  const [dragIdx, setDragIdx] = useState(null)
+  const [dragOverIdx, setDragOverIdx] = useState(null)
+  const [dragArmedIdx, setDragArmedIdx] = useState(null)
+
+  const moveEvent = (from, to) => {
+    setBscEvents(prev => {
+      if (from == null || to == null || from === to) return prev
+      if (to < 0 || to >= prev.length) return prev
+      const next = [...prev]
+      const [moved] = next.splice(from, 1)
+      next.splice(to, 0, moved)
+      const counters = {}
+      return next.map(e => {
+        if (e.sequence_number == null) return e
+        counters[e.event_type] = (counters[e.event_type] || 0) + 1
+        return { ...e, sequence_number: counters[e.event_type] }
+      })
+    })
+  }
+
+  const endDrag = () => { setDragIdx(null); setDragOverIdx(null); setDragArmedIdx(null) }
+
   const handleSubmit = async (e) => {
     e.preventDefault()
     setError('')
@@ -448,11 +478,36 @@ function CreateCollaborativeModal({ onClose, onSuccess }) {
             </p>
 
             {bscEvents.map((evt, idx) => (
-              <div key={idx} style={{
-                background: 'white', border: evt.locked ? '2px solid #00A79D30' : '1px solid #e5e7eb',
-                borderRadius: '8px', padding: '0.75rem', marginBottom: '0.5rem'
-              }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem', gap: '0.5rem' }}>
+              <div
+                key={idx}
+                // Only draggable while its handle is held, so the date/time
+                // inputs inside stay normally interactive.
+                draggable={dragArmedIdx === idx}
+                onDragStart={(e) => { setDragIdx(idx); e.dataTransfer.effectAllowed = 'move' }}
+                onDragOver={(e) => { e.preventDefault(); if (dragIdx !== null && dragOverIdx !== idx) setDragOverIdx(idx) }}
+                onDrop={(e) => { e.preventDefault(); moveEvent(dragIdx, idx); endDrag() }}
+                onDragEnd={endDrag}
+                style={{
+                  background: 'white', border: evt.locked ? '2px solid #00A79D30' : '1px solid #e5e7eb',
+                  borderRadius: '8px', padding: '0.75rem', marginBottom: '0.5rem',
+                  opacity: dragIdx === idx ? 0.4 : 1,
+                  borderTop: dragOverIdx === idx && dragIdx !== null && dragIdx !== idx
+                    ? '3px solid #00A79D'
+                    : undefined,
+                }}
+              >
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem', gap: '0.4rem' }}>
+                  {/* Drag handle — arms dragging for this row only. ↑/↓ below
+                      are the keyboard/no-drag fallback. */}
+                  <span
+                    onMouseDown={() => setDragArmedIdx(idx)}
+                    onMouseUp={() => setDragArmedIdx(null)}
+                    title="Drag to reorder"
+                    style={{
+                      cursor: 'grab', color: '#9ca3af', fontSize: '1rem',
+                      lineHeight: 1, padding: '0 0.15rem', flexShrink: 0, userSelect: 'none',
+                    }}
+                  >≡</span>
                   {/* Title is editable on EVERY row, including pre-populated
                       (locked) ones — CTAC's real schedules rename the defaults
                       (e.g. "Learning Call 1" → "Implementation Session 1 (call)").
@@ -473,6 +528,18 @@ function CreateCollaborativeModal({ onClose, onSuccess }) {
                       borderRadius: '4px', padding: '0.3rem 0.4rem',
                     }}
                   />
+                  <button type="button" onClick={() => moveEvent(idx, idx - 1)} disabled={idx === 0}
+                    title="Move up" style={{
+                      background: 'none', border: 'none', cursor: idx === 0 ? 'not-allowed' : 'pointer',
+                      color: idx === 0 ? '#e5e7eb' : '#6b7280', fontSize: '0.9rem',
+                      padding: '0 0.1rem', lineHeight: 1, flexShrink: 0
+                    }}>↑</button>
+                  <button type="button" onClick={() => moveEvent(idx, idx + 1)} disabled={idx === bscEvents.length - 1}
+                    title="Move down" style={{
+                      background: 'none', border: 'none', cursor: idx === bscEvents.length - 1 ? 'not-allowed' : 'pointer',
+                      color: idx === bscEvents.length - 1 ? '#e5e7eb' : '#6b7280', fontSize: '0.9rem',
+                      padding: '0 0.1rem', lineHeight: 1, flexShrink: 0
+                    }}>↓</button>
                   <button type="button" onClick={() => removeEvent(idx)} title="Remove this event" style={{
                     background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer',
                     fontSize: '1.1rem', padding: '0', lineHeight: '1', flexShrink: 0
