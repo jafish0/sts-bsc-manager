@@ -109,13 +109,17 @@ Until 2026-07-29 only `invite-team-leader` was committed; the other eight lived 
 | `send-ceu-certificate` | 3 | **Retired** — a 410 tombstone. Certificates come from the desktop Training Manager tool. Safe to delete from the dashboard; the MCP toolset can't delete functions. |
 | `lookup-registration` | 2 | Token-scoped read for the cancel page, so the browser needs no SELECT on `event_registrations`. |
 
-**All nine are deployed with `--no-verify-jwt`** (gateway JWT check off). Each function does its own authorization: the public ones treat their token as the credential, the admin ones verify the caller's JWT and role themselves. Keep that property in mind when adding a function — with the gateway check off, an endpoint with no internal auth is world-callable.
+**The intended state is `--no-verify-jwt` on all nine** (gateway JWT check off). Each function does its own authorization: the public ones treat their token as the credential, the admin ones verify the caller's JWT and role themselves. Keep that property in mind when adding a function — with the gateway check off, an endpoint with no internal auth is world-callable.
+
+> ⚠️ **`send-registration-email` is currently `verify_jwt = true`** — the odd one out. Deploying through the Supabase **MCP tool** resets the flag to `true` and exposes no parameter to control it (see Operational gotchas). Verified harmless in practice: all three callers present a valid JWT (`mint-registration` and `cancel-registration` use the service-role key, the admin resend button uses the user session), and a live send after the flip returned 200 and stamped `confirmation_sent_at`. It is also not a real security gain, since the legacy anon key is public and satisfies the gateway. Restore it to off for consistency — see Josh's to-do.
 
 Deploy:
 
 ```bash
 supabase functions deploy <slug> --project-ref jhnquklmwoubpbbmnrjf --no-verify-jwt
 ```
+
+The CLI is **not installed on Josh's machine** (checked 2026-07-29), which is why deploys currently go through the MCP tool and hit the flag problem above.
 
 The committed `index.ts` files are **byte-exact snapshots of what was deployed**, deliberately with no added header comments, so that a future `diff` between repo and deployed shows only real drift instead of permanent boilerplate noise. That is also why the `--no-verify-jwt` fact is recorded here rather than in each file.
 
@@ -137,6 +141,7 @@ Authentication → URL Configuration:
 
 ## Operational gotchas (what cannot be automated, and why)
 
+- **Deploying an edge function via the Supabase MCP tool silently sets `verify_jwt = true`.** The tool takes no `verify_jwt` parameter, so there is no way to preserve `--no-verify-jwt` through an MCP deploy. **After every MCP deploy, check `list_edge_functions` and flip the flag back off in the dashboard** (Edge Functions → the function → Settings). Installing the Supabase CLI would remove this whole failure mode, since `--no-verify-jwt` is a CLI flag.
 - **Email template edits** require dashboard work — no Supabase MCP tool covers them. See "Email templates" section above.
 - **DNS record edits** require dashboard work — no Vercel MCP tool covers DNS. (Available Vercel MCP tools: deployments, projects, logs, toolbar comments, domain availability/price, docs search. No DNS create/update/delete.)
 - **User-attribution rows orphan on delete** — deleting a user no longer fails (FKs are now `ON DELETE SET NULL` for `checklist_items.completed_by`, `forum_posts.created_by`, `forum_threads.created_by`, `pdsa_cycles.created_by`, `session_attendance.user_profile_id`). Orphaned forum posts render as authored by "Unknown" — frontend already handled the null case. If new tables add user-attribution columns, default them to `ON DELETE SET NULL` unless ownership is unambiguous.
@@ -158,8 +163,9 @@ Authentication → URL Configuration:
 ### ⬜ JOSH'S TO-DO — dashboard/UI only, cannot be automated (added 2026-07-29)
 
 1. **Enable leaked password protection.** Supabase dashboard → **Authentication → Passwords** → turn on the HaveIBeenPwned compromised-password check. This is the last remaining item from the 2026-07-29 security pass and still appears in the Advisor as `auth_leaked_password_protection`. Extra relevant right now because the three Anchor Lab testers are on passwords that were assigned to them rather than self-chosen.
-2. **Set a capacity on the AWARE Year 4 TIPE LC registration link.** Link `1c6c754d-b4b8-4f14-8d1a-b486589ce3a0` (the surviving one after the duplicate cleanup) currently has `capacity = NULL`, which means unlimited registrations and the waitlist logic never engages (`mint-registration` only evaluates capacity when non-null). Set it in `/admin/registrations` → Edit before distributing the link, if the cohort is size-limited.
+2. ~~**Set a capacity on the AWARE Year 4 TIPE LC registration link.**~~ ✅ **Done** — `capacity = 297` as of 2026-07-29.
 3. **Distribute the rotated CTAC staff assessment codes** (see "CTAC staff codes" below). The old ones are dead; anyone holding them gets an invalid-code error.
+4. **Turn `verify_jwt` back off for `send-registration-email`.** Supabase dashboard → **Edge Functions → send-registration-email → Settings** → disable the JWT verification toggle. It is the only one of the nine currently `true`; deploying via the MCP tool flipped it and the tool has no parameter to prevent that. Not urgent — a live send after the flip worked (200, `confirmation_sent_at` stamped) because every caller presents a valid JWT — but it should match the other eight. Installing the Supabase CLI would prevent recurrence, since `--no-verify-jwt` is a CLI flag.
 
 ### ✅ Done 2026-07-29: CTAC staff assessment codes rotated
 

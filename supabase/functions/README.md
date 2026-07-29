@@ -8,8 +8,13 @@ git, and the next deploy from the repo overwrites it without warning.
 supabase functions deploy <slug> --project-ref jhnquklmwoubpbbmnrjf --no-verify-jwt
 ```
 
-**Every function here is deployed with `--no-verify-jwt`**, so the gateway does
-*not* check the JWT. Each function does its own authorization instead:
+**The intended state is `--no-verify-jwt` on every function here**, so the gateway
+does *not* check the JWT. Each function does its own authorization instead:
+
+> ⚠️ Deploying through the Supabase **MCP tool** silently sets `verify_jwt = true`
+> and offers no parameter to prevent it. Check `list_edge_functions` after any MCP
+> deploy and flip it back in the dashboard. `send-registration-email` is currently
+> `true` for this reason — see INFRASTRUCTURE.md.
 
 - **Public / token-credentialed** (`mint-registration`, `cancel-registration`,
   `lookup-registration`) — the token in the request body *is* the credential.
