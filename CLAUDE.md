@@ -105,7 +105,7 @@ If unsure, default to the "Standard pattern" above. RLS will refuse anything the
 
 ## Supabase Project
 - Project ref: `jhnquklmwoubpbbmnrjf`
-- Edge Functions **live in the repo** under `supabase/functions/<slug>/index.ts` — the repo is the source of truth; never edit one in the dashboard. Intended deploy flag is `--no-verify-jwt` (gateway JWT check disabled, each function authorizes its own callers), but deploying via the Supabase **MCP tool** silently sets `verify_jwt = true`, so check after every deploy. See INFRASTRUCTURE.md → Edge functions.
+- Edge Functions **live in the repo** under `supabase/functions/<slug>/index.ts` — the repo is the source of truth; never edit one in the dashboard. Intended deploy flag is `--no-verify-jwt` (gateway JWT check disabled, each function authorizes its own callers). **When deploying via the Supabase MCP tool you must pass `verify_jwt: false`** — that parameter defaults to `true`, so omitting it flips the flag on. See INFRASTRUCTURE.md → Edge functions.
 - Storage bucket: `resources` (private, signed URLs for downloads)
 - Supabase: **Pro plan** ($25/mo — 8 GB DB, 100 GB file storage, daily backups, higher egress) with custom SMTP via Resend (email rate limits effectively bypassed). Vercel: **Pro plan**. Resend: **paid plan** (free-tier daily/monthly sending caps lifted — comfortable headroom for invites, reminders, registration + RSVP emails, trainer digests).
 

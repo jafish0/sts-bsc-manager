@@ -119,7 +119,48 @@ Deploy:
 supabase functions deploy <slug> --project-ref jhnquklmwoubpbbmnrjf --no-verify-jwt
 ```
 
-The CLI is **not installed on Josh's machine** (checked 2026-07-29), which is why deploys currently go through the MCP tool and hit the flag problem above.
+### Installing the Supabase CLI (Windows)
+
+Not installed as of 2026-07-29, which is why deploys currently go through the MCP tool. Two supported routes; **`npm install -g supabase` is NOT supported** and will fail.
+
+**Option A — npm dev dependency (recommended here).** This repo already has Node and a root `package.json`, and this pins the CLI version alongside the code so a teammate gets the same one:
+
+```bash
+npm install supabase --save-dev
+```
+
+Then every command is prefixed with `npx`:
+
+```bash
+npx supabase --version
+```
+
+**Option B — Scoop** (Supabase's own recommendation for Windows; installs it machine-wide, no `npx` prefix):
+
+```bash
+scoop bucket add supabase https://github.com/supabase/scoop-bucket.git
+```
+
+```bash
+scoop install supabase
+```
+
+**One-time auth**, which opens a browser to generate an access token. Run this yourself — the token must not pass through a Claude session:
+
+```bash
+npx supabase login
+```
+
+**Then deploying is one command** and preserves the JWT setting correctly:
+
+```bash
+npx supabase functions deploy send-registration-email --project-ref jhnquklmwoubpbbmnrjf --no-verify-jwt
+```
+
+Notes:
+- No `supabase link` needed if you pass `--project-ref` each time.
+- **Docker is not needed for `functions deploy`** — recent CLI versions bundle functions natively. Docker is only required for `supabase start`, which runs the whole stack locally and is not something this project needs.
+- Deploying from the repo is strictly better than the MCP route: it reads the file off disk, so there is no chance of a transcription error, and `--no-verify-jwt` is explicit rather than a default you have to remember to override.
 
 The committed `index.ts` files are **byte-exact snapshots of what was deployed**, deliberately with no added header comments, so that a future `diff` between repo and deployed shows only real drift instead of permanent boilerplate noise. That is also why the `--no-verify-jwt` fact is recorded here rather than in each file.
 
@@ -141,7 +182,7 @@ Authentication → URL Configuration:
 
 ## Operational gotchas (what cannot be automated, and why)
 
-- **Deploying an edge function via the Supabase MCP tool silently sets `verify_jwt = true`.** The tool takes no `verify_jwt` parameter, so there is no way to preserve `--no-verify-jwt` through an MCP deploy. **After every MCP deploy, check `list_edge_functions` and flip the flag back off in the dashboard** (Edge Functions → the function → Settings). Installing the Supabase CLI would remove this whole failure mode, since `--no-verify-jwt` is a CLI flag.
+- **An MCP edge-function deploy sets `verify_jwt = true` unless you explicitly pass `verify_jwt: false`.** Corrected 2026-07-30 (by Josh, then confirmed against the tool schema): the `deploy_edge_function` tool **does** take a `verify_jwt` parameter — it is in fact a *required* field — but it **defaults to `true`**, and omitting it lets the server apply that default. Earlier notes in this file claimed the tool had no such parameter; that was wrong, and it is why several deploys silently flipped the flag. **Always pass `verify_jwt: false` when deploying any function in this project** (all nine authorize their own callers — see Edge functions above). Still worth checking `list_edge_functions` after a deploy.
 - **Email template edits** require dashboard work — no Supabase MCP tool covers them. See "Email templates" section above.
 - **DNS record edits** require dashboard work — no Vercel MCP tool covers DNS. (Available Vercel MCP tools: deployments, projects, logs, toolbar comments, domain availability/price, docs search. No DNS create/update/delete.)
 - **User-attribution rows orphan on delete** — deleting a user no longer fails (FKs are now `ON DELETE SET NULL` for `checklist_items.completed_by`, `forum_posts.created_by`, `forum_threads.created_by`, `pdsa_cycles.created_by`, `session_attendance.user_profile_id`). Orphaned forum posts render as authored by "Unknown" — frontend already handled the null case. If new tables add user-attribution columns, default them to `ON DELETE SET NULL` unless ownership is unambiguous.
