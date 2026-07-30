@@ -262,7 +262,13 @@ export default function RosterSharePage() {
       <p style={{ fontSize: '0.72rem', color: '#9ca3af', marginTop: '1.5rem', lineHeight: 1.5 }}>
         Read-only view shared by the Center on Trauma and Children. Please treat the
         names and contact details on this page as confidential.
-        {link.expires_at && <> This link stops working after {formatEventDate(String(link.expires_at).slice(0, 10))}.</>}
+        {/* Convert to Eastern before taking the date part. Slicing the UTC
+            string would name the following day for an 11:59 PM ET expiry — the
+            same bug the admin modal had. */}
+        {link.expires_at && <> This link stops working after {formatEventDate(
+          new Intl.DateTimeFormat('en-CA', { timeZone: 'America/New_York', year: 'numeric', month: '2-digit', day: '2-digit' })
+            .format(new Date(link.expires_at))
+        )}.</>}
       </p>
     </Shell>
   )

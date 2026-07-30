@@ -12,6 +12,20 @@ import { COLORS } from '../utils/constants'
 // stays out of the schema, and it is editable per link without a deploy.
 const DEFAULT_ACCESS_CODE = '2112'
 
+// The expiry date box is an EASTERN calendar date, because the rule is "end of
+// the day, Eastern". Reading it needs an explicit conversion: slicing the first
+// 10 characters off a timestamptz gives the UTC date, which for an 11:59 PM ET
+// instant is the NEXT day — that was the bug (the picker showed Oct 29 for a
+// value meaning Oct 28, and reopening the modal drifted it again).
+function etDateOf(ts) {
+  if (!ts) return ''
+  // en-CA formats as YYYY-MM-DD, which is exactly what <input type="date"> wants.
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'America/New_York',
+    year: 'numeric', month: '2-digit', day: '2-digit',
+  }).format(new Date(ts))
+}
+
 const overlay = {
   position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)',
   display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -41,12 +55,12 @@ export default function RosterShareModal({ link, onClose, onSaved }) {
       setRow(data)
       setIncludeEmails(data.roster_share_include_emails === true)
       setAccessCode(data.roster_share_access_code || DEFAULT_ACCESS_CODE)
-      setExpiresAt(data.roster_share_expires_at ? String(data.roster_share_expires_at).slice(0, 10) : '')
+      setExpiresAt(etDateOf(data.roster_share_expires_at))
       // Prefill the expiry from the "day after Session 1" rule for a link that
       // has never been shared, so Josh sees the suggested date before saving.
       if (!data.roster_share_expires_at) {
         const { data: def } = await supabase.rpc('default_roster_share_expiry', { p_link_id: link.id })
-        if (def) setExpiresAt(String(def).slice(0, 10))
+        if (def) setExpiresAt(etDateOf(def))
       }
       setLoading(false)
     })()
@@ -90,13 +104,20 @@ export default function RosterShareModal({ link, onClose, onSaved }) {
   const save = async () => {
     if (!accessCode.trim()) { setError('An access code is required.'); return }
     if (!expiresAt) { setError('An expiry date is required.'); return }
-    // End of the chosen day in Eastern time, matching the derivation rule.
-    // -04:00/-05:00 differ across DST, so let Postgres resolve the zone rather
-    // than hardcoding an offset here.
+
+    // Convert the Eastern calendar date to an instant in SQL rather than here.
+    // Sending a naive `${expiresAt}T23:59:59` made PostgREST interpret it in the
+    // session zone (UTC), storing 7:59 PM ET instead of 11:59 PM ET. The helper
+    // shares the AT TIME ZONE construction with default_roster_share_expiry(),
+    // so the offset is resolved per-date and DST is handled in one place.
+    const { data: instant, error: convErr } = await supabase
+      .rpc('roster_share_expiry_for_date', { p_date: expiresAt })
+    if (convErr) { setError(`Could not set the expiry date: ${convErr.message}`); return }
+
     await patch({
       roster_share_include_emails: includeEmails,
       roster_share_access_code: accessCode.trim(),
-      roster_share_expires_at: `${expiresAt}T23:59:59`,
+      roster_share_expires_at: instant,
     }, { regenerate: !row?.roster_share_token })
   }
 

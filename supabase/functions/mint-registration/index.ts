@@ -43,6 +43,24 @@ function validate(schema: FieldDef[], responses: Record<string, any>): string | 
   return null
 }
 
+// Trim every STRING answer before storing. Only `email` and `full_name` were
+// trimmed before, so every other field was stored exactly as typed — which
+// already produced "Allen County" and "Allen County " as two distinct districts
+// in a 4-person roster. They sort, group and export as different values, and any
+// future dedupe by district would silently split.
+//
+// Strings only: booleans, numbers and nulls pass through untouched, so no value
+// is coerced to a different type. Presence validation is unaffected — validate()
+// already uses String(v).trim() !== '', so a space-only required field was
+// rejected before this and still is. The text_na sentinel 'N/A' trims to 'N/A'.
+function trimResponses(responses: Record<string, any>): Record<string, any> {
+  const out: Record<string, any> = {}
+  for (const [k, v] of Object.entries(responses || {})) {
+    out[k] = typeof v === 'string' ? v.trim() : v
+  }
+  return out
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders })
 
@@ -52,7 +70,12 @@ Deno.serve(async (req) => {
     const admin = createClient(supabaseUrl, serviceRoleKey)
 
     const body = await req.json().catch(() => ({}))
-    const { token, responses, honeypot } = body as any
+    const { token, responses: rawResponses, honeypot } = body as any
+    // Normalize up front so validation, dedupe and the stored jsonb all see the
+    // same trimmed values.
+    const responses = rawResponses && typeof rawResponses === 'object'
+      ? trimResponses(rawResponses)
+      : rawResponses
     if (honeypot) return new Response(JSON.stringify({ success: true }), { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
     if (!token || !responses) {
       return new Response(JSON.stringify({ error: 'token and responses are required' }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
