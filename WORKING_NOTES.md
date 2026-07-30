@@ -120,9 +120,10 @@ A bidirectional scratchpad shared between Josh, Claude Cowork (Claude desktop ch
 
 **✅ BOTH QUEUED DRAFTS SHIPPED 2026-07-17** (collaborative-creation usability + registration hardening round 2 — see Recently shipped). The `RESEND_API_KEY` blocker found during that work was **resolved the same day** — Josh set the secret and the email pipeline is verified end to end. Registration is now safe to use with real registrants. Superseded queue note follows:
 
-**READY (2 drafts queued at the bottom of this file, work them in order):**
+**READY (3 drafts queued at the bottom of this file, work them in order):**
 1. **"Add to calendar" links in emails (3 items)** — the `.ics` attachment is unusable for participants: Gmail shows its own "Unable to load event" card (those cards handle ONE event, our file has eight) and Outlook Web dead-ends the same way. Fix is per-event Google/Outlook add-to-calendar **links**, keeping the attachment as a fallback. Subscribe feed **declined** (dates rarely move); `METHOD:REQUEST` **rejected** (would silently lose RSVPs).
 2. **Public registration page: branding + readable event list (4 items)** — event list becomes a table like the email (no Zoom links), all times gain start+end and an **ET** suffix, CTAC logo top / UK lockup bottom reusing the existing `.logo-top`/`.logo-bottom` pattern, and a brand-color background. Includes ⚠️ optimizing `UK_Lockup-286.png` (**3.08 MB** rendered at 250px wide — also slows the public assessment pages).
+3. **Shareable read-only registration roster link (5 items)** — a no-login URL Josh can email to a partner who needs to watch the roster fill. ⚠️ Deliberately exposes participant PII to a URL, so read its security section first; it must NOT reopen anon access to `event_registrations`. Josh's decisions: one link per registration link, **emails hidden by default** (checkbox to include), expires the day after Session 1, access code `2112` stored per-link in the DB.
 
 **✅ SHIPPED: Reminder pipeline before the Oct 27 cohort** (items 1-3 shipped `4e3a9fd`/`119884d`/`61087b8`, plus `0545f5b` for the RSVP page crash the verification step uncovered; **item 4, the test accounts, is still Josh's**). ⚠️ Headline finding: **automated reminders never reach registrants** — recipients resolve from team members only, and the real AWARE cohort has 0 teams, so the crons would report success while sending zero email to 297 registered educators. Also back-ports the `btoa` + RFC-5545 `.ics` fixes that `send-event-reminder` never received (cron-driven, so one curly apostrophe silently kills every reminder for an event), applies the Outlook-first email treatment, and restores non-super_admin test accounts so Claude Code can click-through verify again.
 
@@ -835,3 +836,95 @@ Co-branded UK marks have institutional usage rules. The `UKCTAC_logoasuite_web__
 - Confirm both logos render (not broken image icons) and that the page still loads promptly after the asset optimization — measure the page weight before and after.
 - Check the success state by submitting a test registration, then **delete the test row** (registration tables should return to their pre-test state; there is currently exactly 1 registrant, Josh's earlier Gmail test).
 - Check dark mode.
+
+---
+
+### 2026-07-30: Shareable read-only registration roster link (no login) — READY
+
+> **Why.** Registration for the AWARE Year 4 TIPE LC is **live with a real registrant** (JCPS, 2026-07-30). CTAC sometimes runs registration on behalf of a partner who needs to watch the roster fill but has no BSC account and shouldn't get one. Josh wants a URL he can paste into an email; the recipient clicks it and sees the roster, no login.
+>
+> ⚠️ **This is the one feature that deliberately exposes participant PII to a URL. Read the security section first — it is not optional.** The 2026-07-17 hardening round removed anonymous access to `event_registrations` entirely (dropped two `qual = true` policies, revoked anon's grants). **Do not reopen that.** The proven pattern to copy is `lookup-registration`: a token-scoped edge function that reads with the service role and returns only the fields the page renders.
+>
+> **Josh's four decisions, as given:**
+> 1. **One share link per registration link** (not per partner).
+> 2. **Emails are hidden by default**, revealed only if the "include email addresses" checkbox is ticked.
+> 3. **Expires the day after Session 1.**
+> 4. **Access code required**, default `2112`.
+
+#### Item 1: Schema
+
+Add to `event_registration_links` (single link per registration link, per decision 1):
+
+- `roster_share_token text UNIQUE` — `encode(gen_random_bytes(16),'hex')`, generated on demand (NULL until Josh creates the share link, so existing links are unaffected).
+- `roster_share_include_emails boolean NOT NULL DEFAULT false` — **default false, matching decision 2.**
+- `roster_share_access_code text` — the code, **stored per link, NOT hardcoded in source.** Seed new links with `2112` as the default value so Josh gets what he asked for, but it must be editable per link without a deploy and must never appear in the repo.
+- `roster_share_expires_at timestamptz` — see item 2 for derivation.
+- `roster_share_revoked_at timestamptz` — revoke without deleting, so an accidental revoke is recoverable and the audit trail survives.
+- `roster_share_view_count integer NOT NULL DEFAULT 0` and `roster_share_last_viewed_at timestamptz` — cheap audit trail; worth having when the payload is personal data.
+
+Per `CLAUDE.md`, this is an existing table so no new GRANTs are needed — **and deliberately no new RLS policy.** The browser must never read these columns; only the edge function (service role) touches them.
+
+#### Item 2: Expiry derivation ("day after Session 1")
+
+- Compute as **the earliest `event_date` among the events covered by this registration link, plus one day, at 23:59:59 America/New_York.** For the AWARE link that is Session 1 on **2026-10-27**, so expiry **2026-10-28** end of day.
+- Derive it when the share link is created, **store it** rather than recomputing on every request (so a later event-schedule edit can't silently extend or shorten a partner's access without Josh knowing).
+- **Make it editable** in the admin UI. A partner may legitimately need the roster after the cohort starts, and Josh should be able to extend without recreating the link.
+- Fallback if the link covers no events (shouldn't happen — creation requires at least one): 90 days out. Do not leave it NULL, because NULL must be treated as "no expiry" nowhere in this feature.
+
+#### Item 3: The edge function
+
+New function, e.g. `lookup-roster`, modeled on `lookup-registration`. Deploy with **`verify_jwt: false`** — and per `INFRASTRUCTURE.md`, **pass that explicitly**, because the MCP deploy tool's `verify_jwt` parameter defaults to `true`.
+
+Request: `{ token, access_code }`. It must, in order:
+
+1. Look up the link by `roster_share_token`. Unknown token → generic "not found." **Do not distinguish "no such token" from "revoked" or "expired"** in the response, so the endpoint can't be used to probe which tokens exist.
+2. Reject if `roster_share_revoked_at IS NOT NULL` or `now() > roster_share_expires_at`. These two *may* return a friendly distinct message once the code has already been accepted (see below) — but never before.
+3. **Require the access code.** Compare against `roster_share_access_code`. Do the comparison in a way that isn't trivially timing-attackable, and **rate-limit failed attempts per token** (a 4-digit code is brute-forceable in a few thousand requests otherwise — this is the single most important hardening detail in the item). A short lockout or exponential delay after ~5 failures is sufficient.
+4. Only then return the payload.
+
+Payload — **allowlist the fields, never spread the row**:
+
+- Link: title, collaborative name, capacity, registration open/close dates, and the counts (registered / waitlisted / cancelled).
+- The events covered (title, date, start/end time) so the partner has context — reuse the same 12-hour + **ET** formatting as the registration page and email.
+- Per registrant: `full_name`, `status`, `waitlist_position`, `registered_at`, and the **link's configured form fields** (School or District, Position or Title, District(s) Served, Grade Level(s)) read from `responses`.
+- `email` **only if `roster_share_include_emails` is true.**
+
+**Never return, under any circumstances:** `cancel_token` (anyone holding one can cancel that person's registration), `id`, `registration_link_id`, `session_attendance_id`, the raw `responses` jsonb wholesale (it contains `email_confirm`, which would leak the email even with the checkbox off), or any of the `roster_share_*` columns. Build the response object explicitly, field by field.
+
+Also: increment `roster_share_view_count` and stamp `roster_share_last_viewed_at` on each successful load.
+
+#### Item 4: The public page
+
+New public route, e.g. `/roster/:token`, registered in `App.jsx` alongside the other public routes.
+
+- Prompt for the access code first; on success, render the roster. Keep the accepted state in `sessionStorage` so a refresh doesn't re-prompt within the session, and do **not** persist it beyond that.
+- Read-only. No cancel, no promote, no edit, no export controls that hit admin endpoints. A CSV download built from the already-fetched payload is acceptable if trivial — say whether you included it.
+- Show: title, collaborative, the counts, capacity and how many seats remain, the events table, then the roster table (Name, School or District, Position, status pill, registered date, and Email only when enabled).
+- Empty state for zero registrants. Clear expired/revoked state ("This roster link is no longer active. Contact CTAC for an updated link.").
+- **Add `<meta name="robots" content="noindex, nofollow">`** for this route so the URL never lands in a search index. Confirm how that is done in this SPA (a `useEffect` injecting the tag is fine) and verify it renders.
+- Apply the same branding treatment as the registration page once that draft lands (CTAC logo top, UK lockup bottom, brand background) so it looks like part of the same system. If that draft hasn't shipped yet, don't block on it; match `RegisterPage`'s current styling and note the follow-up.
+- Mobile matters: partners will open this on phones. Verify at 360px.
+
+#### Item 5: Admin UI
+
+On `/admin/registrations` (and the CollaborativeDetail Registrations panel if cheap), per link:
+
+- **"Share roster"** action opening a small modal: generate/regenerate the token, the **include email addresses** checkbox (unchecked by default), the access code (prefilled `2112`, editable), the expiry date (prefilled from item 2's rule, editable), and a **Copy link** button.
+- Show `roster_share_view_count` and `roster_share_last_viewed_at` so Josh can see whether a partner actually used it.
+- **Revoke** button (sets `roster_share_revoked_at`) and an un-revoke, plus **Regenerate token** for when a link has clearly leaked — regenerating must invalidate the old URL immediately.
+- Make the email-inclusion state obvious in the UI at a glance, e.g. a badge reading "emails hidden" or "emails visible", so Josh always knows what a partner can see without opening the modal.
+- Writes go through the normal authenticated admin path (RLS `Admins manage registration links` via `is_admin_for_collaborative`), not the new edge function.
+
+#### Security summary (verify each of these explicitly)
+
+1. Anonymous SELECT on `event_registrations` stays **revoked** — confirm with the publishable key that it still returns `42501` after this ships.
+2. `cancel_token` never appears in the payload — grep the response builder.
+3. `email` absent when the checkbox is off, including via `responses`/`email_confirm`.
+4. Wrong access code is rejected and repeated failures are throttled.
+5. Expired and revoked links both refuse to serve data.
+6. Regenerating the token kills the old URL.
+7. Unknown vs revoked vs expired are indistinguishable before the code is accepted.
+
+#### Note for Josh (not a code task)
+
+The access code is a **speed bump against forwarded links, not access control** — a 4-digit code with rate limiting resists casual sharing, not a determined attacker. It only adds real protection if it travels separately from the link (a second email, or said out loud on a call). If it ends up pasted directly beneath the URL in the same message, its value is close to zero — that's fine as a deliberate choice, just worth knowing. The expiry and the revoke button are the stronger controls here.
