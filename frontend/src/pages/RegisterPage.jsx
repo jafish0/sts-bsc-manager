@@ -235,7 +235,33 @@ function FieldRenderer({ field, value, onChange }) {
       {field.helpText && (
         <div style={{ fontSize: '0.78rem', color: '#6b7280', marginBottom: '0.25rem' }}>{field.helpText}</div>
       )}
-      {field.type === 'textarea' ? (
+      {field.type === 'text_na' ? (
+        // Text box plus an N/A tick. Ticking it writes the literal 'N/A', so a
+        // required text_na field is always non-empty on submit — the field stays
+        // genuinely mandatory instead of being satisfiable by a blank.
+        // mint-registration needs no change: its validator only applies the
+        // required-presence check to a type it doesn't recognise, and 'N/A'
+        // passes that.
+        <>
+          <input
+            type="text"
+            value={value === 'N/A' ? '' : value}
+            onChange={(e) => onChange(field.key, e.target.value)}
+            required={required && value !== 'N/A'}
+            disabled={value === 'N/A'}
+            placeholder={value === 'N/A' ? 'Not applicable' : (field.placeholder || '')}
+            style={{ ...inputStyle, background: value === 'N/A' ? '#f3f4f6' : 'white', color: value === 'N/A' ? '#9ca3af' : 'inherit' }}
+          />
+          <label style={{ display: 'flex', gap: '0.4rem', alignItems: 'center', marginTop: '0.3rem', fontSize: '0.8rem', color: '#4b5563', cursor: 'pointer' }}>
+            <input
+              type="checkbox"
+              checked={value === 'N/A'}
+              onChange={(e) => onChange(field.key, e.target.checked ? 'N/A' : '')}
+            />
+            {field.naLabel || 'Not applicable'}
+          </label>
+        </>
+      ) : field.type === 'textarea' ? (
         <textarea value={value} onChange={(e) => onChange(field.key, e.target.value)} required={required} rows={3} style={{ ...inputStyle, fontFamily: 'inherit', resize: 'vertical' }} placeholder={field.placeholder || ''} />
       ) : field.type === 'select' ? (
         <select value={value} onChange={(e) => onChange(field.key, e.target.value)} required={required} style={inputStyle}>

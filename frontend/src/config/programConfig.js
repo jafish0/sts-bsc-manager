@@ -138,9 +138,19 @@ export const PROGRAM_BRANDING = {
     // or district, `role` holds the position) so rosters/exports don't fork.
     registrationFields: [
       ...REGISTRATION_SYSTEM_FIELDS,
-      { key: 'agency', label: 'School or District', type: 'text', required: true },
+      // 'District' keeps the canonical `agency` key rather than a new `district`
+      // one: `agency` is the cross-program "employing organisation" key that the
+      // roster and CEU exports already read, and reusing it means registrations
+      // collected under the previous "School or District" label still display
+      // instead of being orphaned in the responses jsonb.
+      { key: 'agency', label: 'District', type: 'text', required: true },
+      // Mandatory, but a district-level registrant has no single school — hence
+      // text_na: a text box plus an N/A tick that fills in "N/A". Either way the
+      // field ends up non-empty, so the required check is satisfied honestly
+      // rather than by letting people leave it blank.
+      { key: 'school', label: 'School', type: 'text_na', required: true,
+        naLabel: 'Not applicable (district-level role)' },
       { key: 'role', label: 'Position or Title', type: 'text', required: true },
-      { key: 'districts', label: 'District(s) Served', type: 'text', required: false },
       { key: 'grade_levels', label: 'Grade Level(s)', type: 'text', required: false },
     ],
     // Schools-flavored "add a common field" presets (falls back to the shared
