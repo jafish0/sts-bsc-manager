@@ -139,10 +139,9 @@ A bidirectional scratchpad shared between Josh, Claude Cowork (Claude desktop ch
 
 **✅ BOTH QUEUED DRAFTS SHIPPED 2026-07-17** (collaborative-creation usability + registration hardening round 2 — see Recently shipped). The `RESEND_API_KEY` blocker found during that work was **resolved the same day** — Josh set the secret and the email pipeline is verified end to end. Registration is now safe to use with real registrants. Superseded queue note follows:
 
-**READY (3 drafts queued at the bottom of this file, work them in order):**
-1. **"Add to calendar" links in emails (3 items)** — the `.ics` attachment is unusable for participants: Gmail shows its own "Unable to load event" card (those cards handle ONE event, our file has eight) and Outlook Web dead-ends the same way. Fix is per-event Google/Outlook add-to-calendar **links**, keeping the attachment as a fallback. Subscribe feed **declined** (dates rarely move); `METHOD:REQUEST` **rejected** (would silently lose RSVPs).
-2. **Public registration page: branding + readable event list (4 items)** — event list becomes a table like the email (no Zoom links), all times gain start+end and an **ET** suffix, CTAC logo top / UK lockup bottom reusing the existing `.logo-top`/`.logo-bottom` pattern, and a brand-color background. Includes ⚠️ optimizing `UK_Lockup-286.png` (**3.08 MB** rendered at 250px wide — also slows the public assessment pages).
-3. **Shareable read-only registration roster link (5 items)** — a no-login URL Josh can email to a partner who needs to watch the roster fill. ⚠️ Deliberately exposes participant PII to a URL, so read its security section first; it must NOT reopen anon access to `event_registrations`. Josh's decisions: one link per registration link, **emails hidden by default** (checkbox to include), expires the day after Session 1, access code `2112` stored per-link in the DB.
+**READY: Registration data hygiene + share-expiry timezone bug (2 items) — see the LAST draft at the bottom of this file.** Both found reviewing the LIVE roster (4 real registrants). (1) `mint-registration` trims only `email`/`full_name`, so every other answer stores as typed — live data already has trailing spaces that will split district grouping. (2) The roster share expiry lands ~1 day late: `default_roster_share_expiry()` is correct, but `RosterShareModal` slices the **UTC** date off a timestamptz and saves a naive `T23:59:59` with no offset. Cowork already backfilled the 4 live rows' whitespace (verified 0 untrimmed values remain).
+
+_(Shipped 2026-07-29/30: add-to-calendar links `fc94f1b`/`b646c76`; registration page branding + asset optimization `513ca37`/`e9e85dc`; shareable roster link `5916b90`; TIPE District/School fields `c1b0393`.)_
 
 **✅ SHIPPED: Reminder pipeline before the Oct 27 cohort** (items 1-3 shipped `4e3a9fd`/`119884d`/`61087b8`, plus `0545f5b` for the RSVP page crash the verification step uncovered; **item 4, the test accounts, is still Josh's**). ⚠️ Headline finding: **automated reminders never reach registrants** — recipients resolve from team members only, and the real AWARE cohort has 0 teams, so the crons would report success while sending zero email to 297 registered educators. Also back-ports the `btoa` + RFC-5545 `.ics` fixes that `send-event-reminder` never received (cron-driven, so one curly apostrophe silently kills every reminder for an event), applies the Outlook-first email treatment, and restores non-super_admin test accounts so Claude Code can click-through verify again.
 
@@ -985,3 +984,62 @@ On `/admin/registrations` (and the CollaborativeDetail Registrations panel if ch
 #### Note for Josh (not a code task)
 
 The access code is a **speed bump against forwarded links, not access control** — a 4-digit code with rate limiting resists casual sharing, not a determined attacker. It only adds real protection if it travels separately from the link (a second email, or said out loud on a call). If it ends up pasted directly beneath the URL in the same message, its value is close to zero — that's fine as a deliberate choice, just worth knowing. The expiry and the revoke button are the stronger controls here.
+
+---
+
+### 2026-07-30: Registration data hygiene + share-expiry timezone bug (2 items) — READY
+
+> Both found while reviewing the **live** AWARE roster (4 real registrants as of 2026-07-30, all confirmed by email). Small, self-contained, and worth doing while the cohort is still small.
+
+#### Item 1: 🐞 Trim whitespace on submitted registration answers
+
+`mint-registration` trims **only** the two canonical keys (`index.ts` ~lines 90-91: `String(responses.email||'').trim().toLowerCase()` and `String(responses.full_name||'').trim()`). Every other answer is stored **exactly as typed**, and the `responses` jsonb is inserted raw.
+
+Real data already affected (all 4 live registrants, trailing spaces shown as `·`):
+
+| field | stored value |
+|---|---|
+| District | `Allen County·` |
+| District | `Annapolis High School·` |
+| Position | `Mental Health Counselor·` |
+| Position | `Contracted School-based Therapist` (clean) |
+
+Consequences as the roster grows: `Allen County` and `Allen County·` sort and group as two different districts, exports look sloppy, and any future grouping or dedupe by district silently splits.
+
+**Fix:** in `mint-registration`, normalize the whole `responses` object before insert — trim every **string** value (leave booleans/numbers/nulls untouched; do not coerce types). Collapse internal runs of whitespace only if trivial; the required behavior is just leading/trailing trim.
+
+Notes:
+- **Validation already handles whitespace-only correctly** — `validate()` uses `String(v).trim() !== ''` for the presence check, so a space-only required field is already rejected. Trimming on insert does not weaken that; verify it still holds.
+- Keep the `'N/A'` sentinel from the `text_na` School field working (`c1b0393`) — `'N/A'` trims to `'N/A'`, so no change, but confirm.
+- **Backfill:** Cowork already trimmed the 4 existing rows' string answers in place (safe, lossless, whitespace-only). Re-run an idempotent trim as part of this item anyway and report the row count touched — it should be 0 if the backfill held.
+
+#### Item 2: 🐞 Roster share expiry lands ~1 day late (timezone handling in the modal)
+
+**Observed:** the live AWARE share link has `roster_share_expires_at = 2026-10-29 23:59:59+00`. The spec (and Josh's decision) was **the day after Session 1, end of day Eastern** — Session 1 is 2026-10-27, so the correct value is **2026-10-28 23:59:59 America/New_York = 2026-10-29 03:59:59+00**. It is currently ~20 hours late.
+
+**The SQL is correct; the frontend is not.** `default_roster_share_expiry()` does the right thing:
+
+```sql
+SELECT ((min(e.event_date) + 1)::text || ' 23:59:59')::timestamp AT TIME ZONE 'America/New_York'
+```
+
+For AWARE that returns `2026-10-29T03:59:59Z`, which **is** Oct 28 11:59:59 PM ET. Two compounding frontend bugs in `RosterShareModal.jsx` corrupt it:
+
+1. **Line ~49:** `setExpiresAt(String(def).slice(0, 10))` takes the first 10 characters of the **UTC** representation. `2026-10-29T03:59:59Z` slices to `"2026-10-29"` — the UTC date, not the intended Eastern date `2026-10-28`. **The displayed date is a day later than the rule intends.** Same pattern on line ~44 for an already-saved value, so reopening the modal shows a date shifted from what is stored.
+2. **Line ~99:** `roster_share_expires_at: \`${expiresAt}T23:59:59\`` sends a naive timestamp with **no offset**. Postgres interprets it in the session timezone (UTC for PostgREST), so the saved instant is 23:59:59 **UTC** = 7:59 PM ET, not 11:59 PM ET.
+
+**Fix both, and treat the date input as an Eastern calendar date throughout:**
+
+- When prefilling from the RPC or from a stored value, convert the timestamptz **to America/New_York** before taking the date part, so the date box shows the Eastern date the user actually means.
+- When saving, build the instant explicitly as `<date> 23:59:59 America/New_York` rather than sending a naive string. Either send an offset-qualified ISO string, or (cleaner and consistent with the RPC) pass the date to a small SQL helper / reuse the `AT TIME ZONE` construction so the conversion lives in one place.
+- **Round-trip test:** pick `2026-10-28` in the picker, save, reopen — the box must still read `2026-10-28`, and the stored value must be `2026-10-29 03:59:59+00`. Today that round-trip drifts a day each way.
+- Check a date on the other side of the DST boundary too (e.g. `2026-12-02`, EST) and confirm the offset is −0500 there and −0400 in October. This is the same DST-straddling cohort that made the `.ics` `VTIMEZONE` work necessary.
+- `lookup-roster`'s expiry check (`new Date(link.roster_share_expires_at) < new Date()`) is comparing real instants and is **correct** — no change needed there.
+
+**Also fix the live link's stored value** once the code is right: set the AWARE link's `roster_share_expires_at` to `2026-10-29 03:59:59+00` so it matches Josh's actual decision. It is currently more permissive than intended, not less, so there is no urgency — but do not leave the data disagreeing with the rule.
+
+#### Verification
+
+- Submit a test registration with deliberate leading/trailing spaces in District, School and Position; confirm the stored jsonb is trimmed. **Then delete the test row** — the roster is live and being shared with partners, so it must return to exactly the 4 real registrants.
+- Round-trip the expiry date in the modal (see above), including across the DST boundary.
+- Confirm the roster share page still loads with the corrected expiry and that the access-code gate, hidden-emails default, view counter and revoke all still behave (this item touches the modal that configures them).
