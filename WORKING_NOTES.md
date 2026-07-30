@@ -14,6 +14,15 @@ A bidirectional scratchpad shared between Josh, Claude Cowork (Claude desktop ch
 
 > What's been built recently, so Claude Cowork has the running context without re-reading the entire git log.
 
+- **2026-07-30 — Shareable read-only roster link (draft `3d62d51`) — ALL 5 ITEMS SHIPPED + deployed.** `lookup-roster` v1 deployed **with `verify_jwt: false` passed explicitly** (see the correction below — that parameter is the whole reason earlier deploys kept flipping the flag).
+  - **Migration `roster_share_link_columns`** — seven `roster_share_*` columns on `event_registration_links` (one share link per registration link, decision 1), plus two brute-force columns the draft's rate-limit requirement needs. **No new RLS policy and no new GRANT, deliberately**: the browser never reads these; only the service-role function does. `roster_share_include_emails` defaults **false** (decision 2). The access code is **not** a column DEFAULT — that would bake `2112` into the schema; it's seeded by the admin UI so it stays out of the repo and is editable per link.
+  - **Expiry (item 2)** — `default_roster_share_expiry()` returns earliest covered event + 1 day at 23:59:59 ET, computed once and **stored** so a later schedule edit can't silently move a partner's access. Verified against the real link: Session 1 `2026-10-27` → `2026-10-28 23:59:59 ET`. 90-day fallback if a link covers no events; never NULL.
+  - **Edge function (item 3)** — `lookup-roster`, modelled on `lookup-registration`. **Went beyond the draft on one point:** it specifies a generic "not found" for an unknown token and a separate rejection for a bad code — but if those differ, an attacker can enumerate which tokens exist without ever knowing a code, which is exactly the probe the draft wants to prevent. Unknown token, wrong code and missing code now return **byte-identical 401s**. Revoked/expired only become distinguishable *after* the code is accepted. Constant-time code comparison; 5 failures → 15-minute lockout. Payload is built field by field.
+  - **All 7 security properties verified live against the real AWARE link** (with two real registrants in it): (1) anon SELECT on `event_registrations` still `42501`; (2) no `cancel_token`, `id`, `registration_link_id`, `session_attendance_id`, `email_confirm`, `zoom_link` or any `roster_share_*` in the payload; (3) with emails off the response contains **no `@` character at all**; (4) 5 bad codes → even the CORRECT code returns 429; (5) revoked → generic 401 on a wrong code, friendly 403 on the right one; expired likewise; (6) regenerating replaces the token; (7) unknown vs revoked vs expired indistinguishable pre-auth. Form-field columns come from `form_schema`, never from iterating raw `responses` — which is what would have leaked the email via `email_confirm`.
+  - **Public page (item 4)** — `/roster/:token`, code gate first, accepted code in **sessionStorage** only. `noindex, nofollow` meta injected per-route and removed on unmount (verified present). Read-only by construction; **CSV included** — built from the already-fetched payload, so it can't expose anything the page doesn't already show. Verified with real data: counts (2 registered / 297 capacity / 295 seats left), all 8 sessions with 12-hour ET times and years, correct field columns, "emails hidden" badge. At **360px**: no re-prompt, stacked cards, zero overflow.
+  - **Admin UI (item 5)** — "Share" button on `/admin/registrations` whose label carries the state at a glance (`(live)` / `(emails on)` / `(revoked)`), opening a modal with the email checkbox, editable code prefilled `2112`, expiry prefilled from the rule, Copy link, Regenerate, Revoke/Un-revoke, and the view count + last-viewed. Writes go through the normal authenticated admin path; an update returning zero rows is surfaced as an error rather than looking like success.
+  - **All test state removed** — zero `roster_share_token` values in the DB. Josh creates the real one from the modal.
+  - ⚠️ **Not added to the CollaborativeDetail panel** (the draft said "if cheap"). Left out to keep this change contained; `/admin/registrations` has it and that's where link management lives.
 - **2026-07-29 — Add-to-calendar links + public registration page branding (drafts `9281e80` + `493b106`) — code SHIPPED, ⏳ TWO DEPLOYS PENDING.**
   - ✅ **2026-07-30: `send-registration-email` DEPLOYED (v7).** The add-to-calendar links are live; every registration from 18:49 UTC onward gets them.
   - 🔴 **THE AWARE LINK IS LIVE AND HAS ITS FIRST REAL REGISTRANT.** `heather.cicchiellowright@jefferson.kyschools.us` registered **2026-07-30 17:39:30 UTC**, confirmation sent one second later — **70 minutes BEFORE the v7 deploy (18:49:29 UTC)**. So she received the OLD email: correct dates/times/heading (that was `bbd7adc`, already live), but with the "add them in one click" claim and **no add-to-calendar links**. Nobody else is affected; everyone after 18:49 gets v7. Josh's call whether that's worth a follow-up note to her — probably not, but he should know rather than discover it.
@@ -843,7 +852,45 @@ Co-branded UK marks have institutional usage rules. The `UKCTAC_logoasuite_web__
 
 ---
 
-### 2026-07-30: Shareable read-only registration roster link (no login) — READY
+### ⬜ JOSH: install the Supabase CLI when convenient (not blocking anything)
+
+Full detail lives in `INFRASTRUCTURE.md` → "Installing the Supabase CLI (Windows)". Short version — **you do not need this for any current feature**; it just makes edge-function deploys one command instead of me re-emitting the whole file, which is what made me defer the `send-event-reminder` deploy twice.
+
+`npm install -g supabase` is **not supported** and will fail. Pick one:
+
+**Option A (recommended)** — dev dependency, pins the version with the repo:
+
+```bash
+npm install supabase --save-dev
+```
+
+**Option B** — Scoop, machine-wide, no `npx` prefix afterwards:
+
+```bash
+scoop bucket add supabase https://github.com/supabase/scoop-bucket.git
+```
+
+```bash
+scoop install supabase
+```
+
+Then one-time auth. **Run this yourself** — it mints an access token in the browser, and that token must not pass through a Claude session:
+
+```bash
+npx supabase login
+```
+
+After that a deploy is:
+
+```bash
+npx supabase functions deploy send-event-reminder --project-ref jhnquklmwoubpbbmnrjf --no-verify-jwt
+```
+
+No `supabase link` needed when you pass `--project-ref`. **Docker is not required for `functions deploy`** — only for `supabase start`, the full local stack, which this project doesn't use.
+
+---
+
+### 2026-07-30: Shareable read-only registration roster link (no login) — ✅ SHIPPED (see Recently shipped; migration + lookup-roster v1 + 2 new frontend files) — spec kept for reference
 
 > **Why.** Registration for the AWARE Year 4 TIPE LC is **live with a real registrant** (JCPS, 2026-07-30). CTAC sometimes runs registration on behalf of a partner who needs to watch the roster fill but has no BSC account and shouldn't get one. Josh wants a URL he can paste into an email; the recipient clicks it and sees the roster, no login.
 >

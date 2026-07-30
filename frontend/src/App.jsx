@@ -45,6 +45,7 @@ import RsvpPage from './pages/RsvpPage'
 import UnsubscribePage from './pages/UnsubscribePage'
 import RegisterPage from './pages/RegisterPage'
 import CancelRegistrationPage from './pages/CancelRegistrationPage'
+import RosterSharePage from './pages/RosterSharePage'
 import RegistrationsAdmin from './pages/RegistrationsAdmin'
 import TrainingsAdmin from './pages/TrainingsAdmin'
 import TrainingHub from './pages/TrainingHub'
@@ -109,6 +110,11 @@ function App() {
           {/* Public registration + cancel pages */}
           <Route path="/register/:token" element={<RegisterPage />} />
           <Route path="/cancel-registration/:token" element={<CancelRegistrationPage />} />
+
+          {/* Public read-only roster share (token + access code, no login).
+              Carries participant PII behind a short code — the page injects a
+              noindex/nofollow meta tag so the URL never enters a search index. */}
+          <Route path="/roster/:token" element={<RosterSharePage />} />
 
           {/* Public training hub — gated by hub_token + sessionStorage sign-in flag */}
           <Route path="/training/:hub_token" element={<TrainingHub />} />

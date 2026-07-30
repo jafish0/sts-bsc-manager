@@ -6,6 +6,7 @@ import { COLORS, cardStyle, cardHeaderStyle } from '../utils/constants'
 import { deleteRegistrationLink, deleteBlockedReason } from '../utils/registrationLinks'
 import RegistrationLinkModal from '../components/RegistrationLinkModal'
 import RegistrationRosterModal from '../components/RegistrationRosterModal'
+import RosterShareModal from '../components/RosterShareModal'
 
 // Cross-collaborative registrations admin page (admin-tier only).
 // Lives at /admin/registrations. Lets admins create new registration links
@@ -32,6 +33,9 @@ export default function RegistrationsAdmin() {
 
   // Delete in flight (id of the link being deleted)
   const [deletingId, setDeletingId] = useState(null)
+
+  // Roster share modal
+  const [sharingLink, setSharingLink] = useState(null)
 
   // Sort
   const [sortField, setSortField] = useState('created_at')
@@ -267,6 +271,20 @@ export default function RegistrationsAdmin() {
                           <div style={{ display: 'flex', gap: '0.3rem' }}>
                             <button onClick={() => setViewingRoster({ id: link.id, title: link.title })} style={{ background: COLORS.navy, color: 'white', border: 'none', padding: '0.3rem 0.65rem', borderRadius: '4px', cursor: 'pointer', fontSize: '0.72rem' }}>Roster</button>
                             <button onClick={() => handleEdit(link)} style={{ background: 'transparent', color: COLORS.navy, border: `1px solid ${COLORS.navy}`, padding: '0.3rem 0.65rem', borderRadius: '4px', cursor: 'pointer', fontSize: '0.72rem' }}>Edit</button>
+                            {/* Share = read-only partner link. The badge makes
+                                the email-visibility state obvious at a glance,
+                                so Josh never has to open the modal to check
+                                what a partner can see. */}
+                            <button
+                              onClick={() => setSharingLink(link)}
+                              disabled={!canAdminCollaborative(link.collaborative_id)}
+                              title="Create or manage a read-only roster link for a partner"
+                              style={{ background: 'transparent', color: COLORS.teal, border: `1px solid ${COLORS.teal}`, padding: '0.3rem 0.65rem', borderRadius: '4px', cursor: 'pointer', fontSize: '0.72rem' }}
+                            >Share{link.roster_share_token
+                              ? (link.roster_share_revoked_at
+                                  ? ' (revoked)'
+                                  : link.roster_share_include_emails ? ' (emails on)' : ' (live)')
+                              : ''}</button>
                             {/* The title sits on the wrapper, not the button:
                                 Chrome and Safari swallow hover events on a
                                 disabled control, so a title on the button
@@ -312,6 +330,14 @@ export default function RegistrationsAdmin() {
           }
           onClose={() => { setShowCreateModal(false); setEditingLink(null) }}
           onSaved={() => { loadAll() }}
+        />
+      )}
+
+      {sharingLink && (
+        <RosterShareModal
+          link={sharingLink}
+          onClose={() => setSharingLink(null)}
+          onSaved={loadAll}
         />
       )}
 
