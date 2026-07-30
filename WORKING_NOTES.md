@@ -14,6 +14,12 @@ A bidirectional scratchpad shared between Josh, Claude Cowork (Claude desktop ch
 
 > What's been built recently, so Claude Cowork has the running context without re-reading the entire git log.
 
+- **2026-07-30 `4cd9c86` — Registration data hygiene + roster-share expiry timezone (draft `4c367a0`, both items) — SHIPPED. `mint-registration` v5 deployed with `verify_jwt: false`.**
+  - **Item 1 — answers are trimmed on submit.** Only `email` and `full_name` were trimmed, so everything else stored exactly as typed; in a 4-person roster that had already made `Allen County` and `Allen County·` two distinct districts. New `trimResponses()` normalizes the whole object *before* validation, dedupe and insert, so all three see the same values. **Strings only** — numbers/booleans/nulls untouched, internal spacing preserved. Verified with **8 assertions against the shipped source**, including that the `text_na` `'N/A'` sentinel survives and no type is coerced. Backfill re-checked: **0 rows** still untrimmed, so Cowork's in-place fix held.
+    - ⚠️ **Honest limit on the live check:** the whitespace-only rejection I tested (`400 Missing required field: District`) behaved the *same* before this change, because `validate()` already used `String(v).trim()` for presence — so it proves no regression, **not** that the trim is applied. The stored-value proof comes from the next real registration. I did **not** submit a test registration to a live cohort link that has real registrants in it.
+  - **Item 2 — the expiry bug was MINE**, introduced in `5916b90`. The SQL was always right; the modal was wrong two ways that compounded: reading did `String(ts).slice(0,10)` (the **UTC** date, which for an 11:59 PM ET instant is the *next* day, so the picker showed Oct 29 for a value meaning Oct 28 and drifted again on reopen), and writing sent a naive `T23:59:59` with **no offset**, which PostgREST reads as UTC — storing 7:59 PM ET. Fixed by moving the conversion into one place: new `IMMUTABLE roster_share_expiry_for_date(date)` sharing the `AT TIME ZONE` construction with `default_roster_share_expiry()`; the modal converts to Eastern via `Intl` (`en-CA` yields `YYYY-MM-DD` directly) on read and calls the helper on save. **Round-trip + DST verified both sides:** `2026-10-28` → `03:59:59+00` → reads back `2026-10-28 23:59:59` ET (−0400); `2026-12-02` → `04:59:59+00` → `2026-12-02 23:59:59` ET (−0500).
+    - Found and fixed the **same UTC-slice bug** in `RosterSharePage`'s "stops working after" notice, which would have named the wrong day to the partner.
+    - **Repaired the live AWARE share link**, which had been saved through the buggy path: `2026-10-29 23:59:59+00` (Oct 29 7:59 PM ET) → `2026-10-29 03:59:59+00` (**Oct 28 11:59:59 PM ET**), matching the rule. `lookup-roster`'s check compares real instants and was already correct — unchanged, as the draft said.
 - **2026-07-30 `c1b0393` — TIPE registration fields: District + School (with N/A), Districts Served removed.** Josh's request, applied to `programConfig.js` for all future TIPE links **and** as a real-time edit to the LIVE AWARE link's stored `form_schema` (each link snapshots its own schema, so the config change alone would only affect new links).
   - Field order is now: Name*, Email*, Confirm Email*, **District***, **School***, Position or Title*, Grade Level(s). Verified on production.
   - **Kept the canonical `agency` key for District** rather than minting `district`: `agency` is the cross-program employing-organisation key the roster and CEU exports already read, so reusing it keeps the three existing registrations displaying instead of orphaning their answers inside the `responses` jsonb.
@@ -987,7 +993,7 @@ The access code is a **speed bump against forwarded links, not access control** 
 
 ---
 
-### 2026-07-30: Registration data hygiene + share-expiry timezone bug (2 items) — READY
+### 2026-07-30: Registration data hygiene + share-expiry timezone bug (2 items) — ✅ SHIPPED (4cd9c86, mint-registration v5, 1 migration, live share link repaired) — spec kept for reference
 
 > Both found while reviewing the **live** AWARE roster (4 real registrants as of 2026-07-30, all confirmed by email). Small, self-contained, and worth doing while the cohort is still small.
 
