@@ -184,7 +184,7 @@ export default function EventDetail() {
   const isStandalone = event?.kind === 'standalone_training'
   const canManage = isStandalone
     ? (isSuperAdmin || (!!event?.created_by && event.created_by === user?.id))
-    : canManage
+    : canAdminCollaborative(event?.collaborative_id)
 
   // 2. Attendance fetcher (initial + 30s polling + manual refresh button)
   const fetchAttendance = useCallback(async () => {
