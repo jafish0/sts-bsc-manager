@@ -31,8 +31,9 @@ export default function StandaloneSessionPanel({ event, canManage }) {
   const load = useCallback(async () => {
     setLoading(true); setError(null)
     try {
-      // Newest first: regenerating leaves the old row in place (deactivated), and
-      // .maybeSingle() would throw on more than one row.
+      // session_links has a UNIQUE constraint on bsc_event_id, so there is at
+      // most one link per event. Ordered + limited anyway so this can't throw the
+      // way .maybeSingle() would if that constraint were ever relaxed.
       const { data: links, error: e1 } = await supabase
         .from('session_links')
         .select('*')

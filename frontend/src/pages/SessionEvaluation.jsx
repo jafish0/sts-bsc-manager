@@ -109,7 +109,13 @@ export default function SessionEvaluation() {
 
     // Always navigate — the eval is in. SessionSignOut performs the explicit
     // sign-out (sign_out_method='manual') and renders the thank-you screen.
-    navigate(`/session/${token}/signout`)
+    //
+    // ?evaluated=1 matters when this device has no stored sign-in (they signed in
+    // on another phone, or sessionStorage was cleared): the stamp above is then a
+    // no-op, so the sign-out page asks for their email and credits BOTH the
+    // evaluation and the sign-out. Without the flag it couldn't know an
+    // evaluation had just been submitted, and they'd lose CEU credit for it.
+    navigate(`/session/${token}/signout?evaluated=1`)
   }
 
   if (loading) {
