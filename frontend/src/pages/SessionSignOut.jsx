@@ -45,26 +45,22 @@ export default function SessionSignOut() {
         return
       }
 
-      // Perform the explicit final sign-out. sign_out_method='manual' is the
-      // CEU-credit gate — eval completion alone (evaluation_completed_at)
-      // doesn't earn credit without reaching this step.
-      const attendanceId = sessionStorage.getItem(`attendance_${token}`)
-      if (attendanceId) {
-        await supabase
-          .from('session_attendance')
-          .update({
-            signed_out_at: new Date().toISOString(),
-            sign_out_method: 'manual'
-          })
-          .eq('id', attendanceId)
-        sessionStorage.removeItem(`attendance_${token}`)
-      } else {
-        // No stored sign-in on THIS device — they signed in on another phone, or
-        // the browser cleared sessionStorage. Previously we fell through to
-        // "You've Been Signed Out" having recorded nothing: a false confirmation
-        // that also silently cost them CEU credit. Ask instead.
-        setNeedEmail(true)
-      }
+      // ALWAYS confirm the email rather than signing out silently from remembered
+      // state. Josh's call, and his same-device test proved the point: the
+      // automatic path keyed off sessionStorage, which is scoped per TAB, so
+      // scanning the evaluation QR (a new tab) already lost it. With QR codes that
+      // is the normal case, not the edge case — so "automatic" would have failed
+      // for most attendees while asking only some of them, which is impossible to
+      // give a room one clear instruction about.
+      //
+      // One screen for everyone. Prefilled from localStorage when this device
+      // remembers the address, so it is usually a single tap.
+      let remembered = ''
+      try {
+        remembered = localStorage.getItem(`attendeeEmail_${token}`) || ''
+      } catch { /* private browsing */ }
+      setEmail(remembered)
+      setNeedEmail(true)
     } catch (err) {
       console.error('Sign-out error:', err)
       setError('There was an issue completing your sign-out, but your evaluation has been recorded.')
@@ -94,6 +90,12 @@ export default function SessionSignOut() {
         setLookupError('This sign-out link is not valid.')
       } else {
         // 'signed_out' or 'already_signed_out' — both mean they're recorded.
+        // Clear the remembered address now they're done, so a shared or reused
+        // phone doesn't prefill the previous person's email.
+        try {
+          sessionStorage.removeItem(`attendance_${token}`)
+          localStorage.removeItem(`attendeeEmail_${token}`)
+        } catch { /* private browsing */ }
         setNeedEmail(false)
       }
     } catch (err) {
@@ -123,7 +125,7 @@ export default function SessionSignOut() {
               : <>Let&apos;s get you signed out of <strong>{eventTitle}</strong>.</>}
           </p>
           <p style={{ color: '#6b7280', fontSize: '0.85rem', margin: '0 0 1rem' }}>
-            This device doesn&apos;t have your sign-in, so please confirm the email you signed in with and we&apos;ll record your attendance.
+            Please enter the email you signed in with, so we can record your attendance.
           </p>
           <form onSubmit={handleEmailSignOut}>
             <input

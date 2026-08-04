@@ -107,6 +107,15 @@ export default function SessionSignIn() {
       // visitors out of the materials before they actually show up and sign in.)
       sessionStorage.setItem(`attendance_${token}`, attendanceId)
       sessionStorage.setItem(`signedInForEvent_${eventInfo.id}`, 'true')
+      // Remembered in localStorage, NOT sessionStorage, purely to prefill the
+      // sign-out form. sessionStorage is scoped per TAB, and with QR codes each
+      // scan opens a new tab — so a same-device attendee still arrived at
+      // sign-out with nothing remembered. localStorage survives that.
+      // It only prefills a field the attendee confirms; it never signs anyone out
+      // on its own.
+      try {
+        localStorage.setItem(`attendeeEmail_${token}`, form.email.trim().toLowerCase())
+      } catch { /* private browsing — the field just starts empty */ }
       setAttendanceId(attendanceId)
       setSignedIn(true)
 
