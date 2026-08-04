@@ -14,6 +14,12 @@ A bidirectional scratchpad shared between Josh, Claude Cowork (Claude desktop ch
 
 > What's been built recently, so Claude Cowork has the running context without re-reading the entire git log.
 
+- **2026-08-04 `b1dd44c` + `0222e84` — hub on/off toggle per standalone training.** Josh's materials are handed out in the room, so sign-in routing attendees to a hub that reads *"this training hub opens at the start of the training"* was confusing — but other trainings will want the hub.
+  - New `bsc_events.hub_enabled`, **DEFAULT true** so every existing training is unchanged; the trainer opts *out*. **`hub_token` is retained either way**, so switching the hub back on reuses the same URL and any printed QR still works.
+  - With the hub off, `SessionSignIn` skips the redirect and its confirmation screen becomes the final destination — so the copy changed from *"Loading your session materials…"* (a promise it wouldn't keep) to **"Thanks for signing in!"** + *"Your attendance has been recorded."*
+  - The toggle is in **two** places: the Manage-page panel, and the Edit modal's **Hub intro** tab (it belongs there because the intro is authored on that tab, and writing intro copy for a switched-off hub is wasted effort; the helper text notes the intro stays saved).
+  - Two controls, one column — so they must agree. The panel seeded its checkbox from a `useState` initialiser (read once), meaning a save from the modal left it showing the **old** value until reload. Synced via an effect on `event.hub_enabled`. Both initialise with `!== false`, not `?? true`, so a deliberate false is never flipped back on.
+  - The write checks the returned row count: an RLS refusal comes back as **0 rows, not an error**, which would otherwise look like success and snap back on reload.
 - **2026-08-04 `0163f83` + `56ed1a9` + `dbff6cd` — attendee sign-out reworked: always ask for the email; confirm-email on sign-in.**
   - **The insight came from Josh's own test.** He signed in and evaluated on ONE device and was still asked for an email. Cause: the automatic path keyed off `sessionStorage`, which is scoped **per browser tab**, not per device — and scanning the evaluation QR opens a *new tab*. With QR codes that's the **normal** case, so "automatic" would have failed for most attendees while succeeding for a few. Inconsistent, and impossible to give a room of thirty people one instruction about.
   - **Now: one screen for everyone** — "Please enter the email you signed in with." Prefilled from `localStorage` (which *does* survive new tabs) so it's usually a single tap, but it only ever prefills a field the attendee confirms; it never signs anyone out on its own. Cleared on success so a shared phone can't prefill the previous person's address. `try/catch` so private browsing just yields an empty field.
@@ -884,6 +890,43 @@ Co-branded UK marks have institutional usage rules. The `UKCTAC_logoasuite_web__
 - Confirm both logos render (not broken image icons) and that the page still loads promptly after the asset optimization — measure the page weight before and after.
 - Check the success state by submitting a test registration, then **delete the test row** (registration tables should return to their pre-test state; there is currently exactly 1 registrant, Josh's earlier Gmail test).
 - Check dark mode.
+
+---
+
+### 📖 REFERENCE: Standalone Trainings — how the feature works as of 2026-08-04
+
+> **Read this before touching standalone trainings.** Built entirely in the 2026-08-04 Claude Code session; Claude.ai/Cowork was not in the loop, so none of it is in any earlier draft. Commits: `5594b68`, `6ae8727`, `dd329a5`, `0163f83`, `56ed1a9`, `dbff6cd`, `b1dd44c`, `0222e84`, plus 7 migrations.
+
+**What it is.** A one-off training that isn't part of a collaborative — `bsc_events.kind = 'standalone_training'` with **`collaborative_id NULL`**. Created from `/admin/trainings` (`TrainingsAdmin` → `StandaloneTrainingModal`); managed at `/admin/event/:id` (`EventDetail`).
+
+**The NULL collaborative_id is the whole story.** Four tables required one, so the entire existing session machinery was unreachable. They are now nullable — `session_links`, `session_attendance`, `session_evaluations`, `event_registration_links` — and their admin RLS policies re-gated on the **event** rather than the collaborative via `can_admin_bsc_event(uuid)` (SECURITY DEFINER), so authorization is exactly as tight as before.
+
+**Authorization rule, used identically in SQL and the UI:**
+- `standalone_training` → `is_super_admin() OR created_by = auth.uid()`
+- otherwise → `is_admin_for_collaborative(collaborative_id)`
+
+Trainer admins have a **read-only** SELECT policy on standalone trainings — they deliberately cannot write ones they didn't create. Frontend mirrors this as `canManage` in `EventDetail` and `canManageLink()` in `RegistrationsAdmin`. **Never gate on `canAdminCollaborative(event.collaborative_id)` for a standalone training** — it returns false for a null id and silently hides every control.
+
+**Attendee flow (all pages pre-existed; they were just walled off):**
+1. `/session/:token` — sign in: name, email, **confirm email** (must match), agency, role. Then → training hub if `hub_enabled`, else a "Thanks for signing in!" screen.
+2. `/session/:token/eval` — the standard evaluation. **Genuinely anonymous:** `session_evaluations` holds no name, email, attendance id or FK to the person. Submitting redirects to sign-out with `?evaluated=1`.
+3. `/session/:token/signout` — **always asks for the email** they signed in with, then calls `sign_out_by_email(token, email, mark_eval)`.
+
+**Why sign-out asks instead of remembering:** identity used to come from `sessionStorage`, which is scoped **per browser tab** — and every QR scan opens a new tab, so it failed for most attendees while succeeding for a few, and worse, still displayed "You've Been Signed Out" having recorded nothing. `localStorage` now prefills the field (one tap) but never signs anyone out on its own.
+
+**CEU gate** (per the code comments): `signed_in` + `evaluation_completed_at` + `sign_out_method = 'manual'`. Note an admin "Close sign-in" stamps `session_closed`, not `manual`.
+
+**Gotchas that cost time:**
+- `session_links` has a **UNIQUE constraint on `bsc_event_id`** — one link per event, no regeneration, so printed QR codes stay valid.
+- `sign_in_to_session` writes to `unmatched_attendees`, whose `collaborative_id` is **NOT NULL** — this aborted sign-in for every attendee without an app account (i.e. almost all of them) until guarded. That triage tool maps attendees onto *teams in a collaborative*; it has no meaning here.
+- `registration_link_public` used an INNER JOIN on `collaboratives` — returned zero rows for a standalone link. Now LEFT JOIN falling back to the training's own title.
+- `event_registration_links` has no `bsc_event_id` column (it covers N events via `event_registration_link_events`, **empty at INSERT time**), so its standalone RLS branch gates on `created_by`, not the join table.
+- Registration links are **created** from the training's Manage page; the roster, CSV and shareable roster link live on `/admin/registrations`, which now lists standalone links (the client-side collaborative filter was *removed* — RLS scopes it correctly and in less code).
+
+**Open follow-ups:**
+- ⬜ `"Anon can update sign out"` on `session_attendance` is `USING true` — any anon could update any attendance row. Now likely droppable since all attendee sign-outs go through the RPC, but the admin bulk-sign-out paths need checking first.
+- ⬜ `CollaborativeDetail.generateSessionLink` hardcodes `4PM EST = 9PM UTC`, an hour off during EDT. The standalone panel uses `roster_share_expiry_for_date` instead; collaborative links still carry the bug.
+- ⬜ No test account, so **no admin UI in this feature has been click-through verified by Claude Code** — DB, RPC and public-page behaviour were verified directly. Josh drives admin verification.
 
 ---
 
