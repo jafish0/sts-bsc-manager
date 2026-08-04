@@ -86,6 +86,11 @@ export default function StandaloneSessionPanel({ event, canManage }) {
 
   useEffect(() => { load() }, [load])
 
+  // The same setting is editable from the Edit modal's Hub intro tab. Without
+  // this, saving there left THIS checkbox showing the old value until a reload —
+  // two controls for one field silently disagreeing.
+  useEffect(() => { setHubEnabled(event.hub_enabled !== false) }, [event.hub_enabled])
+
   const generate = async () => {
     setBusy(true); setError(null)
     try {

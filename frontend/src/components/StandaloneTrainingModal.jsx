@@ -27,6 +27,10 @@ export default function StandaloneTrainingModal({ editingEvent, onClose, onSaved
   const [startTime, setStartTime] = useState(editingEvent?.start_time?.slice(0,5) || '')
   const [endTime, setEndTime] = useState(editingEvent?.end_time?.slice(0,5) || '')
   const [intro, setIntro] = useState(editingEvent?.training_hub_intro || '')
+  // Column defaults to true, so an existing training with no explicit value keeps
+  // its current behaviour; `!== false` rather than `?? true` so an actual false
+  // isn't lost.
+  const [hubEnabled, setHubEnabled] = useState(editingEvent?.hub_enabled !== false)
 
   // Delivery mode: derived from zoom_link presence. In-person if zoom_link is null AND any location field is set; default to 'in_person' on create.
   const initialMode = editingEvent
@@ -82,6 +86,7 @@ export default function StandaloneTrainingModal({ editingEvent, onClose, onSaved
         start_time: startTime || null,
         end_time: endTime || null,
         training_hub_intro: intro.trim() || null,
+        hub_enabled: hubEnabled,
         zoom_link: mode === 'online' ? (zoomLink.trim() || null) : null,
         location: mode === 'in_person'
           ? [locationName, room].filter(Boolean).join(' — ') || null
@@ -254,6 +259,28 @@ export default function StandaloneTrainingModal({ editingEvent, onClose, onSaved
 
         {section === 'hub' && (
           <div>
+            {/* Same control as the Manage page's panel. It belongs here too: the
+                hub intro is edited on this tab, and writing intro copy for a hub
+                that is switched off is wasted effort. */}
+            <label style={{ display: 'flex', gap: '0.5rem', alignItems: 'flex-start', marginBottom: '1rem', padding: '0.7rem', background: '#f9fafb', borderRadius: '6px', cursor: 'pointer' }}>
+              <input
+                type="checkbox"
+                checked={hubEnabled}
+                onChange={e => setHubEnabled(e.target.checked)}
+                style={{ marginTop: '0.15rem' }}
+              />
+              <span>
+                <span style={{ fontWeight: 600, fontSize: '0.85rem', color: '#111827' }}>
+                  Open an online training hub after sign-in
+                </span>
+                <span style={{ display: 'block', fontSize: '0.78rem', color: '#6b7280' }}>
+                  {hubEnabled
+                    ? 'Attendees go to the hub to get materials online.'
+                    : 'Attendees just see “Thanks for signing in!” — use this when you hand out materials in the room. The intro below stays saved for if you switch the hub back on.'}
+                </span>
+              </span>
+            </label>
+
             <Field label="Training hub intro (markdown)">
               <textarea
                 value={intro}

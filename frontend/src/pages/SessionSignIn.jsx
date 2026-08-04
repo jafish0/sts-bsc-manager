@@ -191,7 +191,7 @@ export default function SessionSignIn() {
           </p>
           <p style={{ color: '#9ca3af', fontSize: '0.85rem' }}>
             {hubOff
-              ? 'Your attendance has been recorded. Your trainer will hand out the materials — enjoy the training. You can close this window.'
+              ? 'Your attendance has been recorded.'
               : 'Loading your session materials…'}
           </p>
         </div>
