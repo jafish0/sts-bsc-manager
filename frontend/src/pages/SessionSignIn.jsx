@@ -19,9 +19,18 @@ export default function SessionSignIn() {
   const [form, setForm] = useState({
     name: '',
     email: '',
+    emailConfirm: '',
     agency: '',
     role: ''
   })
+
+  // Compared case-insensitively and trimmed, since the address is stored
+  // lowercased anyway — flagging "Josh@x.org" vs "josh@x.org" as a mismatch would
+  // be a false alarm. Only shown once they've started the second field, so the
+  // error doesn't appear while they're still typing the first character.
+  const emailMismatch =
+    form.emailConfirm.trim().length > 0 &&
+    form.email.trim().toLowerCase() !== form.emailConfirm.trim().toLowerCase()
 
   useEffect(() => {
     validateToken()
@@ -84,6 +93,9 @@ export default function SessionSignIn() {
   const handleSubmit = async (e) => {
     e.preventDefault()
     if (!form.name.trim() || !form.email.trim() || !form.agency.trim()) return
+    // Belt and braces alongside the disabled button: a mismatched address would
+    // make sign-out unreachable for this person, so never let it through.
+    if (form.email.trim().toLowerCase() !== form.emailConfirm.trim().toLowerCase()) return
     setSubmitting(true)
 
     try {
@@ -223,6 +235,33 @@ export default function SessionSignIn() {
               }}
             />
           </div>
+          {/* Confirm email. This matters more than a usual double-entry field:
+              sign-out and CEU credit are matched on this address, so a typo here
+              leaves someone unable to sign out at all and quietly costs them
+              credit — and there's no way to correct it later without an admin. */}
+          <div style={{ marginBottom: '1rem' }}>
+            <label style={{ display: 'block', fontWeight: '600', color: '#374151', marginBottom: '0.35rem', fontSize: '0.9rem' }}>
+              Confirm email <span style={{ color: '#DC2626' }}>*</span>
+            </label>
+            <input
+              type="email"
+              required
+              value={form.emailConfirm}
+              onChange={(e) => setForm({ ...form, emailConfirm: e.target.value })}
+              onPaste={(e) => e.preventDefault()}
+              placeholder="Re-type your email"
+              style={{
+                width: '100%', padding: '0.65rem',
+                border: `1px solid ${emailMismatch ? '#DC2626' : '#d1d5db'}`,
+                borderRadius: '0.375rem', fontSize: '0.9rem', boxSizing: 'border-box'
+              }}
+            />
+            {emailMismatch && (
+              <p style={{ color: '#DC2626', fontSize: '0.8rem', margin: '0.3rem 0 0' }}>
+                The two email addresses don&apos;t match.
+              </p>
+            )}
+          </div>
           <div style={{ marginBottom: '1rem' }}>
             <label style={{ display: 'block', fontWeight: '600', color: '#374151', marginBottom: '0.35rem', fontSize: '0.9rem' }}>
               Agency <span style={{ color: '#DC2626' }}>*</span>
@@ -256,13 +295,13 @@ export default function SessionSignIn() {
           </div>
           <button
             type="submit"
-            disabled={submitting}
+            disabled={submitting || emailMismatch}
             style={{
               width: '100%', padding: '0.85rem',
-              background: submitting ? '#9ca3af' : TEAL,
+              background: (submitting || emailMismatch) ? '#9ca3af' : TEAL,
               color: 'white', border: 'none', borderRadius: '0.5rem',
               fontSize: '1rem', fontWeight: '600',
-              cursor: submitting ? 'not-allowed' : 'pointer'
+              cursor: (submitting || emailMismatch) ? 'not-allowed' : 'pointer'
             }}
           >
             {submitting ? 'Signing In...' : 'Sign In'}
