@@ -175,7 +175,9 @@ A bidirectional scratchpad shared between Josh, Claude Cowork (Claude desktop ch
 
 **✅ BOTH QUEUED DRAFTS SHIPPED 2026-07-17** (collaborative-creation usability + registration hardening round 2 — see Recently shipped). The `RESEND_API_KEY` blocker found during that work was **resolved the same day** — Josh set the secret and the email pipeline is verified end to end. Registration is now safe to use with real registrants. Superseded queue note follows:
 
-**READY: Registration data hygiene + share-expiry timezone bug (2 items) — see the LAST draft at the bottom of this file.** Both found reviewing the LIVE roster (4 real registrants). (1) `mint-registration` trims only `email`/`full_name`, so every other answer stores as typed — live data already has trailing spaces that will split district grouping. (2) The roster share expiry lands ~1 day late: `default_roster_share_expiry()` is correct, but `RosterShareModal` slices the **UTC** date off a timestamptz and saves a naive `T23:59:59` with no offset. Cowork already backfilled the 4 live rows' whitespace (verified 0 untrimmed values remain).
+**READY: Close the last always-true anon UPDATE + fix collaborative session-link expiry (2 items) — see the LAST draft at the bottom of this file.** Both are follow-ups Claude Code flagged itself; Cowork investigated each so neither needs re-diagnosing. (1) `"Anon can update sign out"` (`USING true`) **is** droppable — admin bulk sign-out is covered by a separate `FOR ALL` policy — but `SessionEvaluation` still does a direct anon UPDATE to stamp `evaluation_completed_at`, so that stamp must move to an RPC **first** or the CEU gate breaks silently. (2) `generateSessionLink` hardcodes `4PM EST = 9PM UTC`, which is wrong during EDT — and **AWARE Session 1 (2026-10-27) is in EDT** while later sessions are EST. Fix by reusing `roster_share_expiry_for_date`, which is already proven correct on the live standalone training.
+
+_Cowork also deleted the standalone training's test data (4 attendance + 3 evaluations) — verified 0 remaining, event intact for 2026-08-07._
 
 _(Shipped 2026-07-29/30: add-to-calendar links `fc94f1b`/`b646c76`; registration page branding + asset optimization `513ca37`/`e9e85dc`; shareable roster link `5916b90`; TIPE District/School fields `c1b0393`.)_
 
@@ -1116,3 +1118,60 @@ For AWARE that returns `2026-10-29T03:59:59Z`, which **is** Oct 28 11:59:59 PM E
 - Submit a test registration with deliberate leading/trailing spaces in District, School and Position; confirm the stored jsonb is trimmed. **Then delete the test row** — the roster is live and being shared with partners, so it must return to exactly the 4 real registrants.
 - Round-trip the expiry date in the modal (see above), including across the DST boundary.
 - Confirm the roster share page still loads with the corrected expiry and that the access-code gate, hidden-emails default, view counter and revoke all still behave (this item touches the modal that configures them).
+
+---
+
+### 2026-08-04: Close the last always-true anon UPDATE + fix collaborative session-link expiry (2 items) — READY
+
+> Both are follow-ups **you flagged yourself** in the sign-out rework and the standalone-training batch. Cowork investigated each far enough to answer the open questions, so neither needs re-diagnosing.
+>
+> **Test-data note:** Cowork already deleted the 4 `session_attendance` and 3 `session_evaluations` test rows from the live standalone training "Belonging, Recognition, and Sustainable Care for Counselors & Therapists" (`6ab3e622-6369-4e57-aa4d-9b3328b3ae90`, **real event on 2026-08-07**). Verified after: 0 attendance, 0 evaluations, 0 unmatched, training and session link intact. **Do not delete anything else on that event** — it is three days out and live.
+
+#### Item 1: Move the evaluation-completion stamp into an RPC, then drop the `USING (true)` anon UPDATE policy
+
+Your follow-up asked whether `"Anon can update sign out"` (`USING true` — any anon could update any attendance row) is droppable now that sign-out goes through `sign_out_by_email`, noting the admin bulk-sign-out paths needed checking. **Cowork checked. Answers:**
+
+- **Admin bulk sign-out is safe.** `session_attendance` has a separate `"Admins manage attendance"` policy, `FOR ALL` gated on `can_admin_bsc_event(bsc_event_id)`. Dropping the anon policy does **not** affect admins.
+- **But the policy is still load-bearing for one anon write.** `SessionEvaluation.jsx` (~line 101) still performs a **direct anon UPDATE** to stamp `evaluation_completed_at`, and anon still holds column-level UPDATE on exactly `evaluation_completed_at`, `sign_out_method`, `signed_out_at`. Dropping the policy today would silently break the CEU eligibility stamp — silently, because that call is already wrapped in a `try/catch` that only `console.warn`s (by design, so a stamp failure can't block the post-submit navigation).
+
+**So the order matters. Do it in this sequence:**
+
+1. **New `mark_evaluation_completed(p_token text, p_attendance_id uuid)` SECURITY DEFINER RPC** (mirror `sign_out_by_email`'s shape: status string only, never row data, so it cannot be used to read a roster). It must verify the attendance row belongs to the session identified by `p_token` before stamping — do **not** accept a bare attendance id, or an anon caller could stamp arbitrary rows, which is the same hole in a new coat. Idempotent: a second call returns `already_completed` without moving the original timestamp.
+2. Repoint `SessionEvaluation.jsx` at the RPC. Keep the existing behavior that a failure never blocks navigation (the eval itself is already saved at that point), but **check and log the returned status** rather than discarding it.
+3. **Then** drop the policy and revoke the grants:
+   - `DROP POLICY "Anon can update sign out" ON public.session_attendance;`
+   - `REVOKE UPDATE (evaluation_completed_at, sign_out_method, signed_out_at) ON public.session_attendance FROM anon;`
+   - Check whether `authenticated` still needs those column grants for any non-admin path before revoking there; `"Admins manage attendance"` covers admins, so it likely does not.
+4. **Verify the full attendee chain end to end after the revoke, in this order**, because each step depends on the previous: sign in → submit evaluation (stamp lands) → sign out by email (`sign_out_by_email` still works) → repeat sign-out (returns `already_signed_out`, original timestamp unmoved). Then confirm an anon UPDATE against `session_attendance` is refused (`42501`). **Use a demo collaborative event, not the 2026-08-07 standalone training**, and delete every probe row afterward.
+
+This closes the last always-true anon UPDATE policy on this table and removes the final path by which an anonymous caller can write to arbitrary attendance rows. It will also clear one `rls_policy_always_true` finding from the Supabase advisor.
+
+#### Item 2: 🐞 Collaborative session links expire an hour early during EDT — and the first real cohort session is in EDT
+
+`CollaborativeDetail.jsx` `generateSessionLink()` (~line 327):
+
+```js
+// Expire at 4:00 PM EST on event date
+const expiresAt = new Date(`${evt.event_date}T21:00:00.000Z`) // 4PM EST = 9PM UTC
+```
+
+The comment is right about EST and wrong for half the year. `21:00Z` is 4 PM only at UTC−5 (EST); during EDT (UTC−4, mid-March to early November) it is **5 PM**… which sounds harmless until you notice the intent was 4 PM, so the link stays open an hour *longer* than intended in summer and the stated rule and the behavior disagree for roughly eight months of the year. More to the point, it is a fixed wall-clock guess that ignores the event's own end time entirely.
+
+**Why it matters now:** **AWARE Session 1 is 2026-10-27, which falls in EDT** (DST ends 2026-11-01). So the first real cohort session is exactly the case that hits this, and Sessions 2 onward are EST — the same collaborative straddles the boundary.
+
+**Fix:** use the helper that already does this correctly. `roster_share_expiry_for_date` resolves end-of-day Eastern in SQL with real DST rules, and the standalone panel already uses it — verified on the live training, whose link expires `2026-08-08 03:59:59+00`, i.e. 11:59:59 PM ET on the event date. Options, pick one and say which:
+
+- **Preferred:** reuse `roster_share_expiry_for_date(event_date)` so collaborative and standalone links behave identically. End of day Eastern is also more forgiving than 4 PM for a session running to 2:30 PM plus stragglers.
+- If a tighter window is wanted, derive from the event's **`end_time` plus a grace period** rather than a hardcoded hour, converting through `America/New_York` in SQL — never by assuming a UTC offset in JS.
+
+Either way: **delete the misleading comment**, do not just correct the arithmetic. And note the existing `close-expired-sessions` cron already deactivates links 30 minutes after `end_time`, so `expires_at` is a backstop rather than the primary control — worth saying explicitly in the code comment so the next person doesn't "fix" one against the other.
+
+**Do not retroactively change existing session links** without checking whether any are currently in use.
+
+#### Optional hardening, decide rather than assume
+
+You noted `no-use-before-define` is not enabled in this eslint config, which is why the `canManage` regression compiled and linted clean while white-screening every event page. You also noted enabling it project-wide surfaces ~20 pre-existing hits that are all safe. If it is cheap, scope the rule to error on the dangerous shape only (e.g. `{ "variables": true, "functions": false }`, or enable it as a warning) so the next occurrence is caught without a 20-site triage. If that turns out to be fiddly, skip it and say so — the stated rule (never `replace_all` a string that also appears in code added in the same edit) is the real mitigation.
+
+#### One question for Josh, not a code task
+
+The 2026-08-07 training is stored as **07:00 to 17:00** (7 AM to 5 PM). If that is a placeholder rather than the real window, it is worth correcting before the day: those times drive the `.ics`, the reminder emails, the auto-close cron, and the sign-in link's expiry.
