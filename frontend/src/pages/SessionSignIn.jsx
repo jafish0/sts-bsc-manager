@@ -48,20 +48,27 @@ export default function SessionSignIn() {
   // session-materials view. We no longer bounce anyone to /login — participants
   // don't have app accounts, and the materials view is the useful destination
   // for demo and real collaboratives alike.
+  // A standalone training with the hub switched off has nowhere useful to send
+  // anyone — materials are handed out in the room — so the confirmation screen
+  // below is the destination. Sending them to the hub anyway showed "this hub
+  // opens at the start of the training", which is confusing when no hub is coming.
+  const hubOff = eventInfo?.kind === 'standalone_training' && eventInfo?.hub_enabled === false
+
   useEffect(() => {
     if (!signedIn || !eventInfo) return
+    if (hubOff) return
     if (eventInfo.kind === 'standalone_training' && eventInfo.hub_token) {
       navigate(`/training/${eventInfo.hub_token}`, { replace: true })
     } else {
       navigate(`/session/${token}/materials`, { replace: true })
     }
-  }, [signedIn, eventInfo, token, navigate])
+  }, [signedIn, eventInfo, token, navigate, hubOff])
 
   const validateToken = async () => {
     try {
       const { data: link, error: linkErr } = await supabase
         .from('session_links')
-        .select('*, bsc_events(id, title, event_date, start_time, end_time, location, collaborative_id, kind, hub_token)')
+        .select('*, bsc_events(id, title, event_date, start_time, end_time, location, collaborative_id, kind, hub_token, hub_enabled)')
         .eq('token', token)
         .single()
 
@@ -167,19 +174,25 @@ export default function SessionSignIn() {
     )
   }
 
-  // Brief interstitial: signed in, the redirect effect is about to route to the
-  // materials view (collaborative) or training hub (standalone).
+  // Signed in. Normally a brief interstitial before the redirect effect routes to
+  // the materials view (collaborative) or training hub (standalone) — but when the
+  // hub is switched off this IS the final screen, so it must read as a complete
+  // thank-you rather than promising materials that aren't coming.
   if (signedIn) {
     return (
       <div style={{ minHeight: '100vh', background: '#f9fafb', display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
         <div style={{ background: 'white', borderRadius: '0.75rem', padding: '2.5rem', maxWidth: '550px', textAlign: 'center', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}>
           <div style={{ fontSize: '3rem', marginBottom: '0.75rem' }}>&#9989;</div>
-          <h2 style={{ color: NAVY, marginBottom: '0.5rem' }}>You're Signed In!</h2>
+          <h2 style={{ color: NAVY, marginBottom: '0.5rem' }}>
+            {hubOff ? 'Thanks for signing in!' : "You're Signed In!"}
+          </h2>
           <p style={{ color: '#6b7280', fontSize: '0.95rem', marginBottom: '0.25rem' }}>
             <strong>{eventInfo?.title}</strong>
           </p>
           <p style={{ color: '#9ca3af', fontSize: '0.85rem' }}>
-            Loading your session materials…
+            {hubOff
+              ? 'Your attendance has been recorded. Your trainer will hand out the materials — enjoy the training. You can close this window.'
+              : 'Loading your session materials…'}
           </p>
         </div>
       </div>

@@ -25,6 +25,10 @@ export default function StandaloneSessionPanel({ event, canManage }) {
   const [copied, setCopied] = useState(null)
   const [regLink, setRegLink] = useState(null)
   const [showRegModal, setShowRegModal] = useState(false)
+  // Seeded from the event row; the column defaults to true, so an older training
+  // with no explicit value keeps its current hub behaviour.
+  const [hubEnabled, setHubEnabled] = useState(event.hub_enabled !== false)
+  const [hubSaving, setHubSaving] = useState(false)
 
   const origin = window.location.origin
 
@@ -146,6 +150,29 @@ export default function StandaloneSessionPanel({ event, canManage }) {
     }
   }
 
+  const setHub = async (next) => {
+    setHubSaving(true); setError(null)
+    // Optimistic, so the helper text under the checkbox flips immediately;
+    // reverted below if the write is refused.
+    setHubEnabled(next)
+    try {
+      const { data, error: e } = await supabase
+        .from('bsc_events')
+        .update({ hub_enabled: next })
+        .eq('id', event.id)
+        .select('id')
+      if (e) throw e
+      // An RLS refusal returns 0 rows rather than an error, which would otherwise
+      // look like success while the toggle silently snapped back on reload.
+      if (!data || data.length === 0) throw new Error('That change was not saved — you may not have permission to edit this training.')
+    } catch (err) {
+      setHubEnabled(!next)
+      setError(err.message || String(err))
+    } finally {
+      setHubSaving(false)
+    }
+  }
+
   const copy = async (url, key) => {
     try {
       await navigator.clipboard.writeText(url)
@@ -253,6 +280,29 @@ export default function StandaloneSessionPanel({ event, canManage }) {
                 </div>
               </div>
             ))}
+
+            {/* Hub on/off. Lives here rather than in the edit modal because it
+                changes what an attendee sees the moment they sign in, which is
+                what the rest of this panel is about. */}
+            <label style={{ display: 'flex', gap: '0.5rem', alignItems: 'flex-start', marginTop: '0.9rem', padding: '0.7rem', background: '#f9fafb', borderRadius: '6px', cursor: hubSaving ? 'wait' : 'pointer' }}>
+              <input
+                type="checkbox"
+                checked={hubEnabled}
+                disabled={hubSaving}
+                onChange={(e) => setHub(e.target.checked)}
+                style={{ marginTop: '0.15rem' }}
+              />
+              <span>
+                <span style={{ fontWeight: 600, fontSize: '0.85rem', color: '#111827' }}>
+                  Open an online training hub after sign-in
+                </span>
+                <span style={{ display: 'block', fontSize: '0.78rem', color: '#6b7280' }}>
+                  {hubEnabled
+                    ? 'Attendees go to the hub to get materials online.'
+                    : 'Attendees just see “Thanks for signing in!” — use this when you hand out materials in the room.'}
+                </span>
+              </span>
+            </label>
 
             <div style={{ marginTop: '1rem', display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
               <button
