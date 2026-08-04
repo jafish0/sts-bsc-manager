@@ -165,12 +165,16 @@ export default function StandaloneSessionPanel({ event, canManage }) {
     },
     {
       key: 'eval', label: 'Evaluation',
-      hint: 'Signs the attendee out automatically when they submit.',
+      // The previous wording ("signs the attendee out automatically") was wrong
+      // twice over: the evaluation doesn't sign anyone out — it hands off to the
+      // sign-out page, which does — and it implied the evaluation knows who
+      // submitted it. The answers carry no identity at all.
+      hint: 'Answers are anonymous. Submitting sends them straight to sign-out.',
       url: `${origin}/session/${link.token}/eval`,
     },
     {
       key: 'signout', label: 'Sign-out',
-      hint: 'Only needed for someone leaving without evaluating.',
+      hint: 'For anyone leaving without evaluating. Same phone they signed in on.',
       url: `${origin}/session/${link.token}/signout`,
     },
   ] : []
