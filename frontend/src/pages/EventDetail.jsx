@@ -60,7 +60,7 @@ const NPS_COLOR = (score) => score >= 9 ? '#16a34a' : score >= 7 ? '#f59e0b' : '
 export default function EventDetail() {
   const { eventId } = useParams()
   const navigate = useNavigate()
-  const { user, canAdminCollaborative } = useAuth()
+  const { user, canAdminCollaborative, isSuperAdmin } = useAuth()
 
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
@@ -102,49 +102,63 @@ export default function EventDetail() {
         if (cancelled) return
         setEvent(ev)
 
-        const { data: coll, error: collErr } = await supabase
-          .from('collaboratives')
-          .select('id, name, program_type')
-          .eq('id', ev.collaborative_id)
-          .single()
-        if (collErr) throw collErr
-        if (cancelled) return
-        setCollaborative(coll)
-
-        const { data: tms, error: tmsErr } = await supabase
-          .from('teams')
-          .select('id, team_name, agency_name')
-          .eq('collaborative_id', ev.collaborative_id)
-          .order('team_name')
-        if (tmsErr) throw tmsErr
-        if (cancelled) return
-        setTeams(tms || [])
-
-        const teamIds = (tms || []).map(t => t.id)
-        if (teamIds.length === 0) {
+        // Standalone trainings have NO collaborative by design, so every
+        // collaborative-scoped load below must be skipped for them. Running them
+        // anyway sent `collaborative_id=eq.null` to PostgREST, which Postgres
+        // rejected with `invalid input syntax for type uuid: "null"` — and
+        // because the collaboratives lookup used .single(), it threw and the page
+        // rendered "Event not found" for a training that had saved perfectly well.
+        if (!ev.collaborative_id) {
+          setCollaborative(null)
+          setTeams([])
           setMembers([])
+          setCoordinatorEmail(null)
+          setCoordinatorName(null)
         } else {
-          const { data: mems, error: memErr } = await supabase
-            .from('user_profiles')
-            .select('id, full_name, email, role, team_id, agency_role')
-            .in('team_id', teamIds)
-            .eq('is_active', true)
-            .order('full_name')
-          if (memErr) throw memErr
+          const { data: coll, error: collErr } = await supabase
+            .from('collaboratives')
+            .select('id, name, program_type')
+            .eq('id', ev.collaborative_id)
+            .single()
+          if (collErr) throw collErr
           if (cancelled) return
-          setMembers(mems || [])
-        }
+          setCollaborative(coll)
 
-        // Coordinator (one per collaborative — unique partial index guarantees ≤1)
-        const { data: coordRow } = await supabase
-          .from('collaborative_trainers')
-          .select('user_profiles ( full_name, email )')
-          .eq('collaborative_id', ev.collaborative_id)
-          .eq('is_coordinator', true)
-          .maybeSingle()
-        if (!cancelled) {
-          setCoordinatorEmail(coordRow?.user_profiles?.email || null)
-          setCoordinatorName(coordRow?.user_profiles?.full_name || null)
+          const { data: tms, error: tmsErr } = await supabase
+            .from('teams')
+            .select('id, team_name, agency_name')
+            .eq('collaborative_id', ev.collaborative_id)
+            .order('team_name')
+          if (tmsErr) throw tmsErr
+          if (cancelled) return
+          setTeams(tms || [])
+
+          const teamIds = (tms || []).map(t => t.id)
+          if (teamIds.length === 0) {
+            setMembers([])
+          } else {
+            const { data: mems, error: memErr } = await supabase
+              .from('user_profiles')
+              .select('id, full_name, email, role, team_id, agency_role')
+              .in('team_id', teamIds)
+              .eq('is_active', true)
+              .order('full_name')
+            if (memErr) throw memErr
+            if (cancelled) return
+            setMembers(mems || [])
+          }
+
+          // Coordinator (one per collaborative — unique partial index guarantees ≤1)
+          const { data: coordRow } = await supabase
+            .from('collaborative_trainers')
+            .select('user_profiles ( full_name, email )')
+            .eq('collaborative_id', ev.collaborative_id)
+            .eq('is_coordinator', true)
+            .maybeSingle()
+          if (!cancelled) {
+            setCoordinatorEmail(coordRow?.user_profiles?.email || null)
+            setCoordinatorName(coordRow?.user_profiles?.full_name || null)
+          }
         }
       } catch (err) {
         if (!cancelled) setError(err.message || String(err))
@@ -155,6 +169,21 @@ export default function EventDetail() {
     load()
     return () => { cancelled = true }
   }, [eventId])
+
+  // Who may manage THIS event. Collaborative events go through the usual
+  // per-collab admin check, but standalone trainings have no collaborative, and
+  // canAdminCollaborative() returns false for a null id — so gating on it hid
+  // every management control on a standalone training even once the page loaded.
+  //
+  // Mirrors the bsc_events RLS write policy exactly, so the UI never offers a
+  // button the database will reject and never claims less than it allows:
+  //   standalone_training -> is_super_admin() OR created_by = auth.uid()
+  // Trainer admins have a read-only SELECT policy on standalone trainings; they
+  // deliberately do NOT get write access to ones they didn't create.
+  const isStandalone = event?.kind === 'standalone_training'
+  const canManage = isStandalone
+    ? (isSuperAdmin || (!!event?.created_by && event.created_by === user?.id))
+    : canManage
 
   // 2. Attendance fetcher (initial + 30s polling + manual refresh button)
   const fetchAttendance = useCallback(async () => {
@@ -418,7 +447,11 @@ export default function EventDetail() {
     )
   }
 
-  const programMeta = PROGRAM_TYPE_COLORS[collaborative?.program_type] || { bg: '#e5e7eb', color: '#374151', label: collaborative?.program_type }
+  // A standalone training has no collaborative, so there's no program_type to
+  // colour by — label the badge for what it is instead of rendering an empty pill.
+  const programMeta = isStandalone
+    ? { bg: '#e0f2f1', color: '#00695c', label: 'Standalone Training' }
+    : (PROGRAM_TYPE_COLORS[collaborative?.program_type] || { bg: '#e5e7eb', color: '#374151', label: collaborative?.program_type })
 
   return (
     <div style={{ minHeight: '100vh', background: 'var(--bg-page)' }}>
@@ -514,7 +547,7 @@ export default function EventDetail() {
           <AgendaBanner
             agenda={documents.find(d => d.document_type === 'agenda')}
             onDownload={handleDocumentDownload}
-            onDelete={canAdminCollaborative(event?.collaborative_id) ? handleDocumentDelete : null}
+            onDelete={canManage ? handleDocumentDelete : null}
           />
         )}
 
@@ -527,7 +560,7 @@ export default function EventDetail() {
                 {documents.length === 0 ? 'No documents uploaded yet.' : `${documents.length} document${documents.length === 1 ? '' : 's'}`}
               </div>
             </div>
-            {canAdminCollaborative(event?.collaborative_id) && (
+            {canManage && (
               <div style={{ display: 'flex', gap: '0.5rem' }}>
                 <label style={{ background: '#0E1F56', color: 'white', padding: '0.45rem 0.9rem', borderRadius: '6px', cursor: uploading ? 'wait' : 'pointer', fontSize: '0.85rem', fontWeight: 500 }}>
                   {uploading ? 'Uploading…' : '📋 Upload agenda'}
@@ -542,7 +575,7 @@ export default function EventDetail() {
           </div>
 
           {/* Drag-and-drop zone (admins only) */}
-          {canAdminCollaborative(event?.collaborative_id) && (
+          {canManage && (
             <div
               onDragOver={onDragOver}
               onDragLeave={onDragLeave}
@@ -590,7 +623,7 @@ export default function EventDetail() {
                       onClick={() => handleDocumentDownload(d)}
                       style={{ background: COLORS.navy, color: 'white', border: 'none', padding: '0.3rem 0.7rem', borderRadius: '6px', cursor: 'pointer', fontSize: '0.78rem' }}
                     >Download</button>
-                    {canAdminCollaborative(event?.collaborative_id) && (
+                    {canManage && (
                       <button
                         onClick={() => handleDocumentDelete(d)}
                         style={{ background: 'transparent', color: COLORS.red, border: `1px solid ${COLORS.red}`, padding: '0.3rem 0.6rem', borderRadius: '6px', cursor: 'pointer', fontSize: '0.78rem' }}
@@ -800,7 +833,7 @@ export default function EventDetail() {
         )}
 
         {/* Parking Lot — admin-only off-topic tracker */}
-        {canAdminCollaborative(event?.collaborative_id) && (
+        {canManage && (
           <section style={{ ...cardStyle, marginTop: '1rem' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.5rem', marginBottom: '0.5rem' }}>
               <div>
