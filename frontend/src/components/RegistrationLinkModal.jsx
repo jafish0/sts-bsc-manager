@@ -303,8 +303,12 @@ export default function RegistrationLinkModal({ collaborativeId, eventsForCollab
 
         {section === 'events' && (
           <div>
+            {/* A standalone training passes its single event and has no
+                collaborative, so the multi-event framing would read as nonsense. */}
             <p style={{ fontSize: '0.85rem', color: '#6b7280', marginTop: 0 }}>
-              All events in this collaborative are checked by default. Uncheck any to scope this registration link to a subset.
+              {collaborativeId
+                ? 'All events in this collaborative are checked by default. Uncheck any to scope this registration link to a subset.'
+                : 'This registration link covers the training below.'}
             </p>
             {eventsForCollab.length === 0 ? (
               <p style={{ fontSize: '0.85rem', color: '#9ca3af' }}>No events on this collaborative yet.</p>

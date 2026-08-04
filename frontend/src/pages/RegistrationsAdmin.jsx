@@ -15,7 +15,18 @@ import RosterShareModal from '../components/RosterShareModal'
 export default function RegistrationsAdmin() {
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
-  const { isAdminLevel, canAdminCollaborative } = useAuth()
+  const { isAdminLevel, canAdminCollaborative, isSuperAdmin, user } = useAuth()
+
+  // Whether the caller may write to a given link. canAdminCollaborative() returns
+  // false for a null id, so gating directly on it disabled every control on a
+  // standalone training's link. Mirrors the event_registration_links RLS policy:
+  //   collaborative link -> per-collab admin
+  //   standalone link    -> super_admin or the creator
+  const canManageLink = (link) => (
+    link?.collaborative_id
+      ? canAdminCollaborative(link.collaborative_id)
+      : (isSuperAdmin || (!!link?.created_by && link.created_by === user?.id))
+  )
 
   const [collaboratives, setCollaboratives] = useState([])  // [{id, name, link_count, events: [...]}]
   const [registrationLinks, setRegistrationLinks] = useState([])  // flat array; each row has collaborative name joined in
@@ -49,17 +60,19 @@ export default function RegistrationsAdmin() {
       .select('id, name, program_type, status')
       .order('name')
 
-    // 2. Pull all registration links for those collabs.
-    const collabIds = (collabs || []).map(c => c.id)
-    let links = []
-    if (collabIds.length > 0) {
-      const { data: l } = await supabase
-        .from('event_registration_links')
-        .select('*')
-        .in('collaborative_id', collabIds)
-        .order('created_at', { ascending: false })
-      links = l || []
-    }
+    // 2. Pull every registration link the caller may administer.
+    //
+    // No client-side collaborative filter: standalone trainings have a NULL
+    // collaborative_id, so `.in('collaborative_id', collabIds)` silently excluded
+    // their links entirely. RLS on event_registration_links now expresses the
+    // rule precisely for both kinds (per-collab admin for collaborative links;
+    // super_admin or creator for standalone ones), so letting it do the scoping
+    // is both correct and less code than special-casing NULL here.
+    const { data: l } = await supabase
+      .from('event_registration_links')
+      .select('*')
+      .order('created_at', { ascending: false })
+    const links = l || []
 
     // 3. Counts per link.
     const linkIds = links.map(l => l.id)
@@ -86,7 +99,11 @@ export default function RegistrationsAdmin() {
     const flatLinks = links.map(l => ({
       ...l,
       counts: countsByLink[l.id] || { registered: 0, waitlisted: 0, cancelled: 0, checked_in: 0 },
-      collaborative_name: collabById[l.collaborative_id]?.name || '?',
+      // A standalone training has no collaborative to name. Say so rather than
+      // rendering the '?' fallback, which reads like missing data.
+      collaborative_name: l.collaborative_id
+        ? (collabById[l.collaborative_id]?.name || '?')
+        : 'Standalone training',
     }))
 
     setCollaboratives(collabsWithCounts)
@@ -254,7 +271,7 @@ export default function RegistrationsAdmin() {
                     // the RLS policy that will refuse it server-side anyway.
                     const totalRegs = Object.values(link.counts).reduce((a, b) => a + b, 0)
                     const blockedReason = deleteBlockedReason(totalRegs)
-                    const canDeleteHere = canAdminCollaborative(link.collaborative_id)
+                    const canDeleteHere = canManageLink(link)
                     const deleteDisabled = !!blockedReason || !canDeleteHere || deletingId === link.id
                     return (
                       <tr key={link.id} style={{ borderBottom: '1px solid var(--border)' }}>
@@ -277,7 +294,7 @@ export default function RegistrationsAdmin() {
                                 what a partner can see. */}
                             <button
                               onClick={() => setSharingLink(link)}
-                              disabled={!canAdminCollaborative(link.collaborative_id)}
+                              disabled={!canManageLink(link)}
                               title="Create or manage a read-only roster link for a partner"
                               style={{ background: 'transparent', color: COLORS.teal, border: `1px solid ${COLORS.teal}`, padding: '0.3rem 0.65rem', borderRadius: '4px', cursor: 'pointer', fontSize: '0.72rem' }}
                             >Share{link.roster_share_token

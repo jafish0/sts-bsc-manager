@@ -10,6 +10,7 @@ import { PROGRAM_TYPE_COLORS } from '../config/programConfig'
 import { exportEvaluationReportPdf } from '../utils/exportEvaluationPdf'
 import { logDownload } from '../utils/logDownload'
 import AgendaBanner from '../components/AgendaBanner'
+import StandaloneSessionPanel from '../components/StandaloneSessionPanel'
 
 const ATTENDANCE_REFRESH_MS = 30000
 
@@ -541,6 +542,14 @@ export default function EventDetail() {
             )}
           </div>
         </div>
+
+        {/* Standalone trainings get their sign-in / evaluation / sign-out links
+            and QR codes here, because CollaborativeDetail's schedule table — where
+            collaborative sessions get theirs — is scoped to a collaborative and
+            can never list a standalone training. */}
+        {isStandalone && (
+          <StandaloneSessionPanel event={event} canManage={canManage} />
+        )}
 
         {/* Agenda banner — collapsible, surfaced on team dashboards too */}
         {documents.some(d => d.document_type === 'agenda') && (
