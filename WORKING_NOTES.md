@@ -14,6 +14,17 @@ A bidirectional scratchpad shared between Josh, Claude Cowork (Claude desktop ch
 
 > What's been built recently, so Claude Cowork has the running context without re-reading the entire git log.
 
+- **2026-08-13 `22f1992` — attendance Excel + CSV export, via a shared builder (draft item 2 + the CSV Josh also asked for).** He has **44 real attendees** from the 2026-08-07 training to report on.
+  - New `src/utils/exportAttendance.js` is the single sheet builder, used by **both** the standalone attendance list and the collaborative `AttendanceReport` — extracted rather than duplicated, per the draft.
+  - ⚠️ **Two behaviour changes land on the collaborative export as a result, both fixes.** (1) Timestamps are now explicit **Eastern** (`Aug 07, 2026, 1:01 PM ET`); it used bare `toLocaleString()`, so the same session exported from a laptop in another timezone produced *different* times in the file — worthless for CEU reporting. (2) Added **Evaluation Completed** and **Sign-Out Method** columns.
+  - **The real data proves those columns matter:** of 44 attendees only **35** completed an evaluation, and sign-out methods split between `manual` and `session_closed` — the latter meaning the admin closed the session or the cron swept them, which is *not* an explicit sign-out. Flattening that to a yes/no would hide exactly the distinction the CEU gate turns on.
+  - `showTeam:false` for standalone (a Team column reading "Unmatched" 44 times looks like a fault, not "N/A"); exports the **sorted** rows so the file matches the screen; duration blank when either end is missing rather than invented; filename strips Windows-illegal characters plus commas and `&` (the real title has both); empty input still emits headers (`json_to_sheet([])` yields a sheet with *no* header row, so a pre-event export would open blank); CSV uses xlsx's own writer so embedded commas/newlines quote correctly, with a BOM so Excel reads UTF-8 instead of mojibaking smart quotes; header row frozen.
+  - **Verified** the builder in node against two real rows covering both sign-out methods and a missing evaluation — 10 columns, correct ET conversion (`17:01Z → 1:01 PM ET`), durations `4h 28m` / `1h 0m`, blank eval empty, filename stem cleaned, Team only in the collaborative variant. Build clean; no `XLSX.` references left in `AttendanceReport`.
+  - ⬜ **Not verified:** click-to-download and whether Excel opens it without a repair prompt — admin-gated, no test account.
+- **2026-08-13 `279ac9b` — 🔴 all 5 PDF exporters were dead; migrated to autotable v5's functional API (draft item 1).** `jspdf-autotable@5.0.7`'s ESM build only calls `applyPlugin` when jsPDF is a browser **global**, which it never is in a Vite ESM app — so `import 'jspdf-autotable'` did nothing and `doc.autoTable` was `undefined`. Reproduced in node.
+  - Confirmed (not assumed) that `autoTable(doc, …)` **does** populate `doc.lastAutoTable.finalY` and that chaining a second table off it works. That was the load-bearing check: all five files position the next block with `y = doc.lastAutoTable.finalY + N`, so had it not been populated this would have silently produced **overlapping tables** instead of an error.
+  - 11 call sites across 5 files, scripted so every site changed identically; 0 old forms remain. Chose the functional API over `applyPlugin`-in-a-shared-module to avoid the import-order trap. No downgrade.
+  - ⬜ **Not verified, and it is the point:** the real 41-response PDF was never rendered. The bug survived *because* nobody clicked, so **all five exports still need exercising in the browser**; four are admin-gated.
 - **2026-08-04 `b1dd44c` + `0222e84` — hub on/off toggle per standalone training.** Josh's materials are handed out in the room, so sign-in routing attendees to a hub that reads *"this training hub opens at the start of the training"* was confusing — but other trainings will want the hub.
   - New `bsc_events.hub_enabled`, **DEFAULT true** so every existing training is unchanged; the trainer opts *out*. **`hub_token` is retained either way**, so switching the hub back on reuses the same URL and any printed QR still works.
   - With the hub off, `SessionSignIn` skips the redirect and its confirmation screen becomes the final destination — so the copy changed from *"Loading your session materials…"* (a promise it wouldn't keep) to **"Thanks for signing in!"** + *"Your attendance has been recorded."*
@@ -896,6 +907,16 @@ Co-branded UK marks have institutional usage rules. The `UKCTAC_logoasuite_web__
 - Check dark mode.
 
 ---
+
+### ⬜ FOR COWORK: spec the evaluation-PDF restyle (Claude Code is blocked on this)
+
+> **2026-08-13.** Josh asked to make the evaluation PDF look closer to `Evaluation Report - Trauma-Informed Practices for Educators (3 hour version).pdf` (saved in the repo root, 22.7 KB — the existing `Evaluation Report - Training Evaluation Report.pdf`, 9.1 KB, is the older sample the current exporter was built against).
+>
+> **Claude Code cannot see it.** No `pdftoppm`/poppler for rendering and no `pdfjs-dist`/`pdf-parse` in `node_modules`, so the file can't be rendered *or* text-extracted in that environment. Restyling "closer to this" without seeing it would be guesswork dressed up as work, so it was not attempted.
+>
+> **Cowork can read PDFs.** What's needed is a spec of the *differences* from what `src/utils/exportEvaluationPdf.js` currently emits — ideally: page/section order, the header/title block treatment, whether the Likert table gains or loses columns, how the NPS block is presented, how verbatim responses are laid out (one table vs. grouped by question), fonts/sizes/rules, and any footer or logo. With that, the change is mechanical.
+>
+> Useful constraints for whoever writes it: the exporter takes `[{ event_date, title, evaluations }]`; the real 2026-08-07 dataset is 41 responses with **3 NULL `recommend_score`**, 2 smart-quote responses, 1 embedded newline and one that is a single `.`; and all `doc.autoTable` calls are now the **functional** `autoTable(doc, …)` form (see `279ac9b`) — don't reintroduce the method form.
 
 ### 📖 REFERENCE: Standalone Trainings — how the feature works as of 2026-08-04
 
