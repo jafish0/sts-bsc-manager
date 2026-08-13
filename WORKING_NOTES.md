@@ -175,7 +175,9 @@ A bidirectional scratchpad shared between Josh, Claude Cowork (Claude desktop ch
 
 **✅ BOTH QUEUED DRAFTS SHIPPED 2026-07-17** (collaborative-creation usability + registration hardening round 2 — see Recently shipped). The `RESEND_API_KEY` blocker found during that work was **resolved the same day** — Josh set the secret and the email pipeline is verified end to end. Registration is now safe to use with real registrants. Superseded queue note follows:
 
-**READY: Close the last always-true anon UPDATE + fix collaborative session-link expiry (2 items) — see the LAST draft at the bottom of this file.** Both are follow-ups Claude Code flagged itself; Cowork investigated each so neither needs re-diagnosing. (1) `"Anon can update sign out"` (`USING true`) **is** droppable — admin bulk sign-out is covered by a separate `FOR ALL` policy — but `SessionEvaluation` still does a direct anon UPDATE to stamp `evaluation_completed_at`, so that stamp must move to an RPC **first** or the CEU gate breaks silently. (2) `generateSessionLink` hardcodes `4PM EST = 9PM UTC`, which is wrong during EDT — and **AWARE Session 1 (2026-10-27) is in EDT** while later sessions are EST. Fix by reusing `roster_share_expiry_for_date`, which is already proven correct on the live standalone training.
+**READY (2 drafts queued at the bottom of this file — work the EXPORTS one first, it is a live production breakage):**
+1. **🔴 Every PDF export in the app is broken + standalone attendance needs Excel (2 items).** Josh found "Download PDF report" doing nothing. Root cause is NOT evaluation-specific: `jspdf-autotable@5`'s ESM build only self-registers when jsPDF is a **browser global**, which it never is in Vite — so `doc.autoTable` is undefined and **all 11 call sites across 5 exporters throw**, including Team Report, STS-PAT, supervisor self-rating and attendance PDFs. Silently broken since the jsPDF v4 / autotable v5 upgrade. Item 2 adds the missing Excel export for standalone attendance (44 real attendees waiting).
+2. **Close the last always-true anon UPDATE + fix collaborative session-link expiry (2 items).** Eval-completion stamp must move to an RPC *before* dropping the `USING (true)` anon policy, or the CEU gate breaks silently; and `generateSessionLink` hardcodes `4PM EST = 9PM UTC`, wrong during EDT — **AWARE Session 1 (2026-10-27) is in EDT.**
 
 _Cowork also deleted the standalone training's test data (4 attendance + 3 evaluations) — verified 0 remaining, event intact for 2026-08-07._
 
@@ -1175,3 +1177,71 @@ You noted `no-use-before-define` is not enabled in this eslint config, which is 
 #### One question for Josh, not a code task
 
 The 2026-08-07 training is stored as **07:00 to 17:00** (7 AM to 5 PM). If that is a placeholder rather than the real window, it is worth correcting before the day: those times drive the `.ics`, the reminder emails, the auto-close cron, and the sign-in link's expiry.
+
+---
+
+### 2026-08-13: 🔴 EVERY PDF export in the app is broken + standalone attendance needs Excel (2 items) — READY
+
+> **Context.** The standalone training "Belonging, Recognition, and Sustainable Care for Counselors & Therapists" (`6ab3e622-6369-4e57-aa4d-9b3328b3ae90`) ran for real on **2026-08-07**: **44 attendees, 41 evaluations**, mean trainer-effectiveness 4.71, NPS 76. Real data, keep it safe — Cowork deleted only the four Aug-4 test rows and verified zero real rows were touched.
+>
+> Josh reported two things from the Manage page: **attendance has no Excel download**, and **"Download PDF report" on Evaluation Results does nothing.** Cowork investigated the second one and it is **not** an evaluation-specific bug — it is every PDF export in the codebase.
+
+#### Item 1: 🔴 `doc.autoTable` is undefined — all 5 PDF exporters are dead
+
+**Root cause, verified in `node_modules`, not inferred.** `jspdf-autotable@5.0.7`'s ESM build only auto-registers the plugin when jsPDF is present as a **browser global**. From `dist/jspdf.plugin.autotable.mjs` (~line 2067):
+
+```js
+try {
+    if (typeof window !== 'undefined' && window) {
+        var jsPDF = anyWindow.jsPDF || anyWindow.jspdf?.jsPDF;
+        if (jsPDF) {
+            applyPlugin(jsPDF);   // ONLY runs if jsPDF is a global
+        }
+    }
+} catch (error) { console.error('Could not apply autoTable plugin', error); }
+```
+
+This is a Vite app importing jsPDF as an ES module, so `window.jspdf` is **undefined**, `applyPlugin` never runs, and the side-effect import `import 'jspdf-autotable'` accomplishes nothing. Every `doc.autoTable(...)` call therefore throws `TypeError: doc.autoTable is not a function`. Installed versions: `jspdf@4.2.1`, `jspdf-autotable@5.0.7`.
+
+**Blast radius — 11 call sites across 5 files, all currently broken:**
+
+| file | `doc.autoTable(` calls | user-facing feature |
+|---|---|---|
+| `src/utils/exportPdf.js` | 4 | Team Report PDF |
+| `src/utils/exportStsPat.js` | 3 | STS-PAT report PDF |
+| `src/utils/exportSupervisorSelfRating.js` | 2 | Supervisor self-rating PDF |
+| `src/utils/exportEvaluationPdf.js` | 1 | Evaluation report PDF (**what Josh hit**) |
+| `src/components/AttendanceReport.jsx` | 1 | Attendance PDF |
+
+⚠️ **Assume all five are broken in production right now, not just the one Josh clicked.** The Team Report PDF demonstrably worked back in May, so this is a regression introduced by the jsPDF v4 / autotable v5 upgrade and has been silently broken since. Josh has been shipping to real cohorts with dead PDF buttons. **Verify each of the five by clicking it, do not assume the shared fix covers a call site you did not exercise.**
+
+**Fix — pick one and apply it consistently across all five files:**
+
+- **Preferred: the functional API.** `import autoTable from 'jspdf-autotable'`, then `autoTable(doc, { ... })`. This is v5's intended usage and has no dependency on globals. `doc.lastAutoTable` is still populated by the functional call, so the existing `y = doc.lastAutoTable.finalY + N` lines keep working — **confirm that** rather than trusting it, since every one of these files uses that pattern to position the next block.
+- **Alternative: register once.** `import { applyPlugin } from 'jspdf-autotable'; import jsPDF from 'jspdf'; applyPlugin(jsPDF)` in a single shared module imported by all five, leaving the `doc.autoTable(...)` call sites untouched. Smaller diff, but it depends on the shared module being imported before any export runs — an import-order trap that will bite someone later. Prefer the functional API unless the diff is unmanageable.
+
+Do **not** downgrade the packages to dodge this.
+
+**Verification (this is the part that matters — the bug survived because nobody clicked):**
+- Exercise **all five** PDF exports in the browser and confirm a file downloads and opens.
+- For the evaluation PDF specifically, use the **real 41-response dataset** on the 2026-08-07 training. That data contains the exact edge cases that would break a naive rewrite: **3 rows with `recommend_score` NULL**, one response containing **curly quotes** (`Asking “am I doing what I expect others to do”`) and another with a **smart apostrophe** (`I wouldn’t change anything.`), one with an **embedded newline**, and one that is a single `.` character. If the PDF renders all 41 verbatim responses without mangling or throwing, the fix is sound.
+- Check the console for `Could not apply autoTable plugin` — its absence is **not** evidence of success, since the guard silently skips when there is no global.
+
+#### Item 2: Excel export for standalone-training attendance
+
+`StandaloneAttendanceList` on `EventDetail` renders a flat attendance table with **no export at all**. The collaborative path has had this for months: `AttendanceReport.jsx` builds an `xlsx` workbook (`XLSX.writeFile(wb, \`Attendance_${eventTitle}_${eventDate}.xlsx\`)`, line ~114) alongside its PDF.
+
+Josh needs the same for standalone trainings — he has 44 real attendees to report on now.
+
+- Add a **Download Excel** button to the standalone attendance section.
+- Columns should cover what the screen shows plus what a report needs: **Name, Email, Agency, Role, Signed in, Signed out, Evaluation completed, Status**. Include the sign-out method if it is cheap, since it is the CEU-credit signal.
+- Format timestamps as readable local **Eastern** times with the date, not raw ISO — consistent with the ET convention now used in the emails and on the registration page. Do not emit a naive local-time string that depends on the viewer's machine.
+- **Reuse `AttendanceReport`'s workbook builder rather than writing a second one.** If that component is too collaborative-coupled to reuse directly, extract the sheet-building into `src/utils/exportAttendance.js` and have both call it — one implementation, not two that drift.
+- Filename: match the existing convention, e.g. `Attendance_<training title>_<date>.xlsx`, with unsafe filename characters stripped (the real title contains `&` and commas).
+- While here: consider adding the **PDF** attendance export to the standalone view too for parity — but only after item 1 is fixed, or you will be shipping a second dead button.
+
+**Verification:** download the Excel from the real 2026-08-07 training, open it, and confirm all **44** rows are present with correct headers and readable ET timestamps. Confirm the file opens in Excel without a repair prompt.
+
+#### Note for Josh
+
+Both of these were only findable by using the app on real data — the PDF breakage in particular is invisible to builds, lint, and programmatic tests, and would have been caught months earlier by one click. Worth adding "click every export button" to the checklist after any dependency upgrade.
