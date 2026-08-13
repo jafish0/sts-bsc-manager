@@ -1,5 +1,5 @@
 import jsPDF from 'jspdf'
-import 'jspdf-autotable'
+import autoTable from 'jspdf-autotable'
 import * as XLSX from 'xlsx'
 import { TIMEPOINT_LABELS } from './constants'
 import { STS_PAT_INFO, STS_PAT_QUESTIONS, STS_PAT_SECTION_INTROS } from '../config/stspat'
@@ -47,7 +47,7 @@ export function exportStsPatPdf(assessment, responses, teamName) {
   y += 16
 
   // Section scores table
-  doc.autoTable({
+  autoTable(doc, {
     startY: y,
     head: [['Section', 'Score', 'Max', '%']],
     body: [
@@ -88,7 +88,7 @@ export function exportStsPatPdf(assessment, responses, teamName) {
       ]
     })
 
-    doc.autoTable({
+    autoTable(doc, {
       startY: y,
       head: [['#', 'Question', 'Rating', 'Action', 'Notes']],
       body: rows,
@@ -117,7 +117,7 @@ export function exportStsPatPdf(assessment, responses, teamName) {
     doc.text('Action Items Summary', margin, y)
     y += 5
 
-    doc.autoTable({
+    autoTable(doc, {
       startY: y,
       head: [['#', 'Question', 'Rating', 'Notes']],
       body: actionItems.map(q => {

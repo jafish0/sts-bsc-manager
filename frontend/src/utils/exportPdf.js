@@ -1,5 +1,5 @@
 import jsPDF from 'jspdf'
-import 'jspdf-autotable'
+import autoTable from 'jspdf-autotable'
 import { TIMEPOINT_LABELS, TIMEPOINT_ORDER } from './constants'
 import ctacLogo from '../assets/UKCTAC_logoasuite_web__primary_tagline_color.png'
 import ukLogo from '../assets/UK_Lockup-286.png'
@@ -100,7 +100,7 @@ export async function exportTeamReportPdf(report) {
     ]
   })
 
-  doc.autoTable({
+  autoTable(doc, {
     startY: y,
     margin: { left: margin, right: margin },
     head: [['Timepoint', 'Responses', 'Demographics', 'STSS', 'ProQOL', 'STSI-OA']],
@@ -133,7 +133,7 @@ export async function exportTeamReportPdf(report) {
     sectionHeader(doc, 'STSS — Secondary Traumatic Stress Scale (DSM-5 4-Factor)', margin, y, pageW)
     y += 10
 
-    doc.autoTable({
+    autoTable(doc, {
       startY: y,
       margin: { left: margin, right: margin },
       head: [['Timepoint', 'n', 'Total M(SD)', 'Intrusion M(SD)', 'Avoidance M(SD)', 'Neg.Cog. M(SD)', 'Arousal M(SD)']],
@@ -156,7 +156,7 @@ export async function exportTeamReportPdf(report) {
     sectionHeader(doc, 'ProQOL 5 — Professional Quality of Life', margin, y, pageW)
     y += 10
 
-    doc.autoTable({
+    autoTable(doc, {
       startY: y,
       margin: { left: margin, right: margin },
       // Burnout subscale only — STS removed 2026-05-08, CS removed 2026-06-10.
@@ -180,7 +180,7 @@ export async function exportTeamReportPdf(report) {
     sectionHeader(doc, 'STSI-OA — Organizational Assessment (6 Domains)', margin, y, pageW)
     y += 10
 
-    doc.autoTable({
+    autoTable(doc, {
       startY: y,
       margin: { left: margin, right: margin },
       head: [['Timepoint', 'n', 'Total', 'Resilience', 'Safety', 'Policies', 'Leadership', 'Routine', 'Evaluation']],

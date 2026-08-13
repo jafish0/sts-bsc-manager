@@ -1,5 +1,5 @@
 import jsPDF from 'jspdf'
-import 'jspdf-autotable'
+import autoTable from 'jspdf-autotable'
 import { SELF_RATING_INFO, COMPETENCIES } from '../config/supervisorSelfRating'
 
 const NAVY = '#0E1F56'
@@ -96,7 +96,7 @@ export function exportSelfRatingPdf(rating, responses) {
       ]
     })
 
-    doc.autoTable({
+    autoTable(doc, {
       startY: y,
       head: [['Item', 'Rating', 'Notes']],
       body: rows,
@@ -127,7 +127,7 @@ export function exportSelfRatingPdf(rating, responses) {
     doc.text('Growth Opportunities', margin, y)
     y += 5
 
-    doc.autoTable({
+    autoTable(doc, {
       startY: y,
       head: [['Competency', 'Item']],
       body: growthItems.map(g => [g.comp, g.text.substring(0, 90)]),

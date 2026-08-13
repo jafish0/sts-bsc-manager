@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../utils/supabase'
 import jsPDF from 'jspdf'
-import 'jspdf-autotable'
+import autoTable from 'jspdf-autotable'
 import * as XLSX from 'xlsx'
 
 const NAVY = '#0E1F56'
@@ -71,7 +71,7 @@ export default function AttendanceReport({ eventId, eventTitle, eventDate, colla
     doc.text(`Total: ${totalSignedIn} signed in, ${totalSignedOut} signed out, ${totalUnmatched} unmatched`, m, y)
     y += 6
 
-    doc.autoTable({
+    autoTable(doc, {
       startY: y,
       head: [['Name', 'Email', 'Agency', 'Role', 'Team', 'Sign In', 'Sign Out', 'Duration', 'Matched']],
       body: attendance.map(a => [

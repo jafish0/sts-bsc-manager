@@ -1,5 +1,5 @@
 import jsPDF from 'jspdf'
-import 'jspdf-autotable'
+import autoTable from 'jspdf-autotable'
 
 const NAVY = '#0E1F56'
 const NAVY_RGB = [14, 31, 86]
@@ -88,7 +88,7 @@ export function exportEvaluationReportPdf(sessions) {
       ]
     })
 
-    doc.autoTable({
+    autoTable(doc, {
       startY: y,
       margin: { left: margin, right: margin },
       head: [['Field', 'Min', 'Max', 'Mean']],
