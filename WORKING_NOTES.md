@@ -1213,7 +1213,7 @@ This is a Vite app importing jsPDF as an ES module, so `window.jspdf` is **undef
 | `src/utils/exportEvaluationPdf.js` | 1 | Evaluation report PDF (**what Josh hit**) |
 | `src/components/AttendanceReport.jsx` | 1 | Attendance PDF |
 
-⚠️ **Assume all five are broken in production right now, not just the one Josh clicked.** The Team Report PDF demonstrably worked back in May, so this is a regression introduced by the jsPDF v4 / autotable v5 upgrade and has been silently broken since. Josh has been shipping to real cohorts with dead PDF buttons. **Verify each of the five by clicking it, do not assume the shared fix covers a call site you did not exercise.**
+⚠️ **Assume all five are broken right now, not just the one Josh clicked.** The Team Report PDF demonstrably worked back in May, so this is a regression introduced by the jsPDF v4 / autotable v5 upgrade and has been silent since. **No participant was ever affected — no real cohort has run yet** (the 2026-08-07 standalone training was the first live event, and the AWARE TIPE cohort does not start until 2026-10-27), so the exposure was demo data and Josh's own testing. That is also why it went unnoticed: builds, lint and programmatic tests all pass, and only a click reveals it. **Verify each of the five by clicking it; do not assume the shared fix covers a call site you did not exercise.**
 
 **Fix — pick one and apply it consistently across all five files:**
 
