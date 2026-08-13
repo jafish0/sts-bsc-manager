@@ -186,9 +186,11 @@ A bidirectional scratchpad shared between Josh, Claude Cowork (Claude desktop ch
 
 **✅ BOTH QUEUED DRAFTS SHIPPED 2026-07-17** (collaborative-creation usability + registration hardening round 2 — see Recently shipped). The `RESEND_API_KEY` blocker found during that work was **resolved the same day** — Josh set the secret and the email pipeline is verified end to end. Registration is now safe to use with real registrants. Superseded queue note follows:
 
-**READY (2 drafts queued at the bottom of this file — work the EXPORTS one first, it is a live production breakage):**
-1. **🔴 Every PDF export in the app is broken + standalone attendance needs Excel (2 items).** Josh found "Download PDF report" doing nothing. Root cause is NOT evaluation-specific: `jspdf-autotable@5`'s ESM build only self-registers when jsPDF is a **browser global**, which it never is in Vite — so `doc.autoTable` is undefined and **all 11 call sites across 5 exporters throw**, including Team Report, STS-PAT, supervisor self-rating and attendance PDFs. Silently broken since the jsPDF v4 / autotable v5 upgrade. Item 2 adds the missing Excel export for standalone attendance (44 real attendees waiting).
+**READY (2 drafts queued at the bottom of this file):**
+1. **Restyle the evaluation PDF to the CTAC house format** — unblocks the FOR-COWORK item. Cowork found the **generating source** (`Training Manager/ctac_reports.py` + `CTAC_Report_Style_Guide.md`), so the spec carries exact colors, type scale, column widths and fills rather than estimates. Biggest gaps: no page furniture, no `n` column, no NPS block, Qualtrics `Q51 -` labels, and unnumbered verbatim comments.
 2. **Close the last always-true anon UPDATE + fix collaborative session-link expiry (2 items).** Eval-completion stamp must move to an RPC *before* dropping the `USING (true)` anon policy, or the CEU gate breaks silently; and `generateSessionLink` hardcodes `4PM EST = 9PM UTC`, wrong during EDT — **AWARE Session 1 (2026-10-27) is in EDT.**
+
+⬜ **Still unverified from the last batch:** none of the 5 repaired PDF exports has been clicked in a browser. That bug survived *because* nobody clicked.
 
 _Cowork also deleted the standalone training's test data (4 attendance + 3 evaluations) — verified 0 remaining, event intact for 2026-08-07._
 
@@ -908,7 +910,7 @@ Co-branded UK marks have institutional usage rules. The `UKCTAC_logoasuite_web__
 
 ---
 
-### ⬜ FOR COWORK: spec the evaluation-PDF restyle (Claude Code is blocked on this)
+### ✅ RESOLVED (2026-08-13): evaluation-PDF restyle is now spec'd — see the LAST draft at the bottom of this file. Original request follows for context.
 
 > **2026-08-13.** Josh asked to make the evaluation PDF look closer to `Evaluation Report - Trauma-Informed Practices for Educators (3 hour version).pdf` (saved in the repo root, 22.7 KB — the existing `Evaluation Report - Training Evaluation Report.pdf`, 9.1 KB, is the older sample the current exporter was built against).
 >
@@ -1266,3 +1268,130 @@ Josh needs the same for standalone trainings — he has 44 real attendees to rep
 #### Note for Josh
 
 Both of these were only findable by using the app on real data — the PDF breakage in particular is invisible to builds, lint, and programmatic tests, and would have been caught months earlier by one click. Worth adding "click every export button" to the checklist after any dependency upgrade.
+
+---
+
+### 2026-08-13: Restyle the evaluation PDF to the CTAC house format — READY (spec'd by Cowork)
+
+> **This unblocks the ⬜ FOR COWORK item.** Claude Code couldn't render or text-extract the target PDF in its environment. Cowork read it, rendered both PDFs to images, and — better — found the **generating source**, so this spec uses exact values rather than estimates.
+>
+> **Ground truth sources, all in the repo. Read them; do not guess:**
+> - **`Training Manager/CTAC_Report_Style_Guide.md`** — the house style, written for exactly these two report types. **Authoritative.**
+> - **`Training Manager/ctac_reports.py`** — the ReportLab code that produced the target PDF. `build_eval_pdf()` (~line 601) is the structure; `_styles()` (~line 388), `_ratings_table()` (~line 520), `_nps_strip()` (~line 550), `_comments_table()` (~line 578) are the exact sizes, widths and fills.
+> - **`Evaluation Report - Trauma-Informed Practices for Educators (3 hour version).pdf`** (repo root, 9 pages) — the target output.
+> - `Evaluation Report - Training Evaluation Report.pdf` (repo root, 6 pages) — the OLD sample the current exporter was built from. This is what we are moving *away* from.
+>
+> Target file to change: **`frontend/src/utils/exportEvaluationPdf.js`**. Two call sites must keep working: `EventDetail.jsx` (single session) and `TrainerDashboard.jsx` (single **and** multi-session — it passes up to 10 sessions at once).
+
+#### What's different, concretely
+
+| | Current app PDF | Target house format |
+|---|---|---|
+| Page furniture | none | navy cover header band, running header on pages 2+, footer with address + page number on every page |
+| Title block | centered "Training Evaluation Report" + centered subtitle + navy rule | left "Session Evaluation Report" (h1) + training name (h2) + **teal** rule |
+| Section labels | `Q51 - Please rate`, `Q51 - What part…` (Qualtrics artifacts) | `Quantitative Ratings`, `Open-Response Comments`, and the plain question text |
+| Rating labels | full survey wording, long enough to truncate | short display labels (see table below) |
+| Ratings table | Field / Min / Max / Mean | Evaluation item / Min / Max / Mean / **n**, zebra rows, mean **bold navy** |
+| NPS | **absent** | "Likelihood to Recommend" 5-cell stat strip |
+| Verbatim comments | plain indented lines, unnumbered | **numbered two-column zebra table** (index │ comment) |
+| Multi-session | sessions run together | each session **starts a new page**; a **Contents** table when >1 |
+
+#### Brand tokens (exact, from `ctac_reports.py` lines 26-34)
+
+`NAVY #0E1F56` · `TEAL #00A79D` · `PAPER #FBF8F2` · `ZEBRA #F4F1EA` · `HAIRLINE #E3DDD1` · `INK #2A2D34` (body text — **not** pure black) · `GREY #6B7280` · `NAVY_SOFT #EAEDF5` · `TEAL_SOFT #E1F4F2`
+
+#### Type scale (from `_styles()`; sizes are pt)
+
+| style | font | size / leading | color |
+|---|---|---|---|
+| h1 | display bold | 17 / 21 | navy |
+| h2 | display | 13.5 / 17 | navy |
+| program name (under h1) | display | **12.5** | navy |
+| body | body regular | 10 / 14.5 | ink |
+| meta | body regular | 9.5 / 13 | grey |
+| table cell | body regular | 9.5 / 13 | ink |
+| table header | body semibold | 9.5 / 12 | white |
+| footnote | body regular | 8 / 11 | grey |
+| stat number | display bold | 22 / 25 | navy (teal for the NPS cell) |
+| stat caption | body regular | 8 / 10.5 | grey |
+
+**⚠️ Fonts — read this before starting.** The house PDF embeds **Zilla Slab** (display) + **Fira Sans** (body) TTFs. jsPDF ships only Helvetica/Times/Courier; embedding two families means base64-ing four-plus TTFs into the bundle (several hundred KB on a public-facing app). **For this pass, keep Helvetica** and treat the type *scale, weights and colors* as the spec. Structure, color and layout account for nearly all the visual gap; the typeface is the last few percent. Say in the ship summary that fonts were deliberately not embedded, so the decision is visible rather than looking like an oversight.
+
+#### Page furniture
+
+- **US Letter, ~0.8in (≈20mm) margins.**
+- **Cover header (page 1):** full-width navy band; **7px teal rule along its bottom edge**; `CTAC` in white display bold with a **small teal square** immediately right of the wordmark; beneath, in pale blue, `Center on Trauma and Children · University of Kentucky`; right-aligned `EVALUATION REPORT` (white, semibold, letterspaced) and under it `Prepared <Month D, YYYY>`.
+- **Running header (pages 2+):** small navy `CTAC`, then grey `· <training name> — Evaluation Report`, with a hairline rule beneath.
+- **Footer (every page):** hairline rule, then grey, 8pt: left `CTAC · 3470 Blazer Parkway, Suite 100, Lexington, KY 40509 · (859) 218-6901`, right `Page N`.
+- **Implementation note:** jsPDF has no page templates. Draw furniture **after** the content exists by looping `for (let i = 1; i <= doc.getNumberOfPages(); i++) { doc.setPage(i); … }`, so `Page N` is correct and nothing is drawn on a page that later gets removed. autoTable's `didDrawPage` hook is the alternative but fires only for table pages — the loop is safer here.
+
+#### Document structure
+
+1. `Session Evaluation Report` (h1)
+2. Training name (h2 at 12.5pt)
+3. Optional one-line scope note (meta) — omit if we have nothing to say; do not invent one.
+4. **Teal** horizontal rule, 1.2pt.
+5. **Contents table, only when more than one session:** `Session │ Date │ Responses`, navy header, zebra, column widths `[content − 2.4in, 1.4in, 1.0in]`.
+6. **Per session, each starting on a new page** (`PageBreak` between sessions; the first session does not need one after the title block on a single-session report):
+   1. `Session N` (h1) when multi-session, or `Session Results` (h1) when single.
+   2. Session title (h2). **The app has a real event title, so use it here** — and unlike the sample PDF, do **not** also print the date as the h2, which is why that file shows `8/10/2026` twice. That's an artifact of the Python passing the date as the label when no title existed.
+   3. Meta line, joined with `  ·  ` : `M/D/YYYY  ·  N responses`.
+   4. `Quantitative Ratings` (h2) + ratings table + footnote `Scale: 1–5. n = non-blank responses per item.`
+   5. `Likelihood to Recommend` (h2) + NPS strip + footnote — **only when the data has at least one non-null `recommend_score`.**
+   6. `Open-Response Comments` (h2) + meta `Responses are transcribed verbatim and numbered in submission order.` then, per question: question text (body semibold, navy), `N responses` (meta), numbered comments table.
+
+#### The six rating rows — switch to the short display labels
+
+Replace the long survey wording in `LIKERT_FIELDS` with these (mapping to the same DB columns):
+
+| column | display label |
+|---|---|
+| `trainer_effective` | Trainer was effective |
+| `content_objective_alignment` | High consistency between content and objectives |
+| `applicable_to_work` | Will incorporate knowledge & skills into daily work |
+| `practical_knowledge` | Satisfied with practical knowledge & skills presented |
+| `methods_appropriate_audience` | Teaching methods appropriate for intended audience |
+| `methods_appropriate_subject` | Teaching methods appropriate for subject matter |
+
+#### Ratings table
+
+- Columns and widths: `Evaluation item` (content − 2.4in) · `Min` · `Max` · `Mean` · `n` (0.6in each).
+- Navy header row, white semibold text. **Zebra** `#F4F1EA` on alternating body rows. Hairline `LINEBELOW` 0.5pt on all rows. Numerics **centered**, two decimals. **Mean bold, navy.**
+- `n` = count of non-null values **per item** (not per response — an item can be blank while others are answered).
+- **Anomalous `0.00` rule** (from the style guide): a 0 on a 1–5 scale is a skipped entry. Keep it in `n` and the mean, render the Min as `0.00*`, and append the footnote *"A minimum of 0.00 reflects a single anomalous/blank entry on a 1–5 scale; group means remain high."* A legitimate `1` is a real minimum — render `1.00`, **no asterisk**. Implement the check even though the current dataset has no zeros; it is cheap and the rule is house policy.
+
+#### NPS strip
+
+- Source column `recommend_score` (0–10). Classification: **Promoter 9–10, Passive 7–8, Detractor 0–6.**
+- `NPS = round(100 * (promoters − detractors) / n)`, where `n` counts **non-null** scores only. Passives are excluded from the score but shown in the breakdown.
+- Five equal-width cells, two rows (big number above, small grey caption below): `Avg score (of 10)` · `Net Promoter Score` · `Promoters (9–10)` · `Passives (7–8)` · `Detractors (0–6)`.
+- All cells filled `NAVY_SOFT`, **except the Net Promoter Score cell which is `TEAL_SOFT` with its number in teal.** Show the NPS with an explicit sign (`+76`).
+- Footnote: `"How likely are you to recommend this course to a friend or colleague?" (0–10). n = <n>; raw range <min>–<max>. NPS = % Promoters − % Detractors.`
+
+#### Comments table
+
+- Two columns, widths `[0.45in, content − 0.45in]`. Numbered from **1 in submission order**, zebra alternating, `VALIGN: top`.
+- **Verbatim. No exceptions:** preserve original spelling, punctuation, smart quotes, embedded newlines, and one-character entries such as a lone `.`. Do not trim, summarize, reorder, or de-duplicate.
+- Order the sections: most helpful → improvements → additional comments. Skip a question entirely when it has zero non-empty responses (do not print an empty heading).
+- The report stays **commentary-free** — no themes, synthesis or recommendations. That belongs to the Training Report, not this one.
+
+#### Filename
+
+`<Training_Name>_Evaluation_Report.pdf`, unsafe characters stripped (the live title contains `&` and commas). Keep the existing multi-session variant naming.
+
+#### Verification — use the real data, and actually look at the output
+
+The live standalone training `6ab3e622-6369-4e57-aa4d-9b3328b3ae90` (2026-08-07) has **41 real evaluations** that exercise the hard cases:
+
+- **3 rows with `recommend_score` NULL** → NPS `n` must be **38**, not 41. Raw range is **7-10**, so there are **zero detractors** — confirm the strip renders `0` rather than breaking or hiding the cell.
+- Smart punctuation: `Asking “am I doing what I expect others to do”` and `I wouldn’t change anything.` must render intact, not as mojibake or `?`.
+- One response contains an **embedded newline**; one is a single `.` — both must appear.
+- **`most_helpful` and `improvements` have 41 responses each, but `additional_comments` has only 8** — confirm the sparse question renders with its own correct count and the empty ones are skipped.
+
+Render the PDF to images and inspect every page (`pdftoppm` is available in the Claude Code sandbox — it is at `/usr/bin/pdftoppm` even though a tool wrapper may report otherwise). Check: the teal rule under the header band, zebra alignment, that the ratings table doesn't split awkwardly across a page, that long verbatim responses wrap inside their cell rather than overflowing, and that `Page N` is right on the last page. Compare side by side against the target PDF.
+
+Also re-render the **multi-session** path from TrainerDashboard so the Contents table and per-session page breaks are exercised.
+
+#### ⚠️ Data-quality observation for Josh, not a code task
+
+Two of the 41 responses rated **all six items `1`** while writing glowing comments (`"Alex is always an incredible teacher! I loved the whole presentation!"` and `"What I felt was most helpful was the quick breakout sessions…"`). Almost certainly reversed-scale confusion or a miskey, not genuine 1s. They drag every mean down by roughly 0.2 and will show `Min 1.00` on all six rows. Worth deciding before this report goes to anyone: leave as-is (defensible — it is what they submitted), or treat as a known data-cleaning case. This is exactly the kind of rule the blocked data-cleaning feature is meant to codify, and a real argument for making the evaluation scale direction more obvious in the UI.
