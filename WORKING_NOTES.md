@@ -1272,6 +1272,20 @@ Both of these were only findable by using the app on real data — the PDF break
 
 ---
 
+### ⚙️ ENVIRONMENT NOTE for the PDF restyle — read before starting (verified 2026-08-13)
+
+> Two corrections to what the restyle spec and I each assumed. **Claude Code here runs on a Windows host, not a Linux sandbox.**
+>
+> - ✅ **`pdftotext` IS available** — `C:\Users\jafish0\AppData\Local\Programs\Git\mingw64\bin\pdftotext.exe`, bundled with Git for Windows. So the target PDF's **text** can be extracted locally. *My earlier claim that the reference PDF "can be neither rendered nor text-extracted" was wrong on the text half — I checked `node_modules` and `pdftoppm` but never the PATH.*
+> - ❌ **`pdftoppm` is NOT available**, and neither is ImageMagick or Ghostscript. The spec says it "is at `/usr/bin/pdftoppm` even though a tool wrapper may report otherwise" — that holds for a Linux sandbox, not for this host. There is no PDF **rasteriser**, so the spec's central verification step — *"render the PDF to images and inspect every page"* — **cannot be done as written here.**
+>
+> **Consequence for whoever picks this up.** Visual verification is the crux of this spec, and structure-only checks are exactly how the dead-`autoTable` bug survived for months. Options, best first:
+> 1. Run the restyle in an environment that has poppler (a Linux sandbox / Cowork), so pages can actually be inspected.
+> 2. Install poppler for Windows on this host first (Josh's call — it's a system change, so ask).
+> 3. Generate the PDF in node, extract with `pdftotext -layout` to confirm content, ordering, counts and that verbatim text survives intact — then have **Josh** eyeball the rendered pages. This verifies everything except pixels: zebra alignment, table page-splits, cell overflow and the header band still need a human or a rasteriser.
+>
+> Whichever route: `exportEvaluationPdf.js` has no browser-only dependencies, so it runs in node directly. Stub `jsPDF.prototype.save` to write bytes to disk (the harness pattern used for the autotable verification in `279ac9b`).
+
 ### 2026-08-13: Restyle the evaluation PDF to the CTAC house format — READY (spec'd by Cowork)
 
 > **This unblocks the ⬜ FOR COWORK item.** Claude Code couldn't render or text-extract the target PDF in its environment. Cowork read it, rendered both PDFs to images, and — better — found the **generating source**, so this spec uses exact values rather than estimates.
