@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { supabase } from '../utils/supabase'
 import jsPDF from 'jspdf'
 import autoTable from 'jspdf-autotable'
-import * as XLSX from 'xlsx'
+import { downloadAttendanceExcel } from '../utils/exportAttendance'
 
 const NAVY = '#0E1F56'
 const TEAL = '#00A79D'
@@ -94,24 +94,19 @@ export default function AttendanceReport({ eventId, eventTitle, eventDate, colla
     doc.save(`Attendance_${eventTitle || 'Session'}_${eventDate || ''}.pdf`)
   }
 
+  // Delegates to the shared builder in utils/exportAttendance.js so the
+  // collaborative and standalone exports cannot drift. Two behaviour changes come
+  // with that, both improvements: timestamps are now explicit EASTERN times
+  // (this used bare toLocaleString(), so the same session exported from a laptop
+  // in another timezone produced different times in the file — useless for CEU
+  // reporting), and the sheet gains Evaluation Completed + Sign-Out Method, which
+  // together are the actual CEU signal.
   const exportExcel = () => {
-    const rows = attendance.map(a => ({
-      Name: a.attendee_name,
-      Email: a.attendee_email,
-      Agency: a.attendee_agency || '',
-      Role: a.attendee_role || '',
-      Team: a.teams?.team_name || 'Unmatched',
-      'Sign In': a.signed_in_at ? new Date(a.signed_in_at).toLocaleString() : '',
-      'Sign Out': a.signed_out_at ? new Date(a.signed_out_at).toLocaleString() : '',
-      Duration: formatDuration(a),
-      Matched: a.is_matched ? 'Yes' : 'No'
-    }))
-
-    const wb = XLSX.utils.book_new()
-    const ws = XLSX.utils.json_to_sheet(rows)
-    ws['!cols'] = [{ wch: 25 }, { wch: 30 }, { wch: 20 }, { wch: 15 }, { wch: 20 }, { wch: 18 }, { wch: 18 }, { wch: 10 }, { wch: 8 }]
-    XLSX.utils.book_append_sheet(wb, ws, 'Attendance')
-    XLSX.writeFile(wb, `Attendance_${eventTitle || 'Session'}_${eventDate || ''}.xlsx`)
+    downloadAttendanceExcel(attendance, {
+      title: eventTitle,
+      date: eventDate,
+      showTeam: true,
+    })
   }
 
   if (loading) return <div style={{ padding: '2rem', textAlign: 'center', color: '#6b7280' }}>Loading attendance...</div>

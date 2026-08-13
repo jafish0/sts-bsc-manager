@@ -11,6 +11,7 @@ import { exportEvaluationReportPdf } from '../utils/exportEvaluationPdf'
 import { logDownload } from '../utils/logDownload'
 import AgendaBanner from '../components/AgendaBanner'
 import StandaloneSessionPanel from '../components/StandaloneSessionPanel'
+import { downloadAttendanceExcel, downloadAttendanceCsv } from '../utils/exportAttendance'
 
 const ATTENDANCE_REFRESH_MS = 30000
 
@@ -649,7 +650,11 @@ export default function EventDetail() {
             trainings the participant list comes from session_attendance directly
             (rendered below in the Live Attendance section). */}
         {event.kind === 'standalone_training' ? (
-          <StandaloneAttendanceList attendance={attendance} />
+          <StandaloneAttendanceList
+            attendance={attendance}
+            eventTitle={event.title}
+            eventDate={event.event_date}
+          />
         ) : membersByTeam.length === 0 ? (
           <div style={{ ...cardStyle, textAlign: 'center', color: 'var(--text-muted)' }}>
             No teams in this collaborative yet.
@@ -990,10 +995,14 @@ export default function EventDetail() {
 // Standalone-training attendance list — flat (no team grouping).
 // Pulls from session_attendance rows tied to this event. Walks-ins (no
 // user_profile match) and registered participants are both included.
-function StandaloneAttendanceList({ attendance }) {
+function StandaloneAttendanceList({ attendance, eventTitle, eventDate }) {
   const rows = (attendance || []).slice().sort((a, b) =>
     (b.signed_in_at || '').localeCompare(a.signed_in_at || '')
   )
+
+  // Exports the SORTED rows, so the file matches the order on screen rather than
+  // whatever order the query happened to return.
+  const exportOpts = { title: eventTitle, date: eventDate, showTeam: false }
 
   if (rows.length === 0) {
     return (
@@ -1016,6 +1025,16 @@ function StandaloneAttendanceList({ attendance }) {
           <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
             <strong style={{ color: '#16a34a' }}>{present}</strong> currently signed in · <strong style={{ color: 'var(--text-muted)' }}>{signedOut}</strong> signed out
           </div>
+        </div>
+        <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
+          <button
+            onClick={() => downloadAttendanceExcel(rows, exportOpts)}
+            style={{ background: COLORS.teal, color: 'white', border: 'none', padding: '0.4rem 0.85rem', borderRadius: '6px', cursor: 'pointer', fontSize: '0.85rem', fontWeight: 500 }}
+          >Download Excel</button>
+          <button
+            onClick={() => downloadAttendanceCsv(rows, exportOpts)}
+            style={{ background: 'transparent', color: COLORS.navy, border: `1px solid ${COLORS.navy}`, padding: '0.4rem 0.85rem', borderRadius: '6px', cursor: 'pointer', fontSize: '0.85rem' }}
+          >Download CSV</button>
         </div>
       </div>
 
