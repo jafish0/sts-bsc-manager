@@ -186,11 +186,12 @@ A bidirectional scratchpad shared between Josh, Claude Cowork (Claude desktop ch
 
 **✅ BOTH QUEUED DRAFTS SHIPPED 2026-07-17** (collaborative-creation usability + registration hardening round 2 — see Recently shipped). The `RESEND_API_KEY` blocker found during that work was **resolved the same day** — Josh set the secret and the email pipeline is verified end to end. Registration is now safe to use with real registrants. Superseded queue note follows:
 
-**READY (2 drafts queued at the bottom of this file):**
-1. **Restyle the evaluation PDF to the CTAC house format** — unblocks the FOR-COWORK item. Cowork found the **generating source** (`Training Manager/ctac_reports.py` + `CTAC_Report_Style_Guide.md`), so the spec carries exact colors, type scale, column widths and fills rather than estimates. Biggest gaps: no page furniture, no `n` column, no NPS block, Qualtrics `Q51 -` labels, and unnumbered verbatim comments.
-2. **Close the last always-true anon UPDATE + fix collaborative session-link expiry (2 items).** Eval-completion stamp must move to an RPC *before* dropping the `USING (true)` anon policy, or the CEU gate breaks silently; and `generateSessionLink` hardcodes `4PM EST = 9PM UTC`, wrong during EDT — **AWARE Session 1 (2026-10-27) is in EDT.**
+**READY (3 drafts queued at the bottom of this file):**
+1. **Restyle the evaluation PDF to the CTAC house format** — spec'd from the **generating source** (`Training Manager/ctac_reports.py` + `CTAC_Report_Style_Guide.md`), so exact colors, type scale, column widths and fills. Gaps: no page furniture, no `n` column, no NPS block, Qualtrics `Q51 -` labels, unnumbered verbatim comments.
+2. **Evaluation scale direction + contradiction flagging (2 items)** — two of 41 real respondents rated all six items `1` while writing glowing comments AND scoring 10 on recommend. The scale IS labelled, so the fix is layout: the 5-button row **wraps on a 360px phone** (5 × 80px minWidth), destroying the left-to-right axis. Plus a verified rules-based flag (all items ≤2 AND NPS ≥9) that catches exactly those 2 rows with **zero false positives**.
+3. **Close the last always-true anon UPDATE + fix collaborative session-link expiry (2 items).** Eval-completion stamp must move to an RPC *before* dropping the `USING (true)` anon policy; and `generateSessionLink` hardcodes `4PM EST = 9PM UTC` — **AWARE Session 1 (2026-10-27) is in EDT.**
 
-⬜ **Still unverified from the last batch:** none of the 5 repaired PDF exports has been clicked in a browser. That bug survived *because* nobody clicked.
+⬜ **Still unverified from an earlier batch:** none of the 5 repaired PDF exports has been clicked in a browser. That bug survived *because* nobody clicked.
 
 _Cowork also deleted the standalone training's test data (4 attendance + 3 evaluations) — verified 0 remaining, event intact for 2026-08-07._
 
@@ -1395,3 +1396,60 @@ Also re-render the **multi-session** path from TrainerDashboard so the Contents 
 #### ⚠️ Data-quality observation for Josh, not a code task
 
 Two of the 41 responses rated **all six items `1`** while writing glowing comments (`"Alex is always an incredible teacher! I loved the whole presentation!"` and `"What I felt was most helpful was the quick breakout sessions…"`). Almost certainly reversed-scale confusion or a miskey, not genuine 1s. They drag every mean down by roughly 0.2 and will show `Min 1.00` on all six rows. Worth deciding before this report goes to anyone: leave as-is (defensible — it is what they submitted), or treat as a known data-cleaning case. This is exactly the kind of rule the blocked data-cleaning feature is meant to codify, and a real argument for making the evaluation scale direction more obvious in the UI.
+
+---
+
+### 2026-08-13: Make the evaluation scale direction unmistakable + flag contradictory responses (2 items) — READY
+
+> **Why.** In the first real evaluation dataset (41 responses, standalone training `6ab3e622-6369-4e57-aa4d-9b3328b3ae90`, 2026-08-07), **two respondents rated all six Likert items `1` (Strongly Disagree) while writing glowing comments** — `"Alex is always an incredible teacher! \nI loved the whole presentation!"` and `"What I felt was most helpful was the quick breakout sessions…"` — and **both gave a recommend score of 10.** Almost certainly reversed-scale confusion, not genuine 1s. They pull every item mean down by roughly 0.2 and force `Min 1.00` across all six rows of the report, which has already gone out.
+>
+> **The scale is already labelled**, so this is not a missing-label fix. `SessionEvaluation.jsx` renders each option as the number (1rem) above the word (0.75rem, grey until selected), from `SESSION_EVALUATION_CONFIG.likertScale`. Item 1 addresses *why it can still read ambiguously*; item 2 catches it when prevention fails.
+
+#### Item 1: Prevention — the direction must be readable at a glance, on a phone
+
+`SessionEvaluation.jsx` ~lines 173-200.
+
+**Leading suspect, fix first: the row wraps on phones.** The buttons are `flex: '1 1 0'` with `minWidth: '80px'` inside a `flexWrap: 'wrap'` container. Five × 80px = **400px minimum**, so on a 360px-wide phone the row **wraps to two lines** — and once it wraps, the left-to-right "disagree → agree" axis is gone. What remains is a grid of numbers where the digit is the dominant visual element. That is exactly the condition under which someone assumes `1` means "best" (as in a #1 ranking) and taps it.
+
+- Replace the wrapping flex row with a **5-column grid that shrinks rather than wraps** (`display: grid; gridTemplateColumns: repeat(5, 1fr)`), dropping `minWidth` to something that survives 320px. The five options must **always** sit on one line, in order.
+- Verify at **320px and 360px** widths, not just desktop. This is a public page used on personal phones in a training room.
+
+**Then reinforce the direction:**
+
+- **Add end anchors to the row**, matching what the NPS question already does. `SESSION_EVALUATION_CONFIG.nps` has `minLabel: 'Not at all likely'` / `maxLabel: 'Extremely likely'`, but the Likert block has no equivalent — an inconsistency inside the same form. Render small grey anchors at the row ends (e.g. `Strongly Disagree` ←…→ `Strongly Agree`), or a single caption above the first row of items. Show it **once per section**, not on all six items, or it becomes noise.
+- **Give the word at least equal visual weight to the number.** The word carries the meaning; today the digit is larger and the label is small grey text until selected. Consider reversing the emphasis, or at minimum matching sizes and darkening the unselected label.
+- **Do NOT add a red-to-green color ramp.** It encodes direction, but the connotations are heavier than they are worth in a trauma-informed program, and color alone is not accessible. If a visual gradient is wanted, use a single-hue intensity ramp in the brand teal and treat it as decoration, never as the only cue.
+
+**Finally, a soft straight-lining confirmation (non-blocking):**
+
+- If the respondent selects the **same extreme value on all six items** (all 1s or all 5s), show an inline, dismissible note near the submit button: *"You've rated every item Strongly Disagree — just confirming that's what you meant."* (wording mirrored for Strongly Agree).
+- **Must not block submission and must not pre-empt a genuine answer.** No modal, no forced re-entry. It is a nudge at the only moment the person who made the mistake can still fix it.
+- Only fire on the extremes; all-3s or all-4s are not worth interrupting anyone over.
+
+#### Item 2: Detection — flag contradictory responses (rules-based, no AI)
+
+**Verified against the live data. This rule catches exactly the two suspect rows and produces zero false positives across all 41 responses.**
+
+**Rule A — contradiction (high confidence):**
+- `max(all six Likert items) <= 2` **AND** `recommend_score >= 9` → flag. (Both suspect rows: all items = 1, NPS = 10.)
+- Mirror for symmetry: `min(all six Likert items) >= 4` **AND** `recommend_score <= 6` → flag.
+- Purely numeric. No sentiment analysis, no keyword lists, no AI — which is the constraint Ginny set for data cleaning. A genuinely dissatisfied respondent rates low *and* recommends low, so the rule leaves real criticism alone. It flags **contradictions**, not negativity. Skip the rule entirely when `recommend_score IS NULL` (3 of 41 rows here).
+
+**Rule B — straight-lining (weak signal, label as such):**
+- All six items identical → note it, but weight it far lower. All-5s is common and usually sincere; do not present it at the same severity as Rule A.
+
+**How to surface it:**
+- **Flag, never drop, never auto-correct.** The response stays in the data and in every count and mean exactly as submitted.
+- Surface in the **admin** evaluation view on `EventDetail` — e.g. a small warning badge on the Evaluation Results header ("2 responses flagged for review") that expands to show which and why. Admin-only; never on the participant-facing page.
+- Consider a **footnote in the evaluation PDF** when any response is flagged, so whoever reads the report knows the means include a contested response. Coordinate with the PDF restyle draft (which already specifies a footnote mechanism for the anomalous-`0.00` case) so there is one footnote convention, not two. If the two drafts land in either order, make them consistent.
+- Put the rule in **one place** (e.g. `src/utils/evaluationFlags.js`) so the admin view, any future export, and the data-cleaning stage all share an implementation.
+
+**This is the first concrete data-cleaning rule derived from real data** rather than hypotheticals, and it belongs in the ⛔ blocked data-cleaning feature's ruleset when that unblocks. Note it there so it is not reinvented.
+
+#### Verification
+
+- Resize the evaluation page to **320px and 360px**; confirm the five options stay on one line, in order, with the direction anchors visible.
+- Submit a test evaluation selecting all 1s; confirm the soft confirmation appears, is dismissible, and **does not block** submission.
+- Confirm the two known flagged rows in the live 2026-08-07 dataset are identified by Rule A, and that **no other row of the 41** is flagged.
+- Confirm counts, means and the NPS in the admin view and the PDF are **unchanged** by flagging — nothing is excluded.
+- ⬜ The admin view is gated; the participant-facing evaluation page is public and can be checked directly.
