@@ -221,7 +221,9 @@ A bidirectional scratchpad shared between Josh, Claude Cowork (Claude desktop ch
 
 **✅ ALL FOUR QUEUED DRAFTS SHIPPED 2026-08-26** (`ac5c4d3` TIPE teamless hub, `264ea9b` anon-UPDATE retired, `d8f4d8e` scale direction + contradiction flagging, `d29e5e8` evaluation PDF restyle).
 
-**READY: PDF defect fixes — 5 defects across 2 exporters (bottom of file).** ✅ **Josh click-tested all 5 PDF exports and every one downloads** — the `autoTable` migration is confirmed end to end. Cowork rendered and inspected the evaluation artifacts. Remaining: 3 evaluation-PDF defects (1 is Cowork's own spec error — duplicated title on single-session reports) and **2 new Team Report defects**: logos drawn at the wrong aspect ratio (CTAC ~40% too wide) and a **`y`-clobber at `exportPdf.js:132` that draws the STSS section on top of the Demographics block** (Josh saw this as "needs more space" — it is actually lost vertical position). STS-PAT: no defects. ⬜ Supervisor self-rating: downloads, contents not yet reviewed.
+**READY (2 drafts at the bottom of this file):**
+1. **TIPE Collaborative Detail: replace Teams/Team Rosters with a Learning Collaborative Roster (3 items).** Follow-on from the teamless decision. Remove Teams + Team Rosters for `tipe_lc`, add one cohort roster sourced from **registrations** (no accounts) with District/School grouping, and **live signed-in status for the current session** including a separate walk-in group for people who signed in but never registered.
+2. **PDF defect fixes — 5 defects across 2 exporters.** ✅ All 5 exports download (autoTable migration confirmed end to end). Remaining: 3 evaluation-PDF defects (1 is Cowork's own spec error) + 2 Team Report defects (logos at wrong aspect ratio; a `y`-clobber at `exportPdf.js:132` drawing STSS on top of Demographics).
 
 ⬜ **Also still open:** the TIPE hub batch's admin-side UI is unverified pending test accounts.
 
@@ -1741,3 +1743,49 @@ All tagged for easy removal, all on **demo** collaboratives:
 - **1 `supervisor_self_ratings` row** on Josh's account.
 
 Do **not** delete these until the supervisor self-rating review above is done — it is the only remaining data for that report.
+
+---
+
+### 2026-08-26: TIPE Collaborative Detail — replace Teams/Team Rosters with a Learning Collaborative Roster — READY
+
+> **Follow-on from the teamless decision.** Now that `tipe_lc` has no team layer, the Collaborative Detail page still shows a **Teams** section and a collapsible **👥 Team Rosters** card (shipped `646616f`). For TIPE those are meaningless. Josh wants them replaced by a single **Learning Collaborative Roster** covering everyone in the cohort, with live sign-in status for the session in progress.
+>
+> Scope: **`program_type = 'tipe_lc'` only**, program-wide, consistent with the 2026-08-26 decision. **TIC LC and STS-BSC keep Teams and Team Rosters exactly as they are.**
+
+#### Item 1: Remove Teams and Team Rosters for TIPE
+
+- On `CollaborativeDetail`, hide both the **Teams** section and the **👥 Team Rosters** card when the collaborative's `program_type` is `tipe_lc`.
+- **Known and accepted consequence:** TIPE LC Demo has **6 demo teams with `demo_roster` data**, so those disappear from that page. Expected, not a bug (same acceptance as the earlier program-wide removals).
+- Do **not** delete any team rows or `demo_roster` data. Hide the UI only, so the decision is reversible.
+
+#### Item 2: Add a Learning Collaborative Roster
+
+A single roster of everyone in the cohort, sourced from **registrations** (not `user_profiles` — TIPE participants have no accounts): `event_registrations` joined through `event_registration_links` on `collaborative_id`, excluding `cancelled`.
+
+- **Columns:** Name, District, School, Position/Title, Email. These map to the current TIPE registration schema (`agency` = District, `school`, `role` = Position). Read them from `responses`, and tolerate missing keys rather than rendering `undefined`.
+- **Grouping/sorting:** default to grouping by **District**, with School as the secondary sort, so people from the same place sit together. Make the grouping column switchable (District / School / Name) rather than hardcoded.
+- ⚠️ **Data-quality caveat, state it in the UI rather than hiding it:** of the current registrants, the first three answered under the old combined "School or District" label, so their **District** holds mixed values (`JCPS-Atkinson`, `Fayette County`, `Annapolis High School`) and their **School is blank**. Only later registrants have both fields cleanly. Grouping will therefore be imperfect until Josh follows up with those three. Do **not** attempt to parse or "correct" their answers — show what they submitted.
+- Show a total count, and counts per group.
+
+#### Item 3: Live sign-in status in the roster
+
+Josh: "I would still like the functionality of seeing who is actually signed in for that session on the Collaborative details page in that roster section."
+
+- Add a **session selector** defaulting to the **current session** (same rule as the hub: during an event window, that session; otherwise the next upcoming one).
+- For the selected session, show each roster row's state: **signed in** (with the time), **signed out**, or **not signed in**. A clear visual marker per row plus a summary line (`14 of 42 signed in`).
+- **Matching:** registrants have no accounts, so join `session_attendance` to the roster on **lowercased, trimmed email**. Use `=` on normalized values, **not `ilike`** (`_` and `%` are LIKE wildcards — this exact bug was fixed twice already, in `mint-registration` and `SessionSignIn`).
+- **Surface walk-ins separately:** attendees who signed in but are **not** on the registration roster. Do not silently drop them and do not merge them into the main list. A short "signed in but not registered (N)" group is genuinely useful to a trainer mid-session, and it is exactly the case the app currently loses.
+- **Live updates:** reuse the existing realtime attendance pattern from `56745fa` (Supabase Realtime with a 30s polling fallback) rather than inventing a new one. This is a mid-session tool, so it needs to update without a manual refresh.
+- Keep it read-only. No editing registrants from here.
+
+#### Also worth doing if cheap
+
+An **export** of this roster (Excel/CSV) via the shared builder from `exportAttendance.js`, since a trainer will want the list before a session. If it is not a small addition, skip it and say so — the partner-facing roster share link already covers the "send someone the list" case.
+
+#### Verification
+
+- Load the AWARE Year 4 TIPE LC (`3453c7f5-...`, **42 registered**): confirm all 42 appear, grouped by District, with the three known incomplete rows showing a blank School rather than a guess.
+- Confirm **Teams and Team Rosters are gone** for TIPE and **unchanged** for TIC LC Demo and STS-BSC Demo.
+- Seed or use a session with attendance and confirm signed-in state, the summary count, and that a signed-in email not on the roster lands in the walk-in group.
+- Confirm an email differing only by case or surrounding whitespace still matches.
+- ⬜ Admin-gated, so click-through verification needs the test accounts.
