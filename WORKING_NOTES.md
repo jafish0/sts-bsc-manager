@@ -215,9 +215,9 @@ A bidirectional scratchpad shared between Josh, Claude Cowork (Claude desktop ch
 
 **✅ ALL FOUR QUEUED DRAFTS SHIPPED 2026-08-26** (`ac5c4d3` TIPE teamless hub, `264ea9b` anon-UPDATE retired, `d8f4d8e` scale direction + contradiction flagging, `d29e5e8` evaluation PDF restyle).
 
-**READY: 1 draft at the bottom — PDF visual-verification defects (3 minor, from Cowork's render pass).** Cowork completed its half of the Option-1 split: rendered both committed QA artifacts and inspected every page against the reference. The restyle is substantially correct; three cosmetic defects to fix, and **defect 1 is Cowork's own spec error** (the training title prints twice on a single-session report). Nothing blocks use.
+**READY: PDF defect fixes — 5 defects across 2 exporters (bottom of file).** ✅ **Josh click-tested all 5 PDF exports and every one downloads** — the `autoTable` migration is confirmed end to end. Cowork rendered and inspected the evaluation artifacts. Remaining: 3 evaluation-PDF defects (1 is Cowork's own spec error — duplicated title on single-session reports) and **2 new Team Report defects**: logos drawn at the wrong aspect ratio (CTAC ~40% too wide) and a **`y`-clobber at `exportPdf.js:132` that draws the STSS section on top of the Demographics block** (Josh saw this as "needs more space" — it is actually lost vertical position). STS-PAT: no defects. ⬜ Supervisor self-rating: downloads, contents not yet reviewed.
 
-⬜ **Still unverified by anyone:** the 5 repaired PDF **export buttons** have never been clicked in a browser (that bug survived *because* nobody clicked), and the TIPE hub batch's admin-side UI is unverified pending test accounts.
+⬜ **Also still open:** the TIPE hub batch's admin-side UI is unverified pending test accounts.
 
 _Cowork also deleted the standalone training's test data (4 attendance + 3 evaluations) — verified 0 remaining, event intact for 2026-08-07._
 
@@ -1672,3 +1672,66 @@ Worth saying: **integrating the contradiction flag into the report at all was th
 #### After the fixes
 
 Regenerate **both** QA artifacts and commit them again; Cowork will re-render and confirm. Only defects 1 and 2 are visible in a render, so a second pass is quick.
+
+---
+
+### 2026-08-26 (addendum): Josh's click-test results — all 5 exports download; 3 new defects
+
+> **✅ The `autoTable` migration is confirmed working end to end.** Josh clicked all five in the browser and **every one downloads a file**. That closes the "verified only structurally" gap that had been open since `279ac9b`. Cowork seeded demo data so the three empty exporters could be exercised (see cleanup note at the end).
+>
+> Per-export verdict: **Team Report** downloads, 2 defects below. **Evaluation** downloads, confirms Cowork's defect 1 independently. **Attendance** downloads. **STS-PAT** — Josh: "looks great", no defects. **Supervisor self-rating** — downloads; deferred for a closer look (see to-do).
+
+#### Defect 4: Team Report logos are stretched — exact numbers
+
+`exportPdf.js` lines 50-51 draw both logos at fixed boxes whose aspect ratios do not match the images:
+
+| logo | native px | native aspect | drawn at | drawn aspect | distortion |
+|---|---|---|---|---|---|
+| `UKCTAC_logoasuite_web__primary_tagline_color.png` | 901 × 414 | **2.176** | `55 × 18` | **3.056** | **~40% too wide** |
+| `UK_Lockup-286.png` | 700 × 206 | **3.398** | `45 × 15` | **3.000** | ~12% too narrow |
+
+```js
+if (ctacImg) doc.addImage(ctacImg, 'PNG', margin, y, 55, 18)              // aspect 3.056 ≠ 2.176
+if (ukImg)   doc.addImage(ukImg,  'PNG', pageW - margin - 45, y, 45, 15)  // aspect 3.000 ≠ 3.398
+```
+
+**Fix:** pick one dimension and derive the other from the native aspect, rather than hardcoding both. Holding the widths gives `CTAC 55 × 25.3` and `UK 45 × 13.2`; holding the heights gives `CTAC 39.2 × 18` and `UK 51 × 15`. **Derive it in code from the image's own dimensions** so a future logo swap can't reintroduce this. Check the header still fits and the two logos look visually balanced after the change — the CTAC logo gets noticeably taller if you hold its width.
+
+#### Defect 5: 🐞 Team Report — `y` is clobbered, so the Demographics block is overwritten
+
+Josh reported "there needs to be more space between the `N=88 | Female: 71.6% | ...` line and the STSS table header." **It is not a spacing value — vertical position is being thrown away.** In `exportPdf.js`:
+
+```js
+113:  y = doc.lastAutoTable.finalY + 10        // after the completion table
+119:  sectionHeader(doc, `Demographics (...)`, margin, y, pageW)
+120:  y += 10
+124:  doc.text(demoText, margin, y)
+125:  y += 10                                   // y is now correctly BELOW the demographics text
+...
+132:  y = doc.lastAutoTable ? doc.lastAutoTable.finalY + 10 : y   // ← CLOBBERS IT
+```
+
+Line 132 resets `y` to just below the **completion table**, discarding the 20mm the Demographics header and text consumed. Because no `autoTable` ran in between, `lastAutoTable` is still the completion table, so the STSS section header is drawn back up at almost the same `y` as the demographics text. That is the collision Josh is seeing — the two blocks are effectively drawn on top of each other, not merely too close.
+
+**Fix:** never move `y` backwards. `y = Math.max(y, doc.lastAutoTable ? doc.lastAutoTable.finalY + 10 : y)`. Line 132 is arguably redundant altogether (`y` is already correct from either branch above), but `Math.max` is the safe form and it protects the same shape elsewhere.
+
+**Check the sibling lines while in this file** — `113`, `149`, `173`, `200` use the unguarded `y = doc.lastAutoTable.finalY + 10`. Those are each immediately after an `autoTable` call so they are currently correct, but the same clobber appears the moment any non-table content is drawn before them. Consider a small `advanceY()` helper that only ever moves down. **Only `exportPdf.js` has this pattern** — the other four exporters were checked and are clean.
+
+#### Defect 1 — independently confirmed by Josh
+
+The duplicated `Session Results` + training title on the single-session evaluation report (Cowork's spec error, detailed above) is exactly what Josh flagged. No change to that fix.
+
+#### ⬜ TO-DO: supervisor self-rating PDF needs a closer look
+
+It downloads, so the `autoTable` fix holds, but neither Josh nor Cowork has examined its **contents**. Josh: "put on the todo list for further testing." Deferred deliberately — not a known defect, just unexamined. Note that the seeded rating is attached to **Josh's own user account** (`supervisor_self_ratings.user_id` is NOT NULL, so no synthetic user was invented), which is worth remembering when interpreting what that report shows.
+
+#### 🧹 Cleanup — QA seed data still in the live DB (Cowork to remove on request)
+
+All tagged for easy removal, all on **demo** collaboratives:
+
+- **5 `session_attendance` rows** named `QA Seed ...` on STS-BSC Demo / Learning Session 1 (`9563b457-...`), deliberately mixing `manual` vs `session_closed` sign-outs and only 3 with an evaluation stamp, so the CEU-relevant distinctions are exercised.
+- **1 `session_links` row**, token `qaseed01` (needed because `session_link_id` is NOT NULL).
+- **1 `sts_pat_assessments` row** (`QA Seed Reviewer`) + **16 `sts_pat_responses`**, notes prefixed `QA seed:`, 4 flagged as action items.
+- **1 `supervisor_self_ratings` row** on Josh's account.
+
+Do **not** delete these until the supervisor self-rating review above is done — it is the only remaining data for that report.
