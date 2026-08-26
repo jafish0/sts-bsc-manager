@@ -1286,7 +1286,7 @@ Both of these were only findable by using the app on real data — the PDF break
 > - ✅ **`pdftotext` IS available** — `C:\Users\jafish0\AppData\Local\Programs\Git\mingw64\bin\pdftotext.exe`, bundled with Git for Windows. So the target PDF's **text** can be extracted locally. *My earlier claim that the reference PDF "can be neither rendered nor text-extracted" was wrong on the text half — I checked `node_modules` and `pdftoppm` but never the PATH.*
 > - ❌ **`pdftoppm` is NOT available**, and neither is ImageMagick or Ghostscript. The spec says it "is at `/usr/bin/pdftoppm` even though a tool wrapper may report otherwise" — that holds for a Linux sandbox, not for this host. There is no PDF **rasteriser**, so the spec's central verification step — *"render the PDF to images and inspect every page"* — **cannot be done as written here.**
 >
-> **Consequence for whoever picks this up.** Visual verification is the crux of this spec, and structure-only checks are exactly how the dead-`autoTable` bug survived for months. Options, best first:
+> **RESOLVED (Josh, 2026-08-26): Option 1 — Cowork owns visual verification.** Claude Code verifies content in node + `pdftotext`, commits `qa/eval-single.pdf` and `qa/eval-multi.pdf` as handoff artifacts, and reports "visual verification pending Cowork". No poppler install needed on this host. Full split is in the restyle spec's "Verification split" section. Cowork's original `/usr/bin/pdftoppm` instruction in that spec was wrong and has been corrected. Superseded options follow for context:
 > 1. Run the restyle in an environment that has poppler (a Linux sandbox / Cowork), so pages can actually be inspected.
 > 2. Install poppler for Windows on this host first (Josh's call — it's a system change, so ask).
 > 3. Generate the PDF in node, extract with `pdftotext -layout` to confirm content, ordering, counts and that verbatim text survives intact — then have **Josh** eyeball the rendered pages. This verifies everything except pixels: zebra alignment, table page-splits, cell overflow and the header band still need a human or a rasteriser.
@@ -1410,9 +1410,23 @@ The live standalone training `6ab3e622-6369-4e57-aa4d-9b3328b3ae90` (2026-08-07)
 - One response contains an **embedded newline**; one is a single `.` — both must appear.
 - **`most_helpful` and `improvements` have 41 responses each, but `additional_comments` has only 8** — confirm the sparse question renders with its own correct count and the empty ones are skipped.
 
-Render the PDF to images and inspect every page (`pdftoppm` is available in the Claude Code sandbox — it is at `/usr/bin/pdftoppm` even though a tool wrapper may report otherwise). Check: the teal rule under the header band, zebra alignment, that the ratings table doesn't split awkwardly across a page, that long verbatim responses wrap inside their cell rather than overflowing, and that `Page N` is right on the last page. Compare side by side against the target PDF.
+**Do NOT attempt to render the PDF yourself — there is no rasteriser on this Windows host** (`pdftoppm`, ImageMagick and Ghostscript are all absent; only `pdftotext` is, via Git for Windows). Cowork's original instruction here was **wrong** — it described a Linux sandbox, not the host you run on. **DECIDED (Josh, 2026-08-26): Cowork owns the visual verification.** Your job is content verification + handing over the artifact: Check: the teal rule under the header band, zebra alignment, that the ratings table doesn't split awkwardly across a page, that long verbatim responses wrap inside their cell rather than overflowing, and that `Page N` is right on the last page. Compare side by side against the target PDF.
 
 Also re-render the **multi-session** path from TrainerDashboard so the Contents table and per-session page breaks are exercised.
+
+#### 🤝 Verification split — DECIDED (Josh, 2026-08-26): Option 1
+
+**Claude Code does (content, in node — no browser, no rasteriser needed):**
+- `exportEvaluationPdf.js` has no browser-only dependencies, so run it directly in node. Stub `jsPDF.prototype.save` to write bytes to disk (the harness pattern from `279ac9b`).
+- Generate **two** PDFs from the REAL live data and commit them to the repo root as build artifacts:
+  - `qa/eval-single.pdf` — the 2026-08-07 standalone training, 41 responses (`6ab3e622-6369-4e57-aa4d-9b3328b3ae90`).
+  - `qa/eval-multi.pdf` — the multi-session TrainerDashboard path (2+ sessions), so the Contents table and page breaks are exercised.
+- Verify **content** with `pdftotext -layout` (which IS available): all 41 verbatim responses present and intact, correct numbering 1..41, NPS n = 38 (not 41), zero detractors, smart quotes and the embedded newline and the lone `.` all survive, `additional_comments` shows 8, section order correct, `Page N` present on every page.
+- State in the ship summary: **"visual verification pending Cowork"**. Do NOT claim the restyle is verified on structure checks alone — that is precisely how the dead-`autoTable` bug survived for months.
+
+**Cowork then does (visual):** renders both PDFs with `pdftoppm`, inspects every page, and compares side by side against `Evaluation Report - Trauma-Informed Practices for Educators (3 hour version).pdf`. Specifically checking what text extraction cannot see: the navy header band and its 7px teal rule, the teal square beside the CTAC wordmark, zebra row alignment, the NPS strip's fills (navy-soft cells with the one teal-soft cell), whether the ratings table splits awkwardly across a page, long verbatim responses overflowing their cell, and footer placement. Cowork reports defects back as a follow-up draft.
+
+**So: commit the two QA PDFs even if everything looks fine to you.** They are the handoff artifact — without them Cowork has nothing to inspect.
 
 #### ⚠️ Data-quality observation for Josh, not a code task
 
