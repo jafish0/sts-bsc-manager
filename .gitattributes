@@ -1,0 +1,9 @@
+# Never CRLF-normalize binary formats — git's text autodetection flagged the
+# committed QA PDFs as text, and an autocrlf checkout would corrupt them.
+*.pdf  binary
+*.png  binary
+*.jpg  binary
+*.jpeg binary
+*.docx binary
+*.xlsx binary
+*.pptx binary
