@@ -213,13 +213,11 @@ A bidirectional scratchpad shared between Josh, Claude Cowork (Claude desktop ch
 
 **✅ ALL 4 QUEUED DRAFTS SHIPPED 2026-08-26** (`ac5c4d3` TIPE hub batch · `264ea9b` anon-UPDATE closure · `d8f4d8e` eval scale + flags · `d29e5e8` PDF restyle — see Recently shipped). 🤝 **Cowork's turn: visually verify `qa/eval-single.pdf` + `qa/eval-multi.pdf`** against the target PDF (band/teal rule/zebra/NPS fills/cell overflow/page splits). Superseded queue note follows:
 
-**READY (4 drafts queued at the bottom of this file — the TIPE HUB one is the October critical path):**
-1. **🔴 TIPE goes teamless: collaborative hub + per-session materials + resource management (7 items).** From Josh + Leah 2026-08-26. The AWARE Year 4 TIPE LC (first session **2026-10-27**, 42 registered, **0 teams**) is the first real live cohort. TIPE drops the team layer AND participant accounts: one shared hub at a static URL, no auth, identity captured at sign-in for posting only. TIC LC and STS-BSC unchanged.
-2. **Restyle the evaluation PDF to the CTAC house format** — spec'd from the generating source (`Training Manager/ctac_reports.py` + `CTAC_Report_Style_Guide.md`).
-3. **Evaluation scale direction + contradiction flagging (2 items)** — the 5-button row wraps on a 360px phone, destroying the left-to-right axis; plus a verified flag rule (all items ≤2 AND NPS ≥9) catching exactly 2 of 41 rows with zero false positives.
-4. **Close the last always-true anon UPDATE + fix collaborative session-link expiry (2 items).** Eval-completion stamp must move to an RPC *first*; `generateSessionLink` hardcodes `4PM EST = 9PM UTC` and **AWARE Session 1 is in EDT.**
+**✅ ALL FOUR QUEUED DRAFTS SHIPPED 2026-08-26** (`ac5c4d3` TIPE teamless hub, `264ea9b` anon-UPDATE retired, `d8f4d8e` scale direction + contradiction flagging, `d29e5e8` evaluation PDF restyle).
 
-⬜ **Still unverified from an earlier batch:** of the 5 repaired PDF exports, the **evaluation** one has now been exercised for real (the QA harness renders the live 41-response dataset through the shipped module in node, and `doc.lastAutoTable.finalY` chaining works) — but **Team Report, STS-PAT, Supervisor self-rating, and Attendance PDFs still have never been clicked in a browser.** That bug survived *because* nobody clicked.
+**READY: 1 draft at the bottom — PDF visual-verification defects (3 minor, from Cowork's render pass).** Cowork completed its half of the Option-1 split: rendered both committed QA artifacts and inspected every page against the reference. The restyle is substantially correct; three cosmetic defects to fix, and **defect 1 is Cowork's own spec error** (the training title prints twice on a single-session report). Nothing blocks use.
+
+⬜ **Still unverified by anyone:** the 5 repaired PDF **export buttons** have never been clicked in a browser (that bug survived *because* nobody clicked), and the TIPE hub batch's admin-side UI is unverified pending test accounts.
 
 _Cowork also deleted the standalone training's test data (4 attendance + 3 evaluations) — verified 0 remaining, event intact for 2026-08-07._
 
@@ -1609,3 +1607,68 @@ From the meeting, agreed with Leah: default the upcoming-events window to **4 we
 - Verify the parking-lot item appears on the Trainer Dashboard against the right session.
 - Confirm **TIC LC and STS-BSC team dashboards are byte-for-byte unchanged** — this is the main regression risk in the whole batch.
 - Check at **360px**.
+
+---
+
+### 2026-08-26: ✅ PDF visual verification COMPLETE (Cowork) — 3 minor defects to fix
+
+> **Cowork's half of the Option-1 split is done.** Rendered both committed artifacts (`qa/eval-single.pdf`, 4 pages; `qa/eval-multi.pdf`, 7 pages) with `pdftoppm` at 100dpi and inspected every page against `Evaluation Report - Trauma-Informed Practices for Educators (3 hour version).pdf`.
+>
+> **Verdict: the restyle is substantially correct and much closer to the house format than the old output.** Nothing here blocks use. Three defects, all cosmetic, listed worst first. Defect 1 is **Cowork's spec error**, not an implementation mistake.
+
+#### ✅ Confirmed correct by eye (do not "fix" these)
+
+- Navy cover band with the 7pt teal rule, `CTAC` wordmark **with the teal square**, pale-blue subtitle, right-aligned `EVALUATION REPORT` + `Prepared August 26, 2026`.
+- Running header on pages 2+ (`CTAC · <name> — Evaluation Report`) with its hairline; footer with the CTAC address left and `Page N` right on **every** page including the last.
+- Ratings table: navy header, white semibold, **`n` column present**, zebra alternating cleanly, means **bold navy**, numerics centered at two decimals.
+- NPS strip: five cells, navy-soft fills with the **NPS cell in teal-soft and its number in teal**, signed `+76`.
+- **NPS math verified independently:** 29 promoters + 9 passives + 0 detractors = 38 = n (not 41 — the three NULLs are correctly excluded); (29−0)/38 = 76.3 → `+76`. Raw range 7-10 shown. Correct.
+- **`Min 1.00` with no asterisk** — correct per the style guide: a legitimate `1` is a real minimum; the `0.00*` rule is only for zeros. Good restraint.
+- **The hard verbatim cases all survived:** smart quotes intact (#12 `Asking "am I doing what I expect others to do"`), the **embedded newline renders as two lines** (#23), the **lone `.`** is present (#28), long responses wrap **inside** their cell without overflowing.
+- Counts and numbering: most-helpful 41 numbered 1-41, improvements 41, **Additional Comments correctly 8** and renumbered from 1. Per-question counts right.
+- Multi-session: Contents table on the multi report only, correct columns/widths/zebra; each session starts a new page; `Session 1` h1 + session title h2 + meta.
+- No page has a stranded or awkwardly split ratings table.
+
+#### Defect 1 (worst, and Cowork's fault): the training title prints twice on a single-session report
+
+`qa/eval-single.pdf` page 1 reads:
+
+```
+Session Evaluation Report
+Belonging, Recognition, and Sustainable Care for Counselors & Therapists
+────────────────────────────────────────
+Session Results
+Belonging, Recognition, and Sustainable Care for Counselors & Therapists
+8/7/2026 · 41 responses
+```
+
+The title appears in both the document title block and again as the session h2. **This is a spec bug:** Cowork's structure section said print the training name under the h1 *and* the session title as the per-session h2, which duplicates whenever they are the same string — exactly the single-session case. (The reference PDF avoided it only because its Python passed the *date* as the session label.)
+
+**Fix:** on a single-session report, when the session title equals the document-level training name, **omit the per-session h2** and keep `Session Results` + the meta line. Compare case-insensitively after trimming. **The multi-session path is already correct** (top-level "Training Evaluations", distinct session titles) — do not change it.
+
+#### Defect 2: vertical rhythm is tighter than the house format
+
+Section headings hug the element above them. Most visible on `eval-single` page 1: `Session Results` sits directly beneath the teal rule with no breathing room, and `Quantitative Ratings` / `Likelihood to Recommend` / `Open-Response Comments` each sit tight against the preceding block. The target has noticeably more air, which is most of why it reads as more polished.
+
+**Cause:** the spec gave font sizes and leading but **not the paragraph spacing**. Take those from `ctac_reports.py` `_styles()` — `h1 spaceAfter=4`, `h2` has a `spaceBefore`, `meta spaceAfter=8`, `foot spaceBefore=3` — and add an explicit gap above each section heading and below the teal rule. Purely spacing; do not change sizes, weights or colors, which are correct.
+
+#### Defect 3: the `†` footnote has no anchor
+
+Beneath the ratings table:
+
+> `† 2 responses in this session are flagged by a consistency check (ratings contradict the recommend score); all responses remain included in every figure above.`
+
+The dagger references nothing — no `†` appears in the table. (The house convention attaches such a marker to the affected cell, e.g. `0.00*` on Min.)
+
+**Fix, either is fine:** drop the `†` and let it read as a plain note, **or** attach a `†` to the anchor it describes. Since the flag is about whole *responses* rather than one item, Cowork's preference is **drop the dagger** — the sentence stands on its own.
+
+Worth saying: **integrating the contradiction flag into the report at all was the right call**, and the wording ("all responses remain included") is exactly right — it discloses without quietly altering the data.
+
+#### Also noted, no action needed
+
+- The multi-session Contents page is mostly white space with only two sessions. That follows from "each session starts a new page" and matches the reference structure. Leave it.
+- Helvetica instead of Zilla Slab / Fira Sans is the agreed deliberate deviation and reads fine at these sizes.
+
+#### After the fixes
+
+Regenerate **both** QA artifacts and commit them again; Cowork will re-render and confirm. Only defects 1 and 2 are visible in a render, so a second pass is quick.
