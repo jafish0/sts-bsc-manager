@@ -8,6 +8,7 @@ import { useAuth } from '../contexts/AuthContext'
 import { COLORS, cardStyle, cardHeaderStyle } from '../utils/constants'
 import { PROGRAM_TYPE_COLORS } from '../config/programConfig'
 import { exportEvaluationReportPdf } from '../utils/exportEvaluationPdf'
+import { flagEvaluations } from '../utils/evaluationFlags'
 import { logDownload } from '../utils/logDownload'
 import AgendaBanner from '../components/AgendaBanner'
 import StandaloneSessionPanel from '../components/StandaloneSessionPanel'
@@ -322,6 +323,12 @@ export default function EventDetail() {
     const detractors = scores.filter(s => s <= 6).length
     return Math.round(((promoters - detractors) / scores.length) * 100)
   }, [evaluations])
+
+  // Contradiction flags (rules-based, no AI — shared impl in
+  // utils/evaluationFlags.js). Flag, never drop: every count, mean and the
+  // NPS above include flagged responses exactly as submitted.
+  const flaggedEvals = useMemo(() => flagEvaluations(evaluations, { minSeverity: 'high' }), [evaluations])
+  const [showFlagDetails, setShowFlagDetails] = useState(false)
 
   // Upload one file to Supabase Storage + insert the bsc_event_documents row.
   // documentType: 'general' (default) or 'agenda' — agendas get surfaced in
@@ -774,15 +781,50 @@ export default function EventDetail() {
                   {evaluations.length} response{evaluations.length === 1 ? '' : 's'} submitted
                 </div>
               </div>
-              <button
-                onClick={() => exportEvaluationReportPdf([{
-                  event_date: event.event_date,
-                  title: event.title,
-                  evaluations,
-                }])}
-                style={{ background: COLORS.teal, color: 'white', border: 'none', padding: '0.4rem 0.85rem', borderRadius: '6px', cursor: 'pointer', fontSize: '0.85rem', fontWeight: 500 }}
-              >Download PDF report</button>
+              <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap' }}>
+                {flaggedEvals.length > 0 && (
+                  <button
+                    onClick={() => setShowFlagDetails(s => !s)}
+                    title="Rules-based contradiction check — click for details"
+                    style={{
+                      background: '#FFFBEB', color: '#92400E', border: '1px solid #FDE68A',
+                      padding: '0.4rem 0.85rem', borderRadius: '6px', cursor: 'pointer',
+                      fontSize: '0.8rem', fontWeight: 600,
+                    }}
+                  >⚠️ {flaggedEvals.length} response{flaggedEvals.length === 1 ? '' : 's'} flagged for review {showFlagDetails ? '▾' : '▸'}</button>
+                )}
+                <button
+                  onClick={() => exportEvaluationReportPdf([{
+                    event_date: event.event_date,
+                    title: event.title,
+                    evaluations,
+                  }])}
+                  style={{ background: COLORS.teal, color: 'white', border: 'none', padding: '0.4rem 0.85rem', borderRadius: '6px', cursor: 'pointer', fontSize: '0.85rem', fontWeight: 500 }}
+                >Download PDF report</button>
+              </div>
             </div>
+
+            {/* Flag details — admin-only by construction (this whole page is).
+                Nothing is excluded: the charts below include these rows. */}
+            {showFlagDetails && flaggedEvals.length > 0 && (
+              <div style={{ background: '#FFFBEB', border: '1px solid #FDE68A', borderRadius: '8px', padding: '0.75rem 1rem', marginTop: '0.75rem' }}>
+                <div style={{ fontSize: '0.78rem', color: '#92400E', marginBottom: '0.5rem' }}>
+                  Rules-based check (no AI): ratings that contradict the recommend score. Flagged responses are <strong>not excluded</strong> —
+                  every count, mean and the NPS include them exactly as submitted.
+                </div>
+                <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+                  {flaggedEvals.map(({ index, evaluation, flags }) => (
+                    <li key={index} style={{ fontSize: '0.82rem', color: '#78350f', lineHeight: 1.45 }}>
+                      <strong>Response {index + 1}</strong>
+                      {evaluation.submitted_at && <span style={{ color: '#b45309' }}> · {new Date(evaluation.submitted_at).toLocaleString()}</span>}
+                      {flags.map((f, i) => (
+                        <div key={i}>— <strong>{f.label}:</strong> {f.detail}</div>
+                      ))}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
 
             {/* Likert mean scores */}
             <div style={{ marginTop: '1rem' }}>

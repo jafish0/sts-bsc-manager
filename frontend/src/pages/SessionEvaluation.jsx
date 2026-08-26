@@ -18,6 +18,10 @@ export default function SessionEvaluation() {
   const [ratings, setRatings] = useState({})
   const [openText, setOpenText] = useState({})
   const [npsScore, setNpsScore] = useState(null)
+  // Which extreme value (1 or 5) the respondent has dismissed the
+  // straight-lining nudge for; keyed by value so dismissing "all 1s" doesn't
+  // also silence a later "all 5s".
+  const [nudgeDismissed, setNudgeDismissed] = useState(null)
 
   useEffect(() => {
     validate()
@@ -53,6 +57,19 @@ export default function SessionEvaluation() {
     .filter(q => q.required)
     .every(q => openText[q.key]?.trim())
   const canSubmit = allRatingsComplete && requiredTextComplete
+
+  // Soft straight-lining check: every item on the SAME EXTREME (all 1s or all
+  // 5s). The real 2026-08-07 dataset had two respondents rate everything
+  // Strongly Disagree while praising the training and giving a 10/10
+  // recommend — reversed-scale confusion this nudge exists to catch at the
+  // only moment the person can still fix it. Never blocks submission; all-3s
+  // or all-4s are not worth interrupting anyone over.
+  const ratingValues = config.ratingItems.map(item => ratings[item.key])
+  const extremeValue = allRatingsComplete
+    && ratingValues.every(v => v === ratingValues[0])
+    && (ratingValues[0] === 1 || ratingValues[0] === 5)
+    ? ratingValues[0] : null
+  const showStraightLineNudge = extremeValue != null && nudgeDismissed !== extremeValue
 
   const handleSubmit = async () => {
     if (!canSubmit || !eventInfo) return
@@ -173,14 +190,28 @@ export default function SessionEvaluation() {
           </div>
 
           {/* Likert Ratings */}
-          <h3 style={{ color: NAVY, fontSize: '1rem', marginBottom: '1rem' }}>Please rate each statement:</h3>
+          <h3 style={{ color: NAVY, fontSize: '1rem', marginBottom: '0.35rem' }}>Please rate each statement:</h3>
+
+          {/* Direction anchors — once per section, mirroring the min/max
+              labels the NPS question already carries. */}
+          <div style={{ display: 'flex', justifyContent: 'space-between', gap: '0.5rem', marginBottom: '1rem' }}>
+            <span style={{ fontSize: '0.75rem', color: '#6b7280' }}>1 = Strongly Disagree</span>
+            <span style={{ fontSize: '0.75rem', color: '#6b7280' }}>5 = Strongly Agree</span>
+          </div>
 
           {config.ratingItems.map(item => (
             <div key={item.key} style={{ marginBottom: '1.25rem' }}>
               <p style={{ color: '#374151', fontSize: '0.9rem', fontWeight: '500', marginBottom: '0.5rem' }}>
                 {item.text} <span style={{ color: '#DC2626' }}>*</span>
               </p>
-              <div style={{ display: 'flex', gap: '0.35rem', flexWrap: 'wrap' }}>
+              {/* A 5-column grid that SHRINKS rather than wraps. The old flex
+                  row (minWidth 80px × 5 = 400px) wrapped to two lines on a
+                  360px phone, destroying the left-to-right disagree→agree
+                  axis — which is exactly the condition under which "1" reads
+                  as "#1 = best". The five options must always sit on one
+                  line, in order; minWidth: 0 stops a long word from forcing
+                  the grid wider than the viewport. */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '0.3rem' }}>
                 {config.likertScale.map(opt => {
                   const isSelected = ratings[item.key] === opt.value
                   return (
@@ -188,22 +219,22 @@ export default function SessionEvaluation() {
                       key={opt.value}
                       onClick={() => setRatings(prev => ({ ...prev, [item.key]: opt.value }))}
                       style={{
-                        flex: '1 1 0',
-                        minWidth: '80px',
-                        padding: '0.5rem 0.25rem',
+                        minWidth: 0,
+                        padding: '0.5rem 0.15rem',
                         border: `2px solid ${isSelected ? TEAL : '#e5e7eb'}`,
                         borderRadius: '0.375rem',
                         background: isSelected ? `${TEAL}15` : 'white',
-                        color: isSelected ? TEAL : '#6b7280',
-                        fontWeight: isSelected ? '600' : '400',
-                        fontSize: '0.75rem',
                         cursor: 'pointer',
                         textAlign: 'center',
-                        transition: 'all 0.15s'
+                        transition: 'all 0.15s',
+                        overflowWrap: 'break-word',
                       }}
                     >
-                      <div style={{ fontSize: '1rem', marginBottom: '0.15rem' }}>{opt.value}</div>
-                      {opt.label}
+                      {/* The WORD carries the meaning, so it gets at least the
+                          number's visual weight — dark and semibold even when
+                          unselected, instead of small grey text. */}
+                      <div style={{ fontSize: '0.8rem', color: isSelected ? TEAL : '#9ca3af', marginBottom: '0.15rem' }}>{opt.value}</div>
+                      <div style={{ fontSize: '0.72rem', fontWeight: 600, color: isSelected ? TEAL : '#374151', lineHeight: 1.25 }}>{opt.label}</div>
                     </button>
                   )
                 })}
@@ -267,6 +298,27 @@ export default function SessionEvaluation() {
               <span style={{ fontSize: '0.7rem', color: '#9ca3af' }}>{config.nps.maxLabel}</span>
             </div>
           </div>
+
+          {/* Soft straight-lining confirmation — inline, dismissible, and it
+              NEVER blocks submission or forces re-entry. Just a nudge at the
+              one moment a reversed-scale mistake can still be fixed. */}
+          {showStraightLineNudge && (
+            <div style={{
+              background: '#FFFBEB', border: '1px solid #FDE68A', borderRadius: '0.5rem',
+              padding: '0.75rem 1rem', marginBottom: '1rem',
+              display: 'flex', gap: '0.6rem', alignItems: 'flex-start', justifyContent: 'space-between',
+            }}>
+              <span style={{ color: '#92400E', fontSize: '0.85rem', lineHeight: 1.5 }}>
+                You&apos;ve rated every item <strong>{extremeValue === 1 ? 'Strongly Disagree (1)' : 'Strongly Agree (5)'}</strong> — just
+                confirming that&apos;s what you meant. {extremeValue === 1 ? 'On this scale, 1 is the lowest rating and 5 is the highest.' : ''}
+              </span>
+              <button
+                onClick={() => setNudgeDismissed(extremeValue)}
+                aria-label="Dismiss"
+                style={{ background: 'transparent', border: 'none', color: '#92400E', cursor: 'pointer', fontSize: '1rem', fontWeight: 700, flexShrink: 0, padding: 0 }}
+              >×</button>
+            </div>
+          )}
 
           {/* Submit */}
           <button
