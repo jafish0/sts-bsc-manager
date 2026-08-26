@@ -14,6 +14,25 @@ A bidirectional scratchpad shared between Josh, Claude Cowork (Claude desktop ch
 
 > What's been built recently, so Claude Cowork has the running context without re-reading the entire git log.
 
+- **2026-08-26 `d29e5e8` + `535f6da` — evaluation PDF restyled to the CTAC house format (last of the four queued drafts). 🤝 VISUAL VERIFICATION IS COWORK'S — the handoff artifacts are committed at `qa/eval-single.pdf` (4pp, the real 41-response training) and `qa/eval-multi.pdf` (7pp, Contents + per-session page breaks; session 2 is a labelled QA duplicate subset, not a real session).**
+  - Built from the ground truth (`CTAC_Report_Style_Guide.md` + `ctac_reports.py`), not the old sample: navy cover band + 7pt teal rule + CTAC wordmark/teal square, running header pages 2+, footer with address + correct `Page N` (furniture drawn in a page loop after content, since jsPDF has no templates); left title block with teal rule; short display labels; ratings table with `n`, zebra, bold-navy means; the anomalous-`0.00*` rule implemented as house policy despite no current zeros; the previously **absent** NPS strip (`9.3 · +76 · 29 · 9 · 0`, teal-soft NPS cell, zero-detractor cell renders); numbered two-column verbatim comment tables. **The exporter now sorts by `submitted_at`** — the callers' queries carry no ORDER BY, so "numbered in submission order" was previously indeterminate.
+  - **Fonts deliberately NOT embedded** (Zilla Slab + Fira Sans = four+ base64 TTFs in a public bundle); Helvetica carries the house type scale/weights/colors, matching `ctac_reports.py`'s own no-TTF fallback.
+  - Content verified in node per the decided split: the real module ran against the live dataset (local copy **md5-matched against the DB** before use, so no transcription slip), then `pdftotext -enc UTF-8` confirmed 1..41/1..41/1..8 numbering, the lone `.` at row 28 in both questions, smart quotes + the embedded-newline response intact, NPS n=38 / range 7–10, all footnotes (incl. the shared contradiction-flag dagger note), section order, and page furniture on every page. ⚠️ `pdftotext` defaults to Latin-1 output — pass `-enc UTF-8` or smart punctuation looks falsely mangled.
+  - `535f6da` adds `.gitattributes` marking PDFs/images/office files binary: git's text heuristic flagged the QA PDFs, and an autocrlf checkout would have corrupted them (committed blobs verified byte-identical first).
+- **2026-08-26 `d8f4d8e` — evaluation scale direction + rules-based contradiction flagging (2026-08-13 draft, both items).**
+  - **Prevention:** the 5 Likert options are now a `repeat(5, 1fr)` grid that shrinks instead of wrapping (the old flex row's 400px minimum wrapped on a 360px phone, destroying the disagree→agree axis); direction anchors once per section; the word now carries at least the number's visual weight; soft, dismissible, **non-blocking** all-1s/all-5s nudge. Verified in-browser at 320px and 360px: five options on one line, no overflow, nudge fires/dismisses/sticks per value, submission never blocked.
+  - **Detection:** new shared `src/utils/evaluationFlags.js` (Rule A contradiction: `max≤2 ∧ nps≥9`, mirrored `min≥4 ∧ nps≤6`, skipped on null NPS; Rule B straight-lining, info-only — **34 of the 41 real rows straight-line**, which is why it must never carry Rule A's weight). EventDetail shows an expandable "N responses flagged for review" badge; nothing is dropped or corrected. Verified: SQL translation flags **exactly the 2 suspect rows, 0 false positives across 41**; node harness agrees on all boundary shapes. This is the first concrete rule for the ⛔ data-cleaning stage's future ruleset — do not reinvent it there.
+- **2026-08-26 `264ea9b` — the last always-true anon UPDATE policy is gone (2026-08-04 draft item 1; item 2 shipped earlier).** New `mark_evaluation_completed(p_token, p_attendance_id)` SECURITY DEFINER RPC (status-string-only, token-verified so a bare attendance id can't stamp arbitrary rows, idempotent); `SessionEvaluation` repointed with the status checked and logged; then `"Anon can update sign out"` dropped and anon's three column UPDATE grants revoked. Admin bulk sign-out untouched (separate `"Admins manage attendance"` policy). Verified as the real anon role on a demo event, in the draft's order: sign-in → `completed` → `already_completed` (timestamp unmoved) → `invalid_link` on a wrong token → `signed_out` → `already_signed_out` → direct PATCH now **401**. Probes deleted. A live in-browser eval submit later confirmed the stamp lands through the real UI.
+- **2026-08-26 `ac5c4d3` — 🔴 TIPE goes teamless: collaborative hub + per-session materials + resource management (the October-critical-path draft, all 7 items). 4 migrations.**
+  - **Public hub** at `/hub/:token` (+`/forum`, `/forum/:threadId`, `/resources`): static URL all cycle, no accounts, no time window. Everything flows through token-scoped SECURITY DEFINER RPCs (`hub_lookup`, `hub_resources`, `hub_forum_*`, `hub_post_*`) — anon's table grants untouched, no `USING(true)` policies. **The future-materials gate is in SQL**: a future session's document rows and storage paths never reach the browser. `noindex,nofollow` injected per-route. Registration-page branding; verified no overflow at 375px. The "current session" rule (in-window → next upcoming → concluded note) is computed in the event's own timezone in SQL.
+  - **Identity-lite:** session sign-in stores name/district/role/email in `localStorage` (`bsc_hub_identity`; localStorage not sessionStorage because QR scans open new tabs — the `56ed1a9` lesson); the hub prefills posts from it and falls back to a one-time inline form. Required to POST, never to READ. Accountless rows carry `author_name/district/role` (`created_by` NULL); email never rendered. Parking-lot submissions attach **server-side** to the current session so an anon caller can't pick an arbitrary event.
+  - **Per-event materials** on CollaborativeDetail with the three decided categories (Agenda / PowerPoint Slides / Handout — `document_type` CHECK extended; ⚠️ it only allowed `general|agenda`, so the first categorized upload would have failed; `'agenda'` still drives the AgendaBanner). Hub management panel with opt-in toggle — **`hub_token` is retained when toggled off so printed QR codes survive re-enabling.**
+  - **Resources:** `/admin/resources` is now program-scoped (`?program=` + switcher); **trainer_admins can add/edit/delete for the programs of their assigned collabs** (new RLS + storage policies); AddResourceModal gained an edit mode and **now writes `program_type`** — every insert used to land under the DB default `sts_bsc` regardless of the library being viewed. AdminDashboard has one resources tile per program. ⚠️ **Storage-policy trap re-confirmed:** a policy's EXISTS subquery runs under the *caller's* RLS, so the anon hub-download policy needed a SECURITY DEFINER helper (`resource_file_is_hub_visible`) — the first version silently 404'd every anon sign request.
+  - **TIPE removals** applied by `program_type='tipe_lc'` program-wide as decided (demo teams visibly change — expected). TIC/STS untouched. **Trainer Dashboard:** 4-week window, accordion sections, dashboard-wide search.
+  - **Two pre-existing bugs found by lint during the work, both fixed:** `ForumThread.jsx` read `thread` two lines before its `useState` (the same TDZ shape as the May `canManage` white-screen — this page would crash on render); `TeamDashboard.loadTeam` referenced `phase` out of scope, and the swallowed ReferenceError meant **the participant parking-lot list never loaded**.
+  - **Verified anon end-to-end in-browser** on the TIPE LC Demo hub (left enabled — token `aaeddde382760974f1445b1122e1cb6c`, handy for Josh's click-through): fresh-context render, future-materials gate (probe doc on a future event never surfaced), identity form → parking lot → thread → reply with correct attribution and no re-prompt, all 26 resource-category tabs, anon signed URL allowed for hub-program files and refused for a real STS file. All probe rows deleted; demo event dates restored. Advisor: only the expected `*_security_definer_function_executable` WARNs (same accepted class as `validate_team_code`).
+  - ⬜ **Not verified by me (admin-gated, still no test account):** CollaborativeDetail's hub panel/materials upload/resources card, the program-scoped Resources page, TrainerDashboard accordion — Josh drives those.
+
 - **2026-08-26 — collaborative session-link expiry now DST-correct (2026-08-04 draft, item 2). On the October critical path.** `CollaborativeDetail.generateSessionLink` hardcoded `${event_date}T21:00:00.000Z` with the comment "4PM EST". `21:00Z` is 4 PM only at UTC-5, so the stated rule and the actual behaviour disagreed for the ~8 months of EDT.
   - **AWARE Session 1 (2026-10-27) is exactly the affected case** — and its Sessions 2 onward are EST, so one cohort straddles the boundary. Verified against the real event dates: the old hardcode gave **5:00 PM ET on Oct 27** (not the intended 4 PM) and 4:00 PM from Nov 10 on.
   - Now calls `roster_share_expiry_for_date(event_date)` — the same helper the standalone panel uses — so collaborative and standalone links behave identically and DST is resolved in SQL. Confirmed the offset differs correctly either side: Oct 27 → `03:59:59Z` (−0400), Nov 10 → `04:59:59Z` (−0500), both 11:59 PM ET.
@@ -192,13 +211,15 @@ A bidirectional scratchpad shared between Josh, Claude Cowork (Claude desktop ch
 
 **✅ BOTH QUEUED DRAFTS SHIPPED 2026-07-17** (collaborative-creation usability + registration hardening round 2 — see Recently shipped). The `RESEND_API_KEY` blocker found during that work was **resolved the same day** — Josh set the secret and the email pipeline is verified end to end. Registration is now safe to use with real registrants. Superseded queue note follows:
 
+**✅ ALL 4 QUEUED DRAFTS SHIPPED 2026-08-26** (`ac5c4d3` TIPE hub batch · `264ea9b` anon-UPDATE closure · `d8f4d8e` eval scale + flags · `d29e5e8` PDF restyle — see Recently shipped). 🤝 **Cowork's turn: visually verify `qa/eval-single.pdf` + `qa/eval-multi.pdf`** against the target PDF (band/teal rule/zebra/NPS fills/cell overflow/page splits). Superseded queue note follows:
+
 **READY (4 drafts queued at the bottom of this file — the TIPE HUB one is the October critical path):**
 1. **🔴 TIPE goes teamless: collaborative hub + per-session materials + resource management (7 items).** From Josh + Leah 2026-08-26. The AWARE Year 4 TIPE LC (first session **2026-10-27**, 42 registered, **0 teams**) is the first real live cohort. TIPE drops the team layer AND participant accounts: one shared hub at a static URL, no auth, identity captured at sign-in for posting only. TIC LC and STS-BSC unchanged.
 2. **Restyle the evaluation PDF to the CTAC house format** — spec'd from the generating source (`Training Manager/ctac_reports.py` + `CTAC_Report_Style_Guide.md`).
 3. **Evaluation scale direction + contradiction flagging (2 items)** — the 5-button row wraps on a 360px phone, destroying the left-to-right axis; plus a verified flag rule (all items ≤2 AND NPS ≥9) catching exactly 2 of 41 rows with zero false positives.
 4. **Close the last always-true anon UPDATE + fix collaborative session-link expiry (2 items).** Eval-completion stamp must move to an RPC *first*; `generateSessionLink` hardcodes `4PM EST = 9PM UTC` and **AWARE Session 1 is in EDT.**
 
-⬜ **Still unverified from an earlier batch:** none of the 5 repaired PDF exports has been clicked in a browser. That bug survived *because* nobody clicked.
+⬜ **Still unverified from an earlier batch:** of the 5 repaired PDF exports, the **evaluation** one has now been exercised for real (the QA harness renders the live 41-response dataset through the shipped module in node, and `doc.lastAutoTable.finalY` chaining works) — but **Team Report, STS-PAT, Supervisor self-rating, and Attendance PDFs still have never been clicked in a browser.** That bug survived *because* nobody clicked.
 
 _Cowork also deleted the standalone training's test data (4 attendance + 3 evaluations) — verified 0 remaining, event intact for 2026-08-07._
 
@@ -1154,7 +1175,7 @@ For AWARE that returns `2026-10-29T03:59:59Z`, which **is** Oct 28 11:59:59 PM E
 
 ---
 
-### 2026-08-04: Close the last always-true anon UPDATE + fix collaborative session-link expiry (2 items) — READY
+### 2026-08-04: Close the last always-true anon UPDATE + fix collaborative session-link expiry (2 items) — ✅ SHIPPED (item 2 on 2026-08-26 `1f989eb`; item 1 on 2026-08-26 `264ea9b` + 1 migration) — spec kept for reference
 
 > Both are follow-ups **you flagged yourself** in the sign-out rework and the standalone-training batch. Cowork investigated each far enough to answer the open questions, so neither needs re-diagnosing.
 >
@@ -1293,7 +1314,7 @@ Both of these were only findable by using the app on real data — the PDF break
 >
 > Whichever route: `exportEvaluationPdf.js` has no browser-only dependencies, so it runs in node directly. Stub `jsPDF.prototype.save` to write bytes to disk (the harness pattern used for the autotable verification in `279ac9b`).
 
-### 2026-08-13: Restyle the evaluation PDF to the CTAC house format — READY (spec'd by Cowork)
+### 2026-08-13: Restyle the evaluation PDF to the CTAC house format — ✅ SHIPPED 2026-08-26 (`d29e5e8`; content verified in node + pdftotext; 🤝 visual verification pending Cowork via `qa/eval-*.pdf`) — spec kept for reference
 
 > **This unblocks the ⬜ FOR COWORK item.** Claude Code couldn't render or text-extract the target PDF in its environment. Cowork read it, rendered both PDFs to images, and — better — found the **generating source**, so this spec uses exact values rather than estimates.
 >
@@ -1434,7 +1455,7 @@ Two of the 41 responses rated **all six items `1`** while writing glowing commen
 
 ---
 
-### 2026-08-13: Make the evaluation scale direction unmistakable + flag contradictory responses (2 items) — READY
+### 2026-08-13: Make the evaluation scale direction unmistakable + flag contradictory responses (2 items) — ✅ SHIPPED 2026-08-26 (`d8f4d8e`) — spec kept for reference
 
 > **Why.** In the first real evaluation dataset (41 responses, standalone training `6ab3e622-6369-4e57-aa4d-9b3328b3ae90`, 2026-08-07), **two respondents rated all six Likert items `1` (Strongly Disagree) while writing glowing comments** — `"Alex is always an incredible teacher! \nI loved the whole presentation!"` and `"What I felt was most helpful was the quick breakout sessions…"` — and **both gave a recommend score of 10.** Almost certainly reversed-scale confusion, not genuine 1s. They pull every item mean down by roughly 0.2 and force `Min 1.00` across all six rows of the report, which has already gone out.
 >
@@ -1491,7 +1512,7 @@ Two of the 41 responses rated **all six items `1`** while writing glowing commen
 
 ---
 
-### 2026-08-26: TIPE goes teamless — collaborative hub, per-session materials, resource management (6 items) — READY
+### 2026-08-26: TIPE goes teamless — collaborative hub, per-session materials, resource management (6 items) — ✅ SHIPPED 2026-08-26 (`ac5c4d3` + 4 migrations; admin-gated click-through is Josh's) — spec kept for reference
 
 > **This is the October critical path.** The **AWARE Year 4 TIPE LC** (`3453c7f5-26aa-434c-a17c-657052c9b471`, first session **2026-10-27**) is the app's first real live cohort. From Josh + Leah's 2026-08-26 meeting: **TIPE drops the team layer and drops participant accounts entirely.**
 >
