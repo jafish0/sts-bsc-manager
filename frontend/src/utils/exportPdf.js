@@ -46,9 +46,22 @@ export async function exportTeamReportPdf(report) {
   const [ctacImg, ukImg] = await Promise.all([loadImage(ctacLogo), loadImage(ukLogo)])
 
   // --- Page 1: Cover ---
-  // Logos
-  if (ctacImg) doc.addImage(ctacImg, 'PNG', margin, y, 55, 18)
-  if (ukImg) doc.addImage(ukImg, 'PNG', pageW - margin - 45, y, 45, 15)
+  // Logos — height is fixed to keep the header row stable; width is DERIVED
+  // from each image's own aspect ratio. Hardcoding both dimensions stretched
+  // the CTAC logo ~40% too wide (901×414 drawn at 55×18) and squeezed the UK
+  // lockup ~12% (700×206 at 45×15); deriving from the image means a future
+  // logo swap can't reintroduce the distortion.
+  if (ctacImg) {
+    const p = doc.getImageProperties(ctacImg)
+    const h = 18
+    doc.addImage(ctacImg, 'PNG', margin, y, h * (p.width / p.height), h)
+  }
+  if (ukImg) {
+    const p = doc.getImageProperties(ukImg)
+    const h = 15
+    const w = h * (p.width / p.height)
+    doc.addImage(ukImg, 'PNG', pageW - margin - w, y, w, h)
+  }
   y += 28
 
   // Title bar
@@ -128,8 +141,13 @@ export async function exportTeamReportPdf(report) {
   // --- STSS Table ---
   const stssTimepoints = TIMEPOINT_ORDER.filter(tp => tpData[tp]?.stss)
   if (stssTimepoints.length > 0) {
-    checkPageBreak(doc, y, 50, margin)
-    y = doc.lastAutoTable ? doc.lastAutoTable.finalY + 10 : y
+    // checkPageBreak returns the (possibly reset) y — it can't mutate the
+    // argument. Its return used to be discarded here, and the next line reset
+    // y to lastAutoTable.finalY (still the COMPLETION table, since no table
+    // ran in between), throwing away the space the Demographics header + text
+    // had consumed — which drew this section on top of the demographics line.
+    // y must only ever move forward from here.
+    y = checkPageBreak(doc, y, 50, margin)
     sectionHeader(doc, 'STSS — Secondary Traumatic Stress Scale (DSM-5 4-Factor)', margin, y, pageW)
     y += 10
 

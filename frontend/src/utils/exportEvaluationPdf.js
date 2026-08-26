@@ -148,10 +148,12 @@ export function exportEvaluationReportPdf(sessions) {
   setStyle('bold', 12.5, NAVY)
   doc.text(doc.splitTextToSize(trainingName, CONTENT_W), MARGIN, y)
   y += 17 * doc.splitTextToSize(trainingName, CONTENT_W).length - 4
-  // Teal rule, 1.2pt
+  // Teal rule, 1.2pt. The gap below it (and the spaceBefore each h2 gets
+  // further down) mirrors ctac_reports._styles() — Cowork's visual pass found
+  // the first cut too tight against the house format's vertical rhythm.
   doc.setDrawColor(...TEAL).setLineWidth(1.2)
   doc.line(MARGIN, y, PAGE_W - MARGIN, y)
-  y += 14
+  y += 24
 
   // ---- Contents table (multi-session only) ----
   if (multi) {
@@ -202,10 +204,16 @@ export function exportEvaluationReportPdf(sessions) {
     y += 21
     // Real event title as the h2 — never the date again (the sample PDF's
     // doubled date was an artifact of the Python having no title to pass).
-    setStyle('bold', 13.5, NAVY)
-    const titleLines = doc.splitTextToSize(session.title || '', CONTENT_W)
-    doc.text(titleLines, MARGIN, y)
-    y += 17 * titleLines.length - 2
+    // OMITTED when it would just repeat the document-level training name
+    // (i.e. the single-session case), which printed the title twice —
+    // Cowork's spec bug, confirmed by Josh's click-test.
+    const sessionTitle = (session.title || '').trim()
+    if (sessionTitle && sessionTitle.toLowerCase() !== trainingName.trim().toLowerCase()) {
+      setStyle('bold', 13.5, NAVY)
+      const titleLines = doc.splitTextToSize(sessionTitle, CONTENT_W)
+      doc.text(titleLines, MARGIN, y)
+      y += 17 * titleLines.length - 2
+    }
     setStyle('normal', 9.5, GREY)
     doc.text(`${fmtDate(session.event_date)}  ·  ${evals.length} response${evals.length === 1 ? '' : 's'}`, MARGIN, y)
     y += 18
@@ -216,10 +224,11 @@ export function exportEvaluationReportPdf(sessions) {
       .filter(r => r.st)
 
     if (statsRows.length > 0) {
-      ensure(120)
+      ensure(132)
+      y += 12 // h2 spaceBefore
       setStyle('bold', 13.5, NAVY)
       doc.text('Quantitative Ratings', MARGIN, y)
-      y += 8
+      y += 10
       let anyAnom = false
       autoTable(doc, {
         startY: y,
@@ -252,10 +261,13 @@ export function exportEvaluationReportPdf(sessions) {
         y += 11
       }
       // Consistency-check footnote — same rules as the admin view
-      // (utils/evaluationFlags.js): purely numeric, nothing excluded.
+      // (utils/evaluationFlags.js): purely numeric, nothing excluded. Plain
+      // note, no dagger: a † with no anchor in the table references nothing
+      // (Cowork's defect 3), and the flag concerns whole responses rather
+      // than any one cell it could anchor to.
       const flagged = flagEvaluations(evals, { minSeverity: 'high' })
       if (flagged.length > 0) {
-        const note = `† ${flagged.length} response${flagged.length === 1 ? '' : 's'} in this session ${flagged.length === 1 ? 'is' : 'are'} flagged by a consistency check (ratings contradict the recommend score); all responses remain included in every figure above.`
+        const note = `${flagged.length} response${flagged.length === 1 ? '' : 's'} in this session ${flagged.length === 1 ? 'is' : 'are'} flagged by a consistency check (ratings contradict the recommend score); all responses remain included in every figure above.`
         const noteLines = doc.splitTextToSize(note, CONTENT_W)
         doc.text(noteLines, MARGIN, y)
         y += 11 * noteLines.length
@@ -266,10 +278,11 @@ export function exportEvaluationReportPdf(sessions) {
     // -- Likelihood to Recommend (only when collected) --
     const nps = npsStats(evals.map(e => e.recommend_score))
     if (nps) {
-      ensure(110)
+      ensure(122)
+      y += 12 // h2 spaceBefore
       setStyle('bold', 13.5, NAVY)
       doc.text('Likelihood to Recommend', MARGIN, y)
-      y += 10
+      y += 12
       y = drawNpsStrip(doc, y, nps)
       y += 8
       setStyle('normal', 8, GREY)
@@ -292,7 +305,8 @@ export function exportEvaluationReportPdf(sessions) {
       if (responses.length === 0) return
 
       if (!anyComments) {
-        ensure(70)
+        ensure(82)
+        y += 12 // h2 spaceBefore
         setStyle('bold', 13.5, NAVY)
         doc.text('Open-Response Comments', MARGIN, y)
         y += 16
@@ -302,7 +316,8 @@ export function exportEvaluationReportPdf(sessions) {
         anyComments = true
       }
 
-      ensure(60)
+      ensure(68)
+      y += 8 // question-paragraph spaceBefore (ctac_reports "q" style)
       setStyle('bold', 10, NAVY)
       const qLines = doc.splitTextToSize(question, CONTENT_W)
       doc.text(qLines, MARGIN, y)
