@@ -186,10 +186,11 @@ A bidirectional scratchpad shared between Josh, Claude Cowork (Claude desktop ch
 
 **✅ BOTH QUEUED DRAFTS SHIPPED 2026-07-17** (collaborative-creation usability + registration hardening round 2 — see Recently shipped). The `RESEND_API_KEY` blocker found during that work was **resolved the same day** — Josh set the secret and the email pipeline is verified end to end. Registration is now safe to use with real registrants. Superseded queue note follows:
 
-**READY (3 drafts queued at the bottom of this file):**
-1. **Restyle the evaluation PDF to the CTAC house format** — spec'd from the **generating source** (`Training Manager/ctac_reports.py` + `CTAC_Report_Style_Guide.md`), so exact colors, type scale, column widths and fills. Gaps: no page furniture, no `n` column, no NPS block, Qualtrics `Q51 -` labels, unnumbered verbatim comments.
-2. **Evaluation scale direction + contradiction flagging (2 items)** — two of 41 real respondents rated all six items `1` while writing glowing comments AND scoring 10 on recommend. The scale IS labelled, so the fix is layout: the 5-button row **wraps on a 360px phone** (5 × 80px minWidth), destroying the left-to-right axis. Plus a verified rules-based flag (all items ≤2 AND NPS ≥9) that catches exactly those 2 rows with **zero false positives**.
-3. **Close the last always-true anon UPDATE + fix collaborative session-link expiry (2 items).** Eval-completion stamp must move to an RPC *before* dropping the `USING (true)` anon policy; and `generateSessionLink` hardcodes `4PM EST = 9PM UTC` — **AWARE Session 1 (2026-10-27) is in EDT.**
+**READY (4 drafts queued at the bottom of this file — the TIPE HUB one is the October critical path):**
+1. **🔴 TIPE goes teamless: collaborative hub + per-session materials + resource management (7 items).** From Josh + Leah 2026-08-26. The AWARE Year 4 TIPE LC (first session **2026-10-27**, 42 registered, **0 teams**) is the first real live cohort. TIPE drops the team layer AND participant accounts: one shared hub at a static URL, no auth, identity captured at sign-in for posting only. TIC LC and STS-BSC unchanged.
+2. **Restyle the evaluation PDF to the CTAC house format** — spec'd from the generating source (`Training Manager/ctac_reports.py` + `CTAC_Report_Style_Guide.md`).
+3. **Evaluation scale direction + contradiction flagging (2 items)** — the 5-button row wraps on a 360px phone, destroying the left-to-right axis; plus a verified flag rule (all items ≤2 AND NPS ≥9) catching exactly 2 of 41 rows with zero false positives.
+4. **Close the last always-true anon UPDATE + fix collaborative session-link expiry (2 items).** Eval-completion stamp must move to an RPC *first*; `generateSessionLink` hardcodes `4PM EST = 9PM UTC` and **AWARE Session 1 is in EDT.**
 
 ⬜ **Still unverified from an earlier batch:** none of the 5 repaired PDF exports has been clicked in a browser. That bug survived *because* nobody clicked.
 
@@ -1467,3 +1468,103 @@ Two of the 41 responses rated **all six items `1`** while writing glowing commen
 - Confirm the two known flagged rows in the live 2026-08-07 dataset are identified by Rule A, and that **no other row of the 41** is flagged.
 - Confirm counts, means and the NPS in the admin view and the PDF are **unchanged** by flagging — nothing is excluded.
 - ⬜ The admin view is gated; the participant-facing evaluation page is public and can be checked directly.
+
+---
+
+### 2026-08-26: TIPE goes teamless — collaborative hub, per-session materials, resource management (6 items) — READY
+
+> **This is the October critical path.** The **AWARE Year 4 TIPE LC** (`3453c7f5-26aa-434c-a17c-657052c9b471`, first session **2026-10-27**) is the app's first real live cohort. From Josh + Leah's 2026-08-26 meeting: **TIPE drops the team layer and drops participant accounts entirely.**
+>
+> **Why TIPE is different:** it is not assessment-driven. No shared assessment results, no data visualization, no SMARTIE-goal or PDSA collaboration. Every participant sees the *same* thing, so there is nothing to scope per team and no reason to make an account. **TIC LC and STS-BSC keep the team layer unchanged** — they have the agency self-assessment driving goals and PDSAs.
+>
+> **Verified current state:** the AWARE collaborative has **8 events, 42 registered, and 0 teams** — nothing to migrate or undo. `bsc_event_documents.document_type` already exists with **zero rows using it**. `resources.tags` already exists.
+
+#### Item 1: A persistent collaborative hub (new, no accounts)
+
+New public page: one shared hub per collaborative, reachable at a **static URL** all cycle (Oct 2026 → Jan 2027), which the existing standalone `hub_token` pattern cannot do because it gates on a per-event time window.
+
+- **Schema:** `collaboratives.hub_token text UNIQUE` (`encode(gen_random_bytes(16),'hex')`), plus `hub_enabled boolean NOT NULL DEFAULT false` so this is opt-in per collaborative and no existing collab changes behavior. Generate the token on demand from the admin UI.
+- **Route:** `/hub/:token`, public, **no auth and no time window.** Read access requires nothing but the link.
+- **Data access:** serve through a **token-scoped SECURITY DEFINER RPC** (the proven `validate_team_code` / `lookup_rsvp` shape) or an edge function. **Do NOT broaden anon's table grants** to make this work, and do not add `USING (true)` policies — that pattern has already been cleaned up twice in this codebase.
+- **Contents, in order:**
+  1. **Header:** collaborative name, today's date, and the **current session** (see the rule below) with its date and time in **ET**.
+  2. **Agenda** for the current session, prominent.
+  3. **Training materials** for the current session, grouped and labelled by category (item 3), each downloadable.
+  4. **Previous sessions**, collapsed: each with its agenda and materials, so past material stays reachable all cycle.
+  5. **Community Forum card** + a **recent posts feed** (Josh's idea: show the latest few, expandable to the full forum, click through to a post).
+  6. **Resources card** → the program's resource library.
+  7. **Parking lot** submission box ("Have a question? Ask here"), feeding the Trainer Dashboard.
+- **"Current session" rule (confirmed):** during an event's window, that session is current; otherwise the **next upcoming** session becomes current the moment the previous one ends. After the final session, show the last session and a short "this collaborative has concluded" note rather than an empty state.
+- **Materials timing (confirmed):** past and current sessions' materials are visible. **Future sessions' materials are hidden until that session starts.** This is the one real gate — honor it.
+- **Security posture, recorded deliberately:** the hub URL is effectively shareable and both Josh and Ginny explicitly accepted that ("it's an illusion... you can forward that email pretty easily"). Add `noindex, nofollow` so it never lands in a search index. Do not add an access code. **Do not "harden" this later without asking** — it is a decision, not an oversight.
+- Apply the same branding as the public registration page (CTAC logo top, UK lockup bottom, brand background) so it reads as part of the same system. Verify at **360px** — participants will open this on phones during a session.
+
+#### Item 2: Identity-lite, so a teamless hub can still have a forum and parking lot
+
+`forum_threads.created_by`, `forum_replies.created_by` and `event_parking_lot_items.created_by` are all **nullable**, so posting without an account is possible at the schema level — but an anonymous forum has no author names and no moderation handle. Josh's chosen approach:
+
+- **Reuse the sign-in identity.** Session sign-in already captures name, email, agency and role into `session_attendance`. On successful sign-in, store a small identity object in **`localStorage`** (name, district/agency, role — and email for matching, never displayed publicly).
+  - Use `localStorage`, **not `sessionStorage`**: `sessionStorage` is per-tab and scanning a QR opens a new tab, which is exactly the bug that broke the old sign-out flow (`56ed1a9`).
+- **Fallback when no stored identity** (different device, cleared storage, private browsing): before their first post, show a small inline form asking **name, district, role**, then persist it to `localStorage`. Josh's suggestion, and it is the right one.
+- **Identity is required to POST, never to READ.** Browsing the hub, materials, forum and resources must stay frictionless.
+- Store the display identity on the row (add nullable `author_name` / `author_district` / `author_role` text columns to `forum_threads`, `forum_replies` and `event_parking_lot_items`, or a small shared shape) so a post keeps its attribution with no account to join back to. Never render the email publicly.
+- Wrap all storage access in `try/catch` — private browsing throws.
+- **Parking-lot submissions attach to the current session's event** so they land on the Trainer Dashboard in context.
+
+#### Item 3: Enhanced BSC Events section on Collaborative Detail — per-session materials
+
+**Applies to all three programs** (TIPE, TIC, STS-BSC). Today each event row has date/time, generate sign-in link, and Zoom. Add **per-event material upload**, working like adding a resource:
+
+- Upload a file, give it a title, and **categorize it**. Categories written to the existing `bsc_event_documents.document_type`:
+  1. **Agenda**
+  2. **PowerPoint Slides**
+  3. **Handout**
+- The category drives the labelled grouping on the hub. Reuse the existing drag-and-drop uploader from `EventDetail` (`a37c9ef`) rather than building a new one.
+- **TIPE-specific note:** Josh confirmed that for TIPE, **Resource Mapping and Goals are uploaded as PDFs as that session's training material** — they are not built in the app. Under the three categories above they fall under **Handout**. ⬜ **Flag for Josh:** do you want a distinct fourth category (e.g. "Worksheet / Activity") so those are labelled clearly on the hub rather than lumped in with handouts? Do not add one unilaterally.
+- Keep the existing agenda-banner behavior working; an item categorized Agenda should drive both.
+- **Keep the "Add Event" button** (Josh confirmed) — without it a mid-cycle addition has no path, since events otherwise come only from the create-collaborative flow.
+
+#### Item 4: Resource management on the Collaborative Detail page
+
+Leah asked this three separate ways (feedback items 3, 7, 9 — she could see TIPE resources as a participant but could not find where to add or edit them).
+
+- Add a **Resources** section to Collaborative Detail letting a trainer/admin add, edit and remove resources for that collaborative's program.
+- **Do NOT change the resources schema.** Josh confirmed resources stay scoped by **`program_type`**, not per collaborative. So this section manages the *program's* library, and every TIPE cohort shares it. **Make that explicit in the UI copy** (e.g. "Resources shown here are shared across all TIPE collaboratives") so nobody assumes edits are cohort-local — that assumption is exactly what Leah's question 4 was probing.
+- Mirror the existing add-resource flow: title, description, upload/link, category/folder, resource type.
+
+#### Item 5: Admin Dashboard — one resources card per program
+
+Replace the single generic Resources tile with **three**: **TIPE Resources**, **STS-BSC Resources**, **TIC Resources**, each opening `/admin/resources` pre-filtered to that `program_type`. Josh's request, and it removes the "which library am I even in?" ambiguity that produced Leah's questions.
+
+#### Item 6: Remove the inapplicable surfaces from TIPE
+
+Both Josh and Ginny concluded these do not apply to TIPE. Earlier work (`e9cce6c`) put "needs development" placeholders on TIC/TIPE; for TIPE these should now be **removed entirely, not placeheld**:
+
+- **Change Framework** — built on STS-BSC's STSI-OA domains. Ginny: "it's not really applicable here."
+- **Strategy Ideas** — assessment and goal driven. Both agreed the **Forum** is the applicable equivalent for TIPE.
+
+Also remove from TIPE participant-facing surfaces (they have no team and no assessment): Assessment Results, Data Visualization, Recommendations, SMARTIE Goals, PDSA Cycles, Team Reports, Resource Mapping.
+
+- **⬜ Decision to surface, do not assume:** apply by `program_type = 'tipe_lc'` **program-wide**, or only to this one collaborative? Cowork's recommendation: **program-wide**, for consistency — but note that **TIPE LC Demo has 6 demo teams**, so its team dashboards will visibly change and the Anchor Lab testers may notice. Say which you chose.
+- Leave TIC LC and STS-BSC **completely untouched**.
+
+#### Item 7 (small): Trainer Dashboard tuning
+
+From the meeting, agreed with Leah: default the upcoming-events window to **4 weeks** (was 3), make the sections **collapsible/accordion** so a long list is not overwhelming, and add a **search**. Leah's feedback item 13 ("I'd like to only see the cards relevant to the LCs I'm assigned to, like a 'limited admin' view") is **already the `trainer_admin` role** — that is an assignment task for Josh, not a build.
+
+#### Explicitly deferred — do not build now
+
+- **District dropdown on registration + deriving district from the email domain** (`@harlan.kyschools.us`), and possibly auto-forming teams from it. **Next cohort.** Registration is live with 42 people; changing the form mid-cycle produces two shapes of data in one dataset.
+- **Resource keyword/tag search** with a new "what it's good for" dimension (grade band, small-group vs individual vs whole-class, teacher-facing vs student handout vs counselor). Leah's ask; Josh: "if you can dream it, I can make it." `resources.tags` already exists, so the foundation is there. **Blocked on a content decision:** Leah and Tracy need to define the tag vocabulary before this is worth building.
+- **Consolidating resource folders** into broader categories (classroom / school / district level). Josh: "for now I'll just keep it how it is, make it a little more visually appealing."
+- **RAG chatbot over the resource library** ("limited to the data set that we provide"). Explicitly future; Josh estimated ~$5-10 per collaborative in API cost.
+
+#### Verification
+
+- Load the hub URL with **no session, no cookies, in a fresh private window**: it must render, show the correct current session, and expose no future-session materials.
+- Confirm a future session's materials are **not** reachable before that session starts, including by direct storage URL if the bucket is public.
+- Post to the forum and the parking lot from a device with **no stored identity**: the inline name/district/role form must appear, the post must carry that attribution, and a second post must not re-prompt.
+- Confirm reading requires no identity at all.
+- Verify the parking-lot item appears on the Trainer Dashboard against the right session.
+- Confirm **TIC LC and STS-BSC team dashboards are byte-for-byte unchanged** — this is the main regression risk in the whole batch.
+- Check at **360px**.
