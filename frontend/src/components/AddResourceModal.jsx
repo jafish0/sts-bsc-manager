@@ -16,17 +16,20 @@ const TYPE_OPTIONS = [
 
 const FILE_TYPES = ['pdf', 'docx', 'doc', 'pptx']
 
-function AddResourceModal({ onClose, onSuccess, domains: propDomains, categories }) {
+function AddResourceModal({ onClose, onSuccess, domains: propDomains, categories, programType = 'sts_bsc', editingResource = null }) {
   // If categories are provided, use category mode (tags); otherwise domain mode
   const useCategories = categories && categories.length > 0
   const options = useCategories ? categories : (propDomains && propDomains.length > 0 ? propDomains : FALLBACK_DOMAINS)
-  const [title, setTitle] = useState('')
-  const [description, setDescription] = useState('')
-  const [selectedDomains, setSelectedDomains] = useState([])
-  const [resourceType, setResourceType] = useState('pdf')
+  const isEditing = !!editingResource
+  const [title, setTitle] = useState(editingResource?.title || '')
+  const [description, setDescription] = useState(editingResource?.description || '')
+  const [selectedDomains, setSelectedDomains] = useState(
+    editingResource ? (useCategories ? (editingResource.tags || []) : (editingResource.domains || [])) : []
+  )
+  const [resourceType, setResourceType] = useState(editingResource?.resource_type || 'pdf')
   const [file, setFile] = useState(null)
-  const [youtubeUrl, setYoutubeUrl] = useState('')
-  const [linkUrl, setLinkUrl] = useState('')
+  const [youtubeUrl, setYoutubeUrl] = useState(editingResource?.youtube_url || '')
+  const [linkUrl, setLinkUrl] = useState(editingResource?.link_url || '')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
 
@@ -56,7 +59,8 @@ function AddResourceModal({ onClose, onSuccess, domains: propDomains, categories
 
     if (!title.trim()) { setError('Title is required'); return }
     if (selectedDomains.length === 0) { setError(useCategories ? 'Select at least one category' : 'Select at least one domain'); return }
-    if (FILE_TYPES.includes(resourceType) && !file) { setError('Please select a file'); return }
+    // Editing keeps the existing file unless a replacement is chosen.
+    if (FILE_TYPES.includes(resourceType) && !file && !(isEditing && editingResource.file_path)) { setError('Please select a file'); return }
     if (resourceType === 'youtube' && !youtubeUrl.trim()) { setError('YouTube URL is required'); return }
     if (resourceType === 'link' && !linkUrl.trim()) { setError('Link URL is required'); return }
 
@@ -67,47 +71,69 @@ function AddResourceModal({ onClose, onSuccess, domains: propDomains, categories
 
     setLoading(true)
     try {
-      let filePath = null
-      let fileName = null
+      // Keep the existing file on edit unless a replacement was picked.
+      let filePath = isEditing ? (editingResource.file_path || null) : null
+      let fileName = isEditing ? (editingResource.file_name || null) : null
+      let uploadedNewPath = null
 
       if (FILE_TYPES.includes(resourceType) && file) {
         const ext = file.name.split('.').pop()
         const uniqueName = `${crypto.randomUUID()}.${ext}`
-        filePath = `resources/${uniqueName}`
-        fileName = file.name
-
+        uploadedNewPath = `resources/${uniqueName}`
         const { error: uploadError } = await supabase.storage
           .from('resources')
-          .upload(filePath, file)
-
+          .upload(uploadedNewPath, file)
         if (uploadError) throw uploadError
+        filePath = uploadedNewPath
+        fileName = file.name
       }
 
-      const insertData = {
+      const rowData = {
         title: title.trim(),
         description: description.trim() || null,
         resource_type: resourceType,
-        file_path: filePath,
-        file_name: fileName,
+        file_path: FILE_TYPES.includes(resourceType) ? filePath : null,
+        file_name: FILE_TYPES.includes(resourceType) ? fileName : null,
         youtube_url: resourceType === 'youtube' ? youtubeUrl.trim() : null,
         link_url: resourceType === 'link' ? linkUrl.trim() : null,
+        // Scopes the resource to the library being managed — without this,
+        // every insert landed under the DB default ('sts_bsc') regardless of
+        // which program's library the admin was looking at.
+        program_type: programType || 'sts_bsc',
       }
 
       if (useCategories) {
-        insertData.tags = selectedDomains
-        insertData.domains = []
+        rowData.tags = selectedDomains
+        rowData.domains = []
       } else {
-        insertData.domains = selectedDomains
-        insertData.tags = []
+        rowData.domains = selectedDomains
+        rowData.tags = []
       }
 
-      const { error: insertError } = await supabase
-        .from('resources')
-        .insert(insertData)
-
-      if (insertError) {
-        if (filePath) await supabase.storage.from('resources').remove([filePath])
-        throw insertError
+      if (isEditing) {
+        const { data: updated, error: updateError } = await supabase
+          .from('resources')
+          .update(rowData)
+          .eq('id', editingResource.id)
+          .select('id')
+        // An RLS refusal returns 0 rows and no error — treat as failure so the
+        // edit doesn't look saved and silently revert on reload.
+        if (updateError || !updated || updated.length === 0) {
+          if (uploadedNewPath) await supabase.storage.from('resources').remove([uploadedNewPath])
+          throw updateError || new Error('You do not have permission to edit this resource.')
+        }
+        // Row updated — now the old file (if replaced) is orphaned; remove it.
+        if (uploadedNewPath && editingResource.file_path && editingResource.file_path !== uploadedNewPath) {
+          await supabase.storage.from('resources').remove([editingResource.file_path])
+        }
+      } else {
+        const { error: insertError } = await supabase
+          .from('resources')
+          .insert(rowData)
+        if (insertError) {
+          if (uploadedNewPath) await supabase.storage.from('resources').remove([uploadedNewPath])
+          throw insertError
+        }
       }
 
       if (onSuccess) onSuccess()
@@ -147,9 +173,11 @@ function AddResourceModal({ onClose, onSuccess, domains: propDomains, categories
         }}
         onClick={(e) => e.stopPropagation()}
       >
-        <h2 style={{ color: NAVY, marginTop: 0, marginBottom: '0.25rem' }}>Add Resource</h2>
+        <h2 style={{ color: NAVY, marginTop: 0, marginBottom: '0.25rem' }}>{isEditing ? 'Edit Resource' : 'Add Resource'}</h2>
         <p style={{ color: '#6b7280', fontSize: '0.9rem', marginBottom: '1.5rem' }}>
-          Add a resource to the shared library. All teams will be able to access it.
+          {isEditing
+            ? 'Changes apply everywhere this resource appears — the library is shared across every collaborative in this program.'
+            : 'Add a resource to the shared library. Every collaborative in this program will see it.'}
         </p>
 
         <form onSubmit={handleSubmit}>
@@ -219,7 +247,12 @@ function AddResourceModal({ onClose, onSuccess, domains: propDomains, categories
           {/* Conditional: File Upload */}
           {FILE_TYPES.includes(resourceType) && (
             <div style={{ marginBottom: '1.25rem' }}>
-              <label style={labelStyle}>Upload File *</label>
+              <label style={labelStyle}>{isEditing && editingResource.file_path ? 'Replace File (optional)' : 'Upload File *'}</label>
+              {isEditing && editingResource.file_name && !file && (
+                <p style={{ color: '#374151', fontSize: '0.85rem', margin: '0 0 0.4rem' }}>
+                  Current file: <strong>{editingResource.file_name}</strong>
+                </p>
+              )}
               <input
                 type="file"
                 accept=".pdf,.doc,.docx,.pptx"
@@ -281,7 +314,7 @@ function AddResourceModal({ onClose, onSuccess, domains: propDomains, categories
               color: 'white', padding: '0.75rem 1.5rem', borderRadius: '8px',
               border: 'none', fontWeight: '600', cursor: loading ? 'not-allowed' : 'pointer',
               fontSize: '0.95rem', boxShadow: loading ? 'none' : '0 4px 12px rgba(0,167,157,0.3)'
-            }}>{loading ? 'Adding...' : 'Add Resource'}</button>
+            }}>{loading ? 'Saving...' : isEditing ? 'Save Changes' : 'Add Resource'}</button>
           </div>
         </form>
       </div>

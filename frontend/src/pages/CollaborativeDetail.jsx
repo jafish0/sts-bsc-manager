@@ -9,6 +9,7 @@ import EvaluationReport from '../components/EvaluationReport'
 import QrCodeModal from '../components/QrCodeModal'
 import RegistrationLinkModal from '../components/RegistrationLinkModal'
 import RegistrationRosterModal from '../components/RegistrationRosterModal'
+import EventMaterialsManager from '../components/EventMaterialsManager'
 import { PROGRAM_TYPE_COLORS, getProgramBranding } from '../config/programConfig'
 import { deleteRegistrationLink, deleteBlockedReason } from '../utils/registrationLinks'
 import ctacLogo from '../assets/CTAC_white.png'
@@ -91,6 +92,18 @@ export default function CollaborativeDetail() {
   const [editingLink, setEditingLink] = useState(null)
   const [viewingRosterFor, setViewingRosterFor] = useState(null) // { id, title }
   const [deletingLinkId, setDeletingLinkId] = useState(null)
+
+  // Per-event training materials: which event's panel is expanded (one at a
+  // time), plus a doc count per event so the button can show it collapsed.
+  const [materialsEventId, setMaterialsEventId] = useState(null)
+  const [docCounts, setDocCounts] = useState({})
+
+  // Participant hub state (collaboratives.hub_token / hub_enabled)
+  const [hubSaving, setHubSaving] = useState(false)
+  const [hubLinkCopied, setHubLinkCopied] = useState(false)
+
+  // Program resource library count for the Resources card
+  const [resourceCount, setResourceCount] = useState(null)
 
   // Session link & report state
   const [sessionLinks, setSessionLinks] = useState({})
@@ -318,6 +331,74 @@ export default function CollaborativeDetail() {
     const eCounts = {}
     ;(evalData || []).forEach(e => { eCounts[e.bsc_event_id] = (eCounts[e.bsc_event_id] || 0) + 1 })
     setEvalCounts(eCounts)
+
+    // Load per-event material counts (for the collapsed Materials buttons)
+    const eventIds = (data || []).map(e => e.id)
+    if (eventIds.length > 0) {
+      const { data: docData } = await supabase
+        .from('bsc_event_documents')
+        .select('event_id')
+        .in('event_id', eventIds)
+      const dCounts = {}
+      ;(docData || []).forEach(d => { dCounts[d.event_id] = (dCounts[d.event_id] || 0) + 1 })
+      setDocCounts(dCounts)
+    }
+  }
+
+  // Fetch the size of this program's shared resource library (Resources card).
+  useEffect(() => {
+    if (!collaborative?.program_type) return
+    let cancelled = false
+    supabase
+      .from('resources')
+      .select('id', { count: 'exact', head: true })
+      .eq('program_type', collaborative.program_type)
+      .then(({ count }) => { if (!cancelled) setResourceCount(count ?? 0) })
+    return () => { cancelled = true }
+  }, [collaborative?.program_type])
+
+  // --- Participant hub controls -------------------------------------------
+  // The hub is opt-in per collaborative. The token is generated once, on
+  // demand, and RETAINED when the hub is toggled off — re-enabling reuses the
+  // same URL, so a printed QR code keeps working.
+  const hubUrl = collaborative?.hub_token ? `https://bsc.ctac.app/hub/${collaborative.hub_token}` : null
+
+  const updateHub = async (patch) => {
+    setHubSaving(true)
+    const { data, error } = await supabase
+      .from('collaboratives')
+      .update(patch)
+      .eq('id', id)
+      .select('hub_token, hub_enabled')
+    setHubSaving(false)
+    // An RLS refusal returns 0 rows and no error — treat it as a failure so
+    // the checkbox doesn't look saved and snap back on reload.
+    if (error || !data || data.length === 0) {
+      alert('Could not update the hub' + (error ? ': ' + error.message : ' (no permission).'))
+      return false
+    }
+    setCollaborative(prev => ({ ...prev, ...data[0] }))
+    return true
+  }
+
+  const toggleHub = async (enabled) => {
+    const patch = { hub_enabled: enabled }
+    if (enabled && !collaborative?.hub_token) {
+      patch.hub_token = Array.from(crypto.getRandomValues(new Uint8Array(16)))
+        .map(b => b.toString(16).padStart(2, '0')).join('')
+    }
+    await updateHub(patch)
+  }
+
+  const copyHubLink = async () => {
+    if (!hubUrl) return
+    try {
+      await navigator.clipboard.writeText(hubUrl)
+      setHubLinkCopied(true)
+      setTimeout(() => setHubLinkCopied(false), 2000)
+    } catch {
+      alert('Failed to copy link')
+    }
   }
 
   const generateSessionLink = async (evt) => {
@@ -1234,12 +1315,127 @@ export default function CollaborativeDetail() {
                         )}
                       </div>
                     )}
+
+                    {/* Per-event training materials (agenda / slides / handouts).
+                        Categories drive the labelled grouping on the participant hub. */}
+                    <div style={{ marginTop: '0.5rem' }}>
+                      <button
+                        onClick={() => setMaterialsEventId(cur => cur === evt.id ? null : evt.id)}
+                        style={{
+                          padding: '0.25rem 0.6rem',
+                          background: materialsEventId === evt.id ? '#0E1F56' : '#f3f4f6',
+                          color: materialsEventId === evt.id ? 'white' : '#374151',
+                          border: 'none', borderRadius: '4px', cursor: 'pointer',
+                          fontSize: '0.7rem', fontWeight: '600',
+                        }}
+                      >
+                        📎 Materials{(docCounts[evt.id] || 0) > 0 ? ` (${docCounts[evt.id]})` : ''}
+                      </button>
+                      {materialsEventId === evt.id && (
+                        <EventMaterialsManager
+                          eventId={evt.id}
+                          canManage={isAdminHere}
+                          onCountChange={(n) => setDocCounts(prev => ({ ...prev, [evt.id]: n }))}
+                        />
+                      )}
+                    </div>
                   </div>
                 )
               })}
             </div>
           )}
         </div>
+
+        {/* Participant Hub (admin-only) — one shared public page per
+            collaborative at a static URL, no accounts. Opt-in via the toggle. */}
+        {isAdminHere && (
+          <div style={{
+            background: 'white', borderRadius: '12px', padding: '2rem',
+            marginBottom: '2rem', boxShadow: '0 4px 12px rgba(0, 0, 0, 0.1)'
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.75rem', marginBottom: '0.75rem' }}>
+              <h3 style={{ fontSize: '1.5rem', fontWeight: '700', color: '#0E1F56', margin: 0 }}>
+                🌐 Participant Hub
+              </h3>
+              <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.9rem', color: '#374151', cursor: hubSaving ? 'wait' : 'pointer', fontWeight: 600 }}>
+                <input
+                  type="checkbox"
+                  checked={collaborative.hub_enabled === true}
+                  disabled={hubSaving}
+                  onChange={(e) => toggleHub(e.target.checked)}
+                />
+                Hub is {collaborative.hub_enabled ? 'ON' : 'OFF'}
+              </label>
+            </div>
+            <p style={{ color: '#6b7280', fontSize: '0.88rem', margin: '0 0 1rem', lineHeight: 1.5 }}>
+              A single shared page for all participants — no accounts, no sign-in. It shows the current
+              session's agenda and materials, past sessions' materials, the community forum, the resource
+              library, and a "have a question?" box that feeds the parking lot. The link stays the same
+              for the whole cycle, so it can go on a printed QR code. Anyone with the link can view it —
+              that's by design; it never appears in search engines.
+            </p>
+            {collaborative.hub_enabled && hubUrl ? (
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+                <code style={{ background: '#f9fafb', border: '1px solid #e5e7eb', borderRadius: '6px', padding: '0.45rem 0.7rem', fontSize: '0.8rem', color: '#0E1F56', overflowWrap: 'anywhere' }}>{hubUrl}</code>
+                <button onClick={copyHubLink} style={{
+                  padding: '0.45rem 0.85rem', background: '#e0f2fe', color: '#0369a1',
+                  border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '0.8rem', fontWeight: 600,
+                }}>{hubLinkCopied ? 'Copied!' : 'Copy link'}</button>
+                <button
+                  onClick={() => setQrModal({
+                    url: hubUrl,
+                    title: 'Participant Hub QR Code',
+                    subtitle: collaborative.name,
+                    filename: `hub_${collaborative.name}`,
+                  })}
+                  style={{
+                    padding: '0.45rem 0.7rem', background: '#e0f2fe', color: '#0369a1',
+                    border: '1px solid #bae6fd', borderRadius: '6px', cursor: 'pointer',
+                    fontSize: '0.8rem', fontWeight: 600,
+                  }}
+                >📱 QR</button>
+                <a href={hubUrl} target="_blank" rel="noopener noreferrer" style={{
+                  padding: '0.45rem 0.85rem', background: '#0E1F56', color: 'white',
+                  borderRadius: '6px', textDecoration: 'none', fontSize: '0.8rem', fontWeight: 600,
+                }}>Open hub →</a>
+              </div>
+            ) : (
+              <div style={{ fontSize: '0.85rem', color: '#9ca3af' }}>
+                {collaborative.hub_token
+                  ? 'The hub is off. Its link is kept, so switching it back on restores the same URL (printed QR codes keep working).'
+                  : 'Switch the hub on to generate its link.'}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Resources (admin-only) — manages the PROGRAM's shared library */}
+        {isAdminHere && (
+          <div style={{
+            background: 'white', borderRadius: '12px', padding: '2rem',
+            marginBottom: '2rem', boxShadow: '0 4px 12px rgba(0, 0, 0, 0.1)'
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.75rem', marginBottom: '0.5rem' }}>
+              <h3 style={{ fontSize: '1.5rem', fontWeight: '700', color: '#0E1F56', margin: 0 }}>
+                📚 {getProgramBranding(collaborative?.program_type).name} Resources
+              </h3>
+              <button
+                onClick={() => navigate(`/admin/resources?program=${collaborative?.program_type || 'sts_bsc'}`)}
+                style={{
+                  background: 'linear-gradient(135deg, #00A79D 0%, #0E1F56 100%)', color: 'white',
+                  padding: '0.6rem 1.2rem', borderRadius: '8px', border: 'none',
+                  fontWeight: '600', cursor: 'pointer', fontSize: '0.9rem',
+                }}
+              >Manage resources →</button>
+            </div>
+            <p style={{ color: '#6b7280', fontSize: '0.88rem', margin: 0, lineHeight: 1.5 }}>
+              {resourceCount != null && <><strong style={{ color: '#0E1F56' }}>{resourceCount}</strong> resource{resourceCount === 1 ? '' : 's'} in the library. </>}
+              Resources shown here are shared across <strong>all {getProgramBranding(collaborative?.program_type).name} collaboratives</strong> —
+              adding or editing one changes it for every cohort in this program, not just this one.
+              Participants reach the library from the hub{collaborative.hub_enabled ? '' : ' (once it’s switched on)'}.
+            </p>
+          </div>
+        )}
 
         {/* Registrations Section (admin-only) */}
         {isAdminHere && (

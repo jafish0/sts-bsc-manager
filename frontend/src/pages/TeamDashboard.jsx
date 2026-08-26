@@ -72,7 +72,12 @@ export default function TeamDashboard() {
         .eq('status', 'active')
       setGoalCount(count || 0)
 
-      // Load BSC events for phase calculation
+      // Load BSC events for phase calculation.
+      // `phase` is declared at function scope: the parking-lot block further
+      // down reads phase?.nextEvent?.id, and when it was scoped to this block
+      // that read threw a ReferenceError that loadTeam's try/catch swallowed —
+      // so the participant parking-lot list silently never loaded.
+      let phase = null
       if (teamData.collaboratives?.id) {
         const { data: eventData } = await supabase
           .from('bsc_events')
@@ -82,7 +87,7 @@ export default function TeamDashboard() {
 
         const evts = eventData || []
         setEvents(evts)
-        const phase = calculatePhase(evts, teamData.collaboratives)
+        phase = calculatePhase(evts, teamData.collaboratives)
         setPhaseInfo(phase)
 
         // Load checklist items
@@ -342,6 +347,15 @@ export default function TeamDashboard() {
 
   const teamDisplayName = team.display_name || team.team_name
   const programBranding = getProgramBranding(team.collaboratives?.program_type)
+
+  // TIPE is not assessment-driven: no shared assessment results, no
+  // data-visualization, no SMARTIE/PDSA collaboration, and the Change
+  // Framework / Strategy Ideas are built on STS-BSC's domains. DECIDED
+  // (Josh, 2026-08-26): these surfaces are removed for program_type
+  // 'tipe_lc' PROGRAM-WIDE — including the TIPE LC Demo's 6 demo teams,
+  // whose dashboards visibly change (expected, not a bug). TIC LC and
+  // STS-BSC are untouched.
+  const isTipe = team.collaboratives?.program_type === 'tipe_lc'
 
   // Current phase checklist
   const currentPhaseKey = phaseInfo ? phaseToChecklistKey(phaseInfo.phaseIndex) : 'preparation'
@@ -722,51 +736,63 @@ export default function TeamDashboard() {
 
         {/* Action Cards */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '1.5rem', marginBottom: '2rem' }}>
-          {/* Row 1: Data */}
-          <ActionCard
-            icon="📊"
-            title="Assessment Results"
-            description="View your team's assessment results across timepoints"
-            borderColor={COLORS.teal}
-            onClick={() => navigate(`/admin/team-report/${team.id}`)}
-          />
-          <ActionCard
-            icon="📈"
-            title="Data Visualization"
-            description="View detailed charts and graphs of assessment results"
-            borderColor={COLORS.navy}
-            onClick={() => navigate('/admin/data-visualization')}
-          />
-          <ActionCard
-            icon="📋"
-            title="Recommendations"
-            description="See strengths, areas for growth, and suggested next steps based on your assessment results"
-            borderColor={COLORS.teal}
-            onClick={() => navigate(`/admin/recommendations/${team.id}`)}
-          />
+          {/* Row 1: Data — not applicable to TIPE (no team assessment) */}
+          {!isTipe && (
+            <ActionCard
+              icon="📊"
+              title="Assessment Results"
+              description="View your team's assessment results across timepoints"
+              borderColor={COLORS.teal}
+              onClick={() => navigate(`/admin/team-report/${team.id}`)}
+            />
+          )}
+          {!isTipe && (
+            <ActionCard
+              icon="📈"
+              title="Data Visualization"
+              description="View detailed charts and graphs of assessment results"
+              borderColor={COLORS.navy}
+              onClick={() => navigate('/admin/data-visualization')}
+            />
+          )}
+          {!isTipe && (
+            <ActionCard
+              icon="📋"
+              title="Recommendations"
+              description="See strengths, areas for growth, and suggested next steps based on your assessment results"
+              borderColor={COLORS.teal}
+              onClick={() => navigate(`/admin/recommendations/${team.id}`)}
+            />
+          )}
 
-          {/* Row 2: Improvement */}
-          <ActionCard
-            icon="🎯"
-            title={<>SMARTIE Goals{goalCount > 0 && <span style={{ fontSize: '0.85rem', fontWeight: '400', color: COLORS.teal, marginLeft: '0.5rem' }}>({goalCount} active)</span>}{pendingGoals > 0 && <span style={{ background: '#f59e0b', color: 'white', borderRadius: '999px', padding: '0.1rem 0.4rem', fontSize: '0.7rem', marginLeft: '0.5rem' }}>{pendingGoals} new</span>}</>}
-            description="Set and track your team's improvement goals"
-            borderColor={COLORS.navy}
-            onClick={() => navigate(`/admin/smartie-goals/${team.id}`)}
-          />
-          <ActionCard
-            icon="🔄"
-            title={<>PDSA Cycles{pdsaCount > 0 && <span style={{ fontSize: '0.85rem', fontWeight: '400', color: COLORS.teal, marginLeft: '0.5rem' }}>({pdsaCount} active)</span>}{pendingCycles > 0 && <span style={{ background: '#f59e0b', color: 'white', borderRadius: '999px', padding: '0.1rem 0.4rem', fontSize: '0.7rem', marginLeft: '0.5rem' }}>{pendingCycles} new</span>}</>}
-            description="Run Plan-Do-Study-Act improvement cycles for your team"
-            borderColor={COLORS.teal}
-            onClick={() => navigate(`/admin/pdsa/${team.id}`)}
-          />
-          <ActionCard
-            icon="💡"
-            title="Strategy Ideas"
-            description="Browse improvement strategies from previous collaboratives by domain"
-            borderColor={COLORS.navy}
-            onClick={() => navigate('/admin/strategies')}
-          />
+          {/* Row 2: Improvement — goal/PDSA collaboration is not part of TIPE */}
+          {!isTipe && (
+            <ActionCard
+              icon="🎯"
+              title={<>SMARTIE Goals{goalCount > 0 && <span style={{ fontSize: '0.85rem', fontWeight: '400', color: COLORS.teal, marginLeft: '0.5rem' }}>({goalCount} active)</span>}{pendingGoals > 0 && <span style={{ background: '#f59e0b', color: 'white', borderRadius: '999px', padding: '0.1rem 0.4rem', fontSize: '0.7rem', marginLeft: '0.5rem' }}>{pendingGoals} new</span>}</>}
+              description="Set and track your team's improvement goals"
+              borderColor={COLORS.navy}
+              onClick={() => navigate(`/admin/smartie-goals/${team.id}`)}
+            />
+          )}
+          {!isTipe && (
+            <ActionCard
+              icon="🔄"
+              title={<>PDSA Cycles{pdsaCount > 0 && <span style={{ fontSize: '0.85rem', fontWeight: '400', color: COLORS.teal, marginLeft: '0.5rem' }}>({pdsaCount} active)</span>}{pendingCycles > 0 && <span style={{ background: '#f59e0b', color: 'white', borderRadius: '999px', padding: '0.1rem 0.4rem', fontSize: '0.7rem', marginLeft: '0.5rem' }}>{pendingCycles} new</span>}</>}
+              description="Run Plan-Do-Study-Act improvement cycles for your team"
+              borderColor={COLORS.teal}
+              onClick={() => navigate(`/admin/pdsa/${team.id}`)}
+            />
+          )}
+          {!isTipe && (
+            <ActionCard
+              icon="💡"
+              title="Strategy Ideas"
+              description="Browse improvement strategies from previous collaboratives by domain"
+              borderColor={COLORS.navy}
+              onClick={() => navigate('/admin/strategies')}
+            />
+          )}
           {programBranding.hasStsPat && (
             <ActionCard
               icon="📜"
@@ -805,13 +831,15 @@ export default function TeamDashboard() {
             borderColor={COLORS.teal}
             onClick={() => navigate('/admin/resources')}
           />
-          <ActionCard
-            icon="🏗️"
-            title="Change Framework"
-            description="View the collaborative improvement framework by domain"
-            borderColor={COLORS.navy}
-            onClick={() => navigate('/admin/change-framework')}
-          />
+          {!isTipe && (
+            <ActionCard
+              icon="🏗️"
+              title="Change Framework"
+              description="View the collaborative improvement framework by domain"
+              borderColor={COLORS.navy}
+              onClick={() => navigate('/admin/change-framework')}
+            />
+          )}
           <ActionCard
             icon="💬"
             title="Community Forum"

@@ -23,10 +23,13 @@ export default function ForumThread() {
   const { threadId } = useParams()
   const navigate = useNavigate()
   const { user, canAdminCollaborative } = useAuth()
-  // Computed once thread is loaded; until then, isAdminHere is false (safe default).
-  const isAdminHere = canAdminCollaborative(thread?.collaborative_id)
 
   const [thread, setThread] = useState(null)
+  // Computed once thread is loaded; until then, isAdminHere is false (safe
+  // default). Must come AFTER the useState above — referencing `thread` before
+  // its declaration is a temporal-dead-zone ReferenceError that white-screens
+  // the page (the exact shape that broke /admin/event/:id in May).
+  const isAdminHere = canAdminCollaborative(thread?.collaborative_id)
   const [posts, setPosts] = useState([])
   const [loading, setLoading] = useState(true)
   const [hasMorePosts, setHasMorePosts] = useState(true)

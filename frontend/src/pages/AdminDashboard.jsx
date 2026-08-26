@@ -371,36 +371,51 @@ export default function AdminDashboard() {
             </div>
           </button>
 
-          <button
-            onClick={() => navigate('/admin/resources')}
-            style={{
-              padding: '2rem',
-              background: 'var(--bg-card)',
-              border: '2px solid var(--border-light)',
-              borderRadius: '0.75rem',
-              cursor: 'pointer',
-              transition: 'all 0.2s',
-              textAlign: 'left'
-            }}
-            onMouseOver={(e) => {
-              e.currentTarget.style.borderColor = '#00A79D'
-              e.currentTarget.style.transform = 'translateY(-2px)'
-              e.currentTarget.style.boxShadow = '0 4px 6px rgba(0,0,0,0.1)'
-            }}
-            onMouseOut={(e) => {
-              e.currentTarget.style.borderColor = 'var(--border-light)'
-              e.currentTarget.style.transform = 'translateY(0)'
-              e.currentTarget.style.boxShadow = 'none'
-            }}
-          >
-            <div style={{ fontSize: '2rem', marginBottom: '0.5rem' }}>📚</div>
-            <div style={{ color: 'var(--text-heading)', fontSize: '1.25rem', fontWeight: '600', marginBottom: '0.5rem' }}>
-              Resources
-            </div>
-            <div style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>
-              Manage the resource library for all teams
-            </div>
-          </button>
+          {/* One resources tile PER PROGRAM (Josh's request) — the single
+              generic tile produced "which library am I even in?" ambiguity.
+              Each opens /admin/resources pre-filtered to that program. */}
+          {[
+            { key: 'tipe_lc', name: 'TIPE Resources', desc: 'Resource library shared across all TIPE collaboratives' },
+            { key: 'sts_bsc', name: 'STS-BSC Resources', desc: 'Resource library shared across all STS-BSC collaboratives' },
+            { key: 'tic_lc', name: 'TIC Resources', desc: 'Resource library shared across all TIC collaboratives' },
+          ].map(lib => (
+            <button
+              key={lib.key}
+              onClick={() => navigate(`/admin/resources?program=${lib.key}`)}
+              style={{
+                padding: '2rem',
+                background: 'var(--bg-card)',
+                border: '2px solid var(--border-light)',
+                borderRadius: '0.75rem',
+                cursor: 'pointer',
+                transition: 'all 0.2s',
+                textAlign: 'left'
+              }}
+              onMouseOver={(e) => {
+                e.currentTarget.style.borderColor = PROGRAM_TYPE_COLORS[lib.key].color
+                e.currentTarget.style.transform = 'translateY(-2px)'
+                e.currentTarget.style.boxShadow = '0 4px 6px rgba(0,0,0,0.1)'
+              }}
+              onMouseOut={(e) => {
+                e.currentTarget.style.borderColor = 'var(--border-light)'
+                e.currentTarget.style.transform = 'translateY(0)'
+                e.currentTarget.style.boxShadow = 'none'
+              }}
+            >
+              <div style={{ fontSize: '2rem', marginBottom: '0.5rem' }}>📚</div>
+              <div style={{ color: 'var(--text-heading)', fontSize: '1.25rem', fontWeight: '600', marginBottom: '0.5rem' }}>
+                {lib.name}
+                <span style={{
+                  background: PROGRAM_TYPE_COLORS[lib.key].bg, color: PROGRAM_TYPE_COLORS[lib.key].color,
+                  padding: '0.15rem 0.5rem', borderRadius: '4px', fontSize: '0.7rem',
+                  fontWeight: '700', marginLeft: '0.5rem', verticalAlign: 'middle'
+                }}>{PROGRAM_TYPE_COLORS[lib.key].label}</span>
+              </div>
+              <div style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>
+                {lib.desc}
+              </div>
+            </button>
+          ))}
 
           <button
             onClick={() => navigate('/admin/forum')}

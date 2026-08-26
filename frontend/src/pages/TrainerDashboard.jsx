@@ -91,11 +91,12 @@ export default function TrainerDashboard() {
         return
       }
 
-      // 2. Upcoming events (next 3 weeks) across my collaboratives
+      // 2. Upcoming events (next 4 weeks — widened from 3 per Leah's feedback)
+      // across my collaboratives
       const today = new Date()
-      const threeWeeksOut = new Date(today.getTime() + 21 * 24 * 60 * 60 * 1000)
+      const fourWeeksOut = new Date(today.getTime() + 28 * 24 * 60 * 60 * 1000)
       const todayStr = today.toISOString().split('T')[0]
-      const futureStr = threeWeeksOut.toISOString().split('T')[0]
+      const futureStr = fourWeeksOut.toISOString().split('T')[0]
 
       const { data: events } = await supabase
         .from('bsc_events')
@@ -303,6 +304,23 @@ export default function TrainerDashboard() {
 
   const visibleSessions = showAllEvaluations ? filteredSessions : filteredSessions.slice(0, 10)
 
+  // Dashboard-wide quick search (Leah's feedback): filters collaboratives and
+  // upcoming events by name/title/location without touching the deeper data.
+  const [dashSearch, setDashSearch] = useState('')
+  const dashTerm = dashSearch.trim().toLowerCase()
+  const visibleCollaboratives = useMemo(() => {
+    if (!dashTerm) return collaboratives
+    return collaboratives.filter(c => (c.name || '').toLowerCase().includes(dashTerm))
+  }, [collaboratives, dashTerm])
+  const visibleUpcoming = useMemo(() => {
+    if (!dashTerm) return upcomingEvents
+    return upcomingEvents.filter(ev =>
+      (ev.title || '').toLowerCase().includes(dashTerm)
+      || (ev.collaborative_name || '').toLowerCase().includes(dashTerm)
+      || (ev.location || '').toLowerCase().includes(dashTerm)
+    )
+  }, [upcomingEvents, dashTerm])
+
   return (
     <div style={{ minHeight: '100vh', background: PAGE_BG }}>
       {/* Header */}
@@ -331,14 +349,32 @@ export default function TrainerDashboard() {
 
         {!loading && (
           <>
+            {/* Dashboard-wide quick search */}
+            <div style={{ marginBottom: '1rem' }}>
+              <input
+                type="text"
+                value={dashSearch}
+                onChange={(e) => setDashSearch(e.target.value)}
+                placeholder="🔍 Search collaboratives and upcoming events…"
+                style={{
+                  width: '100%', boxSizing: 'border-box', padding: '0.6rem 0.9rem',
+                  border: '1px solid var(--border)', borderRadius: '8px',
+                  fontSize: '0.9rem', background: 'var(--bg-card)', color: 'var(--text-body)',
+                }}
+              />
+            </div>
+
             {/* My Collaboratives */}
-            <section style={{ ...cardStyle, marginBottom: '1.5rem' }}>
-              <div style={cardHeaderStyle}>My Collaboratives</div>
-              {collaboratives.length === 0 ? (
-                <div style={{ color: 'var(--text-muted)', fontSize: '0.9rem' }}>You're not assigned as a trainer on any collaboratives yet.</div>
+            <CollapsibleCard title="My Collaboratives" count={visibleCollaboratives.length}>
+              {visibleCollaboratives.length === 0 ? (
+                <div style={{ color: 'var(--text-muted)', fontSize: '0.9rem' }}>
+                  {collaboratives.length === 0
+                    ? "You're not assigned as a trainer on any collaboratives yet."
+                    : 'No collaboratives match your search.'}
+                </div>
               ) : (
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '0.75rem' }}>
-                  {collaboratives.map(c => (
+                  {visibleCollaboratives.map(c => (
                     <button
                       key={c.id}
                       onClick={() => navigate(`/admin/collaboratives/${c.id}`)}
@@ -372,16 +408,17 @@ export default function TrainerDashboard() {
                   ))}
                 </div>
               )}
-            </section>
+            </CollapsibleCard>
 
             {/* My Upcoming Events */}
-            <section style={{ ...cardStyle, marginBottom: '1.5rem' }}>
-              <div style={cardHeaderStyle}>My Upcoming Events <span style={{ fontWeight: 400, fontSize: '0.85rem', color: 'var(--text-muted)', marginLeft: '0.5rem' }}>(next 3 weeks)</span></div>
-              {upcomingEvents.length === 0 ? (
-                <div style={{ color: 'var(--text-muted)', fontSize: '0.9rem' }}>No events in the next 3 weeks.</div>
+            <CollapsibleCard title="My Upcoming Events" subtitle="(next 4 weeks)" count={visibleUpcoming.length}>
+              {visibleUpcoming.length === 0 ? (
+                <div style={{ color: 'var(--text-muted)', fontSize: '0.9rem' }}>
+                  {upcomingEvents.length === 0 ? 'No events in the next 4 weeks.' : 'No upcoming events match your search.'}
+                </div>
               ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                  {upcomingEvents.map(ev => (
+                  {visibleUpcoming.map(ev => (
                     <button
                       key={ev.id}
                       onClick={() => navigate(`/admin/event/${ev.id}`)}
@@ -427,12 +464,11 @@ export default function TrainerDashboard() {
                   ))}
                 </div>
               )}
-            </section>
+            </CollapsibleCard>
 
             {/* Recent Evaluations */}
-            <section style={{ ...cardStyle, marginBottom: '1.5rem' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.5rem' }}>
-                <div style={cardHeaderStyle}>Recent Evaluations</div>
+            <CollapsibleCard title="Recent Evaluations" count={recentEvalSessions.length}>
+              <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', flexWrap: 'wrap', gap: '0.5rem' }}>
                 <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
                   <input
                     type="text"
@@ -522,17 +558,11 @@ export default function TrainerDashboard() {
                   )}
                 </>
               )}
-            </section>
+            </CollapsibleCard>
 
             {/* RSVPs — who's planning to attend each upcoming session */}
             {upcomingEvents.length > 0 && Object.keys(rsvpsByEvent).length > 0 && (
-              <section style={{ ...cardStyle, marginBottom: '1.5rem' }}>
-                <div style={cardHeaderStyle}>
-                  📨 RSVPs
-                  <span style={{ fontWeight: 400, fontSize: '0.85rem', color: 'var(--text-muted)', marginLeft: '0.5rem' }}>
-                    responses from automated reminders
-                  </span>
-                </div>
+              <CollapsibleCard title="📨 RSVPs" subtitle="responses from automated reminders" defaultOpen={false}>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginTop: '0.5rem' }}>
                   {upcomingEvents.map(ev => {
                     const r = rsvpsByEvent[ev.id]
@@ -582,18 +612,12 @@ export default function TrainerDashboard() {
                     )
                   })}
                 </div>
-              </section>
+              </CollapsibleCard>
             )}
 
             {/* Bright Spots — completed goals across my teams */}
             {brightSpots.length > 0 && (
-              <section style={{ ...cardStyle, marginBottom: '1.5rem' }}>
-                <div style={cardHeaderStyle}>
-                  ✨ Bright Spots
-                  <span style={{ fontWeight: 400, fontSize: '0.85rem', color: 'var(--text-muted)', marginLeft: '0.5rem' }}>
-                    completed goals you can ask teams to share
-                  </span>
-                </div>
+              <CollapsibleCard title="✨ Bright Spots" subtitle="completed goals you can ask teams to share" count={brightSpots.length} defaultOpen={false}>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', marginTop: '0.5rem' }}>
                   {brightSpots.slice(0, 8).map(g => (
                     <div
@@ -631,18 +655,12 @@ export default function TrainerDashboard() {
                     </div>
                   ))}
                 </div>
-              </section>
+              </CollapsibleCard>
             )}
 
             {/* Disengagement Alerts — teams with no activity in 14+ days */}
             {disengagedTeams.length > 0 && (
-              <section style={{ ...cardStyle, marginBottom: '1.5rem' }}>
-                <div style={cardHeaderStyle}>
-                  ⚠️ Teams that may need a nudge
-                  <span style={{ fontWeight: 400, fontSize: '0.85rem', color: 'var(--text-muted)', marginLeft: '0.5rem' }}>
-                    no goal/PDSA activity in 14+ days
-                  </span>
-                </div>
+              <CollapsibleCard title="⚠️ Teams that may need a nudge" subtitle="no goal/PDSA activity in 14+ days" count={disengagedTeams.length} defaultOpen={false}>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', marginTop: '0.5rem' }}>
                   {disengagedTeams.map(t => (
                     <div
@@ -687,18 +705,12 @@ export default function TrainerDashboard() {
                     </div>
                   ))}
                 </div>
-              </section>
+              </CollapsibleCard>
             )}
 
             {/* Active Participation Index — ranked per-team engagement */}
             {participationScores.length > 0 && (
-              <section style={{ ...cardStyle, marginBottom: '1.5rem' }}>
-                <div style={cardHeaderStyle}>
-                  📈 Active Participation Index
-                  <span style={{ fontWeight: 400, fontSize: '0.85rem', color: 'var(--text-muted)', marginLeft: '0.5rem' }}>
-                    forum + goals + checklist, trailing {PARTICIPATION_WINDOW_DAYS} days
-                  </span>
-                </div>
+              <CollapsibleCard title="📈 Active Participation Index" subtitle={`forum + goals + checklist, trailing ${PARTICIPATION_WINDOW_DAYS} days`} defaultOpen={false}>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', marginTop: '0.5rem' }}>
                   {participationScores.map(({ team, score, components }) => (
                     <div
@@ -735,19 +747,12 @@ export default function TrainerDashboard() {
                     </div>
                   ))}
                 </div>
-              </section>
+              </CollapsibleCard>
             )}
 
             {/* Resource Utilization — most-downloaded items + domain engagement */}
             {downloadStats && downloadStats.total > 0 && (
-              <section style={{ ...cardStyle, marginBottom: '1.5rem' }}>
-                <div style={cardHeaderStyle}>
-                  📊 Resource Utilization
-                  <span style={{ fontWeight: 400, fontSize: '0.85rem', color: 'var(--text-muted)', marginLeft: '0.5rem' }}>
-                    {downloadStats.total} download{downloadStats.total === 1 ? '' : 's'} in the last 30 days
-                  </span>
-                </div>
-
+              <CollapsibleCard title="📊 Resource Utilization" subtitle={`${downloadStats.total} download${downloadStats.total === 1 ? '' : 's'} in the last 30 days`} defaultOpen={false}>
                 <div style={{ display: 'grid', gridTemplateColumns: downloadStats.byDomain.length > 0 ? '1fr 1fr' : '1fr', gap: '1.25rem', marginTop: '0.5rem' }}>
                   <div>
                     <div style={{ fontSize: '0.78rem', fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: '0.4rem' }}>Most downloaded</div>
@@ -789,12 +794,41 @@ export default function TrainerDashboard() {
                     </div>
                   )}
                 </div>
-              </section>
+              </CollapsibleCard>
             )}
           </>
         )}
       </div>
     </div>
+  )
+}
+
+// Accordion wrapper for dashboard sections (Leah's feedback: a long dashboard
+// is overwhelming — let each section fold away). The navy banner header is the
+// toggle; `count` renders a small pill so a collapsed section still says how
+// much is inside it.
+function CollapsibleCard({ title, subtitle, count, defaultOpen = true, children }) {
+  const [open, setOpen] = useState(defaultOpen)
+  return (
+    <section style={{ ...cardStyle, marginBottom: '1.5rem' }}>
+      <button
+        onClick={() => setOpen(o => !o)}
+        style={{
+          width: '100%', display: 'flex', alignItems: 'center', gap: '0.6rem',
+          background: 'transparent', border: 'none', cursor: 'pointer', padding: 0, textAlign: 'left',
+        }}
+      >
+        <div style={{ ...cardHeaderStyle, marginBottom: 0, flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem' }}>
+          <span>{title}</span>
+          {count != null && (
+            <span style={{ background: 'rgba(255,255,255,0.2)', borderRadius: '999px', padding: '0.05rem 0.5rem', fontSize: '0.75rem' }}>{count}</span>
+          )}
+          {subtitle && <span style={{ fontWeight: 400, fontSize: '0.78rem', opacity: 0.85 }}>{subtitle}</span>}
+        </div>
+        <span style={{ color: COLORS.navy, fontSize: '1.1rem', flexShrink: 0 }}>{open ? '▾' : '▸'}</span>
+      </button>
+      {open && <div style={{ marginTop: '1rem' }}>{children}</div>}
+    </section>
   )
 }
 

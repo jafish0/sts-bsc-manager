@@ -135,6 +135,19 @@ export default function SessionSignIn() {
       try {
         localStorage.setItem(`attendeeEmail_${token}`, form.email.trim().toLowerCase())
       } catch { /* private browsing — the field just starts empty */ }
+      // Identity-lite for the collaborative hub: the same details captured
+      // here attribute forum posts and parking-lot questions on /hub/:token,
+      // so most attendees never see the hub's who-are-you form. localStorage
+      // (not sessionStorage) because QR scans open new tabs. Email is stored
+      // for matching only and is never rendered publicly.
+      try {
+        localStorage.setItem('bsc_hub_identity', JSON.stringify({
+          name: form.name.trim(),
+          district: form.agency.trim(),
+          role: form.role.trim(),
+          email: form.email.trim().toLowerCase(),
+        }))
+      } catch { /* private browsing — the hub will just ask once */ }
       setAttendanceId(attendanceId)
       setSignedIn(true)
 

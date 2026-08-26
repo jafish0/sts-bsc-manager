@@ -49,6 +49,7 @@ import RosterSharePage from './pages/RosterSharePage'
 import RegistrationsAdmin from './pages/RegistrationsAdmin'
 import TrainingsAdmin from './pages/TrainingsAdmin'
 import TrainingHub from './pages/TrainingHub'
+import CollaborativeHub from './pages/CollaborativeHub'
 import CeuManager from './pages/CeuManager'
 import FeedbackAdmin from './pages/FeedbackAdmin'
 
@@ -118,6 +119,14 @@ function App() {
 
           {/* Public training hub — gated by hub_token + sessionStorage sign-in flag */}
           <Route path="/training/:hub_token" element={<TrainingHub />} />
+
+          {/* Public collaborative hub — static URL all cycle, no auth, no time
+              window (TIPE's teamless model). Reads/writes go through
+              token-scoped RPCs; posting needs identity-lite, reading nothing. */}
+          <Route path="/hub/:token" element={<CollaborativeHub />} />
+          <Route path="/hub/:token/forum" element={<CollaborativeHub view="forum" />} />
+          <Route path="/hub/:token/forum/:threadId" element={<CollaborativeHub view="thread" />} />
+          <Route path="/hub/:token/resources" element={<CollaborativeHub view="resources" />} />
 
           {/* Auth Routes */}
           <Route path="/login" element={<Login />} />
