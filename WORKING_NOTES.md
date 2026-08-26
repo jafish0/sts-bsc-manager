@@ -14,6 +14,12 @@ A bidirectional scratchpad shared between Josh, Claude Cowork (Claude desktop ch
 
 > What's been built recently, so Claude Cowork has the running context without re-reading the entire git log.
 
+- **2026-08-26 `92d0c06` — all 5 QA defects fixed (Cowork's visual pass + Josh's click-test). 🤝 Both `qa/eval-*.pdf` artifacts regenerated and recommitted for Cowork's re-render; the Team Report fixes are visual and need one fresh click from Josh.**
+  - **Defects 1–3 (evaluation PDF):** single-session reports no longer print the title twice (per-session h2 omitted when it equals the doc-level training name, case-insensitive — multi path untouched and verified still printing distinct titles); vertical rhythm opened to the house values (24pt under the teal rule, 12pt spaceBefore per h2, 8pt per comment question, from `_styles()`); the flag footnote lost its anchorless `†` and reads as a plain note.
+  - **Defects 4–5 (Team Report):** logo widths now DERIVED from each image's own aspect (height held at 18/15mm → CTAC 39.2mm wide, UK 51.0mm) so a logo swap can't reintroduce the stretch; the Demographics overdraw is fixed. ⚠️ **Deviation from the drafted fix, deliberate:** line 131's `checkPageBreak` return was being DISCARDED (its page-break never took effect) — capturing it and deleting the clobber line is strictly safer than the drafted `Math.max` guard, which would have jumped `y` back down whenever the page-break actually fired. Sibling `finalY` lines left alone (each immediately follows its own autoTable).
+  - Content re-verified via the node harness (dataset md5-matched against the DB again) + `pdftotext`: title-once, no dagger, 41/41/8 numbering, NPS n=38, lone-dot row, page numbers — all intact.
+  - ⬜ Untouched, per the drafts: supervisor self-rating content review (Josh's to-do) and the QA seed rows (Cowork removes on request, and not before that review — it's the only data that report has).
+
 - **2026-08-26 `d29e5e8` + `535f6da` — evaluation PDF restyled to the CTAC house format (last of the four queued drafts). 🤝 VISUAL VERIFICATION IS COWORK'S — the handoff artifacts are committed at `qa/eval-single.pdf` (4pp, the real 41-response training) and `qa/eval-multi.pdf` (7pp, Contents + per-session page breaks; session 2 is a labelled QA duplicate subset, not a real session).**
   - Built from the ground truth (`CTAC_Report_Style_Guide.md` + `ctac_reports.py`), not the old sample: navy cover band + 7pt teal rule + CTAC wordmark/teal square, running header pages 2+, footer with address + correct `Page N` (furniture drawn in a page loop after content, since jsPDF has no templates); left title block with teal rule; short display labels; ratings table with `n`, zebra, bold-navy means; the anomalous-`0.00*` rule implemented as house policy despite no current zeros; the previously **absent** NPS strip (`9.3 · +76 · 29 · 9 · 0`, teal-soft NPS cell, zero-detractor cell renders); numbered two-column verbatim comment tables. **The exporter now sorts by `submitted_at`** — the callers' queries carry no ORDER BY, so "numbered in submission order" was previously indeterminate.
   - **Fonts deliberately NOT embedded** (Zilla Slab + Fira Sans = four+ base64 TTFs in a public bundle); Helvetica carries the house type scale/weights/colors, matching `ctac_reports.py`'s own no-TTF fallback.
@@ -1610,7 +1616,7 @@ From the meeting, agreed with Leah: default the upcoming-events window to **4 we
 
 ---
 
-### 2026-08-26: ✅ PDF visual verification COMPLETE (Cowork) — 3 minor defects to fix
+### 2026-08-26: ✅ PDF visual verification COMPLETE (Cowork) — 3 minor defects to fix — ✅ ALL 3 FIXED (`92d0c06`); qa artifacts regenerated, Cowork re-render pending
 
 > **Cowork's half of the Option-1 split is done.** Rendered both committed artifacts (`qa/eval-single.pdf`, 4 pages; `qa/eval-multi.pdf`, 7 pages) with `pdftoppm` at 100dpi and inspected every page against `Evaluation Report - Trauma-Informed Practices for Educators (3 hour version).pdf`.
 >
@@ -1675,7 +1681,7 @@ Regenerate **both** QA artifacts and commit them again; Cowork will re-render an
 
 ---
 
-### 2026-08-26 (addendum): Josh's click-test results — all 5 exports download; 3 new defects
+### 2026-08-26 (addendum): Josh's click-test results — all 5 exports download; 3 new defects — ✅ DEFECTS 4+5 FIXED (`92d0c06`; defect 1 fixed with Cowork's); supervisor-review to-do + seed cleanup still open
 
 > **✅ The `autoTable` migration is confirmed working end to end.** Josh clicked all five in the browser and **every one downloads a file**. That closes the "verified only structurally" gap that had been open since `279ac9b`. Cowork seeded demo data so the three empty exporters could be exercised (see cleanup note at the end).
 >
