@@ -14,6 +14,12 @@ A bidirectional scratchpad shared between Josh, Claude Cowork (Claude desktop ch
 
 > What's been built recently, so Claude Cowork has the running context without re-reading the entire git log.
 
+- **2026-08-26 — collaborative session-link expiry now DST-correct (2026-08-04 draft, item 2). On the October critical path.** `CollaborativeDetail.generateSessionLink` hardcoded `${event_date}T21:00:00.000Z` with the comment "4PM EST". `21:00Z` is 4 PM only at UTC-5, so the stated rule and the actual behaviour disagreed for the ~8 months of EDT.
+  - **AWARE Session 1 (2026-10-27) is exactly the affected case** — and its Sessions 2 onward are EST, so one cohort straddles the boundary. Verified against the real event dates: the old hardcode gave **5:00 PM ET on Oct 27** (not the intended 4 PM) and 4:00 PM from Nov 10 on.
+  - Now calls `roster_share_expiry_for_date(event_date)` — the same helper the standalone panel uses — so collaborative and standalone links behave identically and DST is resolved in SQL. Confirmed the offset differs correctly either side: Oct 27 → `03:59:59Z` (−0400), Nov 10 → `04:59:59Z` (−0500), both 11:59 PM ET.
+  - Deleted the misleading comment rather than just correcting the arithmetic, and recorded that `expires_at` is a **backstop** — the `close-expired-sessions` cron is the primary control, 30 min after `end_time` — so nobody "fixes" one against the other.
+  - Existing session links **not** touched retroactively, per the draft.
+  - Checked `formatAutoClose` in the same file while here: it parses and formats in the same local zone, so they cancel and it shows the correct ET wall clock. **Not** a bug; left alone.
 - **2026-08-13 `22f1992` — attendance Excel + CSV export, via a shared builder (draft item 2 + the CSV Josh also asked for).** He has **44 real attendees** from the 2026-08-07 training to report on.
   - New `src/utils/exportAttendance.js` is the single sheet builder, used by **both** the standalone attendance list and the collaborative `AttendanceReport` — extracted rather than duplicated, per the draft.
   - ⚠️ **Two behaviour changes land on the collaborative export as a result, both fixes.** (1) Timestamps are now explicit **Eastern** (`Aug 07, 2026, 1:01 PM ET`); it used bare `toLocaleString()`, so the same session exported from a laptop in another timezone produced *different* times in the file — worthless for CEU reporting. (2) Added **Evaluation Completed** and **Sign-Out Method** columns.

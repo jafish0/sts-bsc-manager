@@ -323,8 +323,20 @@ export default function CollaborativeDetail() {
   const generateSessionLink = async (evt) => {
     const token = Array.from(crypto.getRandomValues(new Uint8Array(6)))
       .map(b => b.toString(36).padStart(2, '0')).join('').slice(0, 8)
-    // Expire at 4:00 PM EST on event date
-    const expiresAt = new Date(`${evt.event_date}T21:00:00.000Z`) // 4PM EST = 9PM UTC
+
+    // End of day Eastern on the event date, resolved in SQL by
+    // roster_share_expiry_for_date so real DST rules apply. This replaced a
+    // hardcoded event_date + "T21:00:00.000Z" labelled "4PM EST": 21:00Z is 4 PM
+    // only at UTC-5, so for the ~8 months of EDT the stated rule and the actual
+    // behaviour disagreed. AWARE Session 1 (2026-10-27) is in EDT while Sessions
+    // 2 onward are EST, so a single cohort straddles the boundary.
+    //
+    // NOTE: expires_at is a BACKSTOP, not the primary control -- the
+    // close-expired-sessions cron deactivates a link 30 minutes after end_time.
+    // Don't "fix" one of these against the other.
+    const { data: expiresAt, error: expErr } = await supabase
+      .rpc('roster_share_expiry_for_date', { p_date: evt.event_date })
+    if (expErr) { alert('Could not work out the link expiry: ' + expErr.message); return }
 
     const { data, error } = await supabase
       .from('session_links')
@@ -332,7 +344,7 @@ export default function CollaborativeDetail() {
         bsc_event_id: evt.id,
         collaborative_id: id,
         token,
-        expires_at: expiresAt.toISOString()
+        expires_at: expiresAt
       })
       .select()
       .single()
