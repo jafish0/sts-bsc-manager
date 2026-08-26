@@ -1520,7 +1520,7 @@ New public page: one shared hub per collaborative, reachable at a **static URL**
   2. **PowerPoint Slides**
   3. **Handout**
 - The category drives the labelled grouping on the hub. Reuse the existing drag-and-drop uploader from `EventDetail` (`a37c9ef`) rather than building a new one.
-- **TIPE-specific note:** Josh confirmed that for TIPE, **Resource Mapping and Goals are uploaded as PDFs as that session's training material** — they are not built in the app. Under the three categories above they fall under **Handout**. ⬜ **Flag for Josh:** do you want a distinct fourth category (e.g. "Worksheet / Activity") so those are labelled clearly on the hub rather than lumped in with handouts? Do not add one unilaterally.
+- **TIPE-specific note:** Josh confirmed that for TIPE, **Resource Mapping and Goals are uploaded as PDFs as that session's training material** — they are not built in the app. **DECIDED (Josh, 2026-08-26): they are just normal Handouts. Do NOT add a fourth category.** Keep exactly the three categories above.
 - Keep the existing agenda-banner behavior working; an item categorized Agenda should drive both.
 - **Keep the "Add Event" button** (Josh confirmed) — without it a mid-cycle addition has no path, since events otherwise come only from the create-collaborative flow.
 
@@ -1545,7 +1545,7 @@ Both Josh and Ginny concluded these do not apply to TIPE. Earlier work (`e9cce6c
 
 Also remove from TIPE participant-facing surfaces (they have no team and no assessment): Assessment Results, Data Visualization, Recommendations, SMARTIE Goals, PDSA Cycles, Team Reports, Resource Mapping.
 
-- **⬜ Decision to surface, do not assume:** apply by `program_type = 'tipe_lc'` **program-wide**, or only to this one collaborative? Cowork's recommendation: **program-wide**, for consistency — but note that **TIPE LC Demo has 6 demo teams**, so its team dashboards will visibly change and the Anchor Lab testers may notice. Say which you chose.
+- **DECIDED (Josh, 2026-08-26): apply by `program_type = 'tipe_lc'` PROGRAM-WIDE.** Not just this one collaborative. This is settled — do not re-litigate it or scope it narrower. **Known and accepted consequence:** **TIPE LC Demo has 6 demo teams**, so its team dashboards will visibly change and the Anchor Lab testers (Ginny / Alex / Leah) may notice. That is expected, not a bug.
 - Leave TIC LC and STS-BSC **completely untouched**.
 
 #### Item 7 (small): Trainer Dashboard tuning
