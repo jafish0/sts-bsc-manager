@@ -95,13 +95,23 @@ export default function SessionEvaluation() {
     // + an explicit final sign-out (sign_out_method='manual', stamped by the
     // signout page we navigate to next). We intentionally do NOT sign out or
     // clear sessionStorage here — SessionSignOut owns that step.
+    //
+    // Goes through the mark_evaluation_completed RPC (token-scoped SECURITY
+    // DEFINER, status string only) — anon no longer holds any direct UPDATE
+    // on session_attendance; the always-true "Anon can update sign out"
+    // policy is gone.
     try {
       const attendanceId = sessionStorage.getItem(`attendance_${token}`)
       if (attendanceId) {
-        await supabase
-          .from('session_attendance')
-          .update({ evaluation_completed_at: new Date().toISOString() })
-          .eq('id', attendanceId)
+        const { data: status, error: stampErr } = await supabase
+          .rpc('mark_evaluation_completed', { p_token: token, p_attendance_id: attendanceId })
+        if (stampErr) {
+          console.warn('Eval-completion stamp failed (eval was saved OK):', stampErr)
+        } else if (status !== 'completed' && status !== 'already_completed') {
+          // 'invalid_link' / 'not_found' — the eval itself is saved; the
+          // sign-out page's ?evaluated=1 path still credits it by email.
+          console.warn('Eval-completion stamp not applied:', status)
+        }
       }
     } catch (err) {
       console.warn('Eval-completion stamp failed (eval was saved OK):', err)
