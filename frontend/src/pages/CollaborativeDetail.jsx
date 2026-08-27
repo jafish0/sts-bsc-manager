@@ -10,6 +10,7 @@ import QrCodeModal from '../components/QrCodeModal'
 import RegistrationLinkModal from '../components/RegistrationLinkModal'
 import RegistrationRosterModal from '../components/RegistrationRosterModal'
 import EventMaterialsManager from '../components/EventMaterialsManager'
+import LearningCollaborativeRoster from '../components/LearningCollaborativeRoster'
 import { PROGRAM_TYPE_COLORS, getProgramBranding } from '../config/programConfig'
 import { deleteRegistrationLink, deleteBlockedReason } from '../utils/registrationLinks'
 import ctacLogo from '../assets/CTAC_white.png'
@@ -1346,9 +1347,12 @@ export default function CollaborativeDetail() {
           )}
         </div>
 
-        {/* Participant Hub (admin-only) — one shared public page per
-            collaborative at a static URL, no accounts. Opt-in via the toggle. */}
-        {isAdminHere && (
+        {/* Participant Hub (admin-only, TIPE ONLY) — one shared public page
+            per collaborative at a static URL, no accounts. Opt-in via the
+            toggle. Team-based programs (TIC, STS-BSC) have real logins and use
+            the existing flow, so the hub is never offered there — and the
+            token-scoped RPCs refuse non-TIPE tokens server-side too. */}
+        {isAdminHere && collaborative.program_type === 'tipe_lc' && (
           <div style={{
             background: 'white', borderRadius: '12px', padding: '2rem',
             marginBottom: '2rem', boxShadow: '0 4px 12px rgba(0, 0, 0, 0.1)'
@@ -1541,7 +1545,17 @@ export default function CollaborativeDetail() {
           </div>
         )}
 
-        {/* Teams Section */}
+        {/* TIPE replaces Teams / Team Rosters with a single Learning
+            Collaborative Roster (registrations + live sign-in status) —
+            tipe_lc has no team layer. Team rows and demo_roster data are NOT
+            deleted; the sections are only hidden, so the decision stays
+            reversible. TIC LC and STS-BSC keep Teams exactly as they were. */}
+        {isAdminHere && collaborative.program_type === 'tipe_lc' && (
+          <LearningCollaborativeRoster collaborativeId={id} events={events} />
+        )}
+
+        {/* Teams Section — not applicable to TIPE (teamless by decision) */}
+        {collaborative.program_type !== 'tipe_lc' && (
         <div style={{
           background: 'white',
           borderRadius: '12px',
@@ -1776,9 +1790,11 @@ export default function CollaborativeDetail() {
             </div>
           )}
         </div>
+        )}
 
-        {/* Team Rosters — collapsible, all teams in this collab with leaders + members + emails + copy buttons */}
-        {teams.length > 0 && (
+        {/* Team Rosters — collapsible, all teams in this collab with leaders + members + emails + copy buttons.
+            Hidden for TIPE along with Teams (the LC Roster above replaces both). */}
+        {collaborative.program_type !== 'tipe_lc' && teams.length > 0 && (
           <div style={{
             background: 'white', borderRadius: '12px', padding: '2rem',
             marginTop: '2rem', boxShadow: '0 4px 12px rgba(0, 0, 0, 0.1)'

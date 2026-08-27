@@ -101,6 +101,24 @@ export function downloadAttendanceExcel(attendance, { title, date, showTeam = tr
   return rows.length
 }
 
+// Generic one-sheet workbook download for rows that are NOT attendance-shaped
+// (e.g. the TIPE Learning Collaborative Roster). Reuses this file's
+// conventions — frozen header, sensible widths, and a header row even when
+// empty — without forcing roster columns through the attendance builder.
+export function downloadRowsAsExcel(rows, { fileStem = 'Export', sheetName = 'Sheet1', widths = {} } = {}) {
+  const wb = XLSX.utils.book_new()
+  const headers = rows.length > 0 ? Object.keys(rows[0]) : Object.keys(widths)
+  const ws = rows.length > 0
+    ? XLSX.utils.json_to_sheet(rows)
+    : XLSX.utils.aoa_to_sheet([headers])
+  ws['!cols'] = headers.map(h => ({ wch: widths[h] || 16 }))
+  ws['!freeze'] = { xSplit: 0, ySplit: 1 }
+  XLSX.utils.book_append_sheet(wb, ws, sheetName)
+  const clean = String(fileStem).replace(/[\\/:*?"<>|]/g, '').replace(/[,&]/g, '').replace(/\s+/g, ' ').trim().slice(0, 80)
+  XLSX.writeFile(wb, `${clean || 'Export'}.xlsx`)
+  return rows.length
+}
+
 // CSV, since Josh asked for "csv or excel" — same rows, same ET formatting, no
 // second source of truth. Uses xlsx's own CSV writer so quoting and embedded
 // commas/newlines (one real response contains a newline) are handled properly
