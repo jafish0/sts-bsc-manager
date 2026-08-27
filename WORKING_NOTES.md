@@ -222,7 +222,7 @@ A bidirectional scratchpad shared between Josh, Claude Cowork (Claude desktop ch
 **✅ ALL FOUR QUEUED DRAFTS SHIPPED 2026-08-26** (`ac5c4d3` TIPE teamless hub, `264ea9b` anon-UPDATE retired, `d8f4d8e` scale direction + contradiction flagging, `d29e5e8` evaluation PDF restyle).
 
 **READY (2 drafts at the bottom of this file):**
-1. **TIPE Collaborative Detail: replace Teams/Team Rosters with a Learning Collaborative Roster (3 items).** Follow-on from the teamless decision. Remove Teams + Team Rosters for `tipe_lc`, add one cohort roster sourced from **registrations** (no accounts) with District/School grouping, and **live signed-in status for the current session** including a separate walk-in group for people who signed in but never registered.
+1. **TIPE Collaborative Detail: roster + hub scoping (4 items).** Includes 🔴 **restricting the Participant Hub panel to `tipe_lc` only** — it currently renders on STS-BSC and TIC LC too (Cowork's spec gap; data is clean, no token minted on either). Follow-on from the teamless decision. Remove Teams + Team Rosters for `tipe_lc`, add one cohort roster sourced from **registrations** (no accounts) with District/School grouping, and **live signed-in status for the current session** including a separate walk-in group for people who signed in but never registered.
 2. **PDF defect fixes — 5 defects across 2 exporters.** ✅ All 5 exports download (autoTable migration confirmed end to end). Remaining: 3 evaluation-PDF defects (1 is Cowork's own spec error) + 2 Team Report defects (logos at wrong aspect ratio; a `y`-clobber at `exportPdf.js:132` drawing STSS on top of Demographics).
 
 ⬜ **Also still open:** the TIPE hub batch's admin-side UI is unverified pending test accounts.
@@ -1754,9 +1754,23 @@ Do **not** delete these until the supervisor self-rating review above is done �
 
 #### Item 1: Remove Teams and Team Rosters for TIPE
 
+> **Status note (2026-08-26):** Josh confirmed from the live TIPE page that the **Teams** section is still showing. That is expected — this draft had not been picked up yet, not a regression. No re-diagnosis needed.
+
+
 - On `CollaborativeDetail`, hide both the **Teams** section and the **👥 Team Rosters** card when the collaborative's `program_type` is `tipe_lc`.
 - **Known and accepted consequence:** TIPE LC Demo has **6 demo teams with `demo_roster` data**, so those disappear from that page. Expected, not a bug (same acceptance as the earlier program-wide removals).
 - Do **not** delete any team rows or `demo_roster` data. Hide the UI only, so the decision is reversible.
+
+#### Item 1b: 🔴 Restrict the Participant Hub to TIPE only — Cowork's spec gap
+
+**Verified in code and data.** `CollaborativeDetail.jsx` line ~1351 renders the whole **🌐 Participant Hub** panel gated only on `isAdminHere`, with no `program_type` check. So the hub toggle, URL, and QR code are offered on **STS-BSC and TIC LC collaboratives too.**
+
+**That is wrong, and it is Cowork's spec error** — the TIPE hub draft said "opt-in per collaborative, `hub_enabled DEFAULT false`" but never said *TIPE only*. Josh: "These will be team based so they won't need that hub, these people will have actual logins and will use the system as it is already set up."
+
+- Gate the entire Participant Hub panel on `program_type = 'tipe_lc'`. Do not merely hide the toggle — hide the panel.
+- **Data is currently clean, confirmed:** only the two `tipe_lc` collaboratives have `hub_enabled = true` and a `hub_token`; STS-BSC Demo and TIC LC Demo are both `false` with **no token**. So nothing is exposed and no cleanup migration is needed. Leave the columns in place on all rows (they are harmless and keep the schema uniform).
+- Also confirm the **public** `/hub/:token` route refuses a non-`tipe_lc` collaborative, in case a token is ever minted on one. The token-scoped lookup should check the program, not just the token.
+- ⚠️ **Do not touch anything else on TIC or STS-BSC.** Those keep teams, team dashboards, real logins and the existing flow. The hub is a TIPE-only construct.
 
 #### Item 2: Add a Learning Collaborative Roster
 
