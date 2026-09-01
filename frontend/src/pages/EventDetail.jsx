@@ -280,6 +280,25 @@ export default function EventDetail() {
     setParkingLot(prev => prev.filter(p => p.id !== id))
   }
 
+  // Toggle the participant-facing parking-lot intake for this event.
+  const [plSaving, setPlSaving] = useState(false)
+  const toggleParticipantParkingLot = async (enabled) => {
+    setPlSaving(true)
+    const { data, error: err } = await supabase
+      .from('bsc_events')
+      .update({ parking_lot_enabled: enabled })
+      .eq('id', eventId)
+      .select('parking_lot_enabled')
+    setPlSaving(false)
+    // An RLS refusal returns 0 rows and no error — surface it rather than
+    // letting the checkbox look saved and snap back on reload.
+    if (err || !data || data.length === 0) {
+      alert('Could not update the setting' + (err ? ': ' + err.message : ' (no permission).'))
+      return
+    }
+    setEvent(prev => ({ ...prev, ...data[0] }))
+  }
+
   // 5. Evaluations (Phase 6 deep-dive)
   useEffect(() => {
     let cancelled = false
@@ -888,14 +907,19 @@ export default function EventDetail() {
           </section>
         )}
 
-        {/* Parking Lot — admin-only off-topic tracker */}
+        {/* Parking Lot — admin-only off-topic tracker. The checkbox controls
+            whether PARTICIPANTS can submit (TeamDashboard card + hub question
+            box, plus a server-side check in hub_post_parking_lot); this admin
+            tracker itself is always available. Opt-in per event, off by
+            default — a trainer who won't read the questions shouldn't
+            collect them (Josh, 2026-09-01 feedback). */}
         {canManage && (
           <section style={{ ...cardStyle, marginTop: '1rem' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.5rem', marginBottom: '0.5rem' }}>
               <div>
                 <div style={{ fontSize: '1.05rem', fontWeight: 700, color: 'var(--text-heading)' }}>🅿️ Parking Lot</div>
                 <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-                  Capture off-topic questions or tangents to revisit on the next call. Admins-only — participants don't see this.
+                  Capture off-topic questions or tangents to revisit on the next call. This tracker is admins-only.
                 </div>
               </div>
               <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
@@ -904,6 +928,26 @@ export default function EventDetail() {
                 {parkingLot.filter(p => p.status === 'dropped').length} dropped
               </div>
             </div>
+
+            <label style={{
+              display: 'flex', alignItems: 'flex-start', gap: '0.5rem',
+              background: 'var(--bg-card-alt, #f9fafb)', border: '1px solid var(--border)',
+              borderRadius: '6px', padding: '0.5rem 0.75rem', marginBottom: '0.75rem',
+              cursor: plSaving ? 'wait' : 'pointer', fontSize: '0.85rem', color: 'var(--text-body)',
+            }}>
+              <input
+                type="checkbox"
+                checked={event.parking_lot_enabled === true}
+                disabled={plSaving}
+                onChange={(e) => toggleParticipantParkingLot(e.target.checked)}
+                style={{ marginTop: '0.15rem' }}
+              />
+              <span>
+                <strong>Collect questions from participants</strong> — shows a "have a question?" box on
+                participant pages (team dashboard / hub) for this event. Leave it off if you won't be
+                reviewing what comes in.
+              </span>
+            </label>
 
             {/* Compose */}
             <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.75rem' }}>

@@ -41,10 +41,11 @@ Web app for managing Secondary Traumatic Stress Breakthrough Series Collaborativ
 
 ## User Invitation Flow
 - **Edge Function:** `invite-team-leader` (generalized — handles all role invites)
-  - Accepts `role` param (`agency_admin`, `team_leader`, `team_member`)
+  - Accepts `role` param — team roles (`agency_admin`, `team_leader`, `team_member`, require `team_id`) AND CTAC staff roles (`super_admin`, `trainer_admin`, no team, **super_admin callers only**; `collaborative_ids[]` assigns a trainer via `collaborative_trainers`, rolled back atomically on failure)
   - Accepts `agency_role`, `is_senior_leader`, `resend` params
   - Agency admins can invite to their own team; super admins can invite to any team
   - On `resend: true`, deletes existing user and re-invites with fresh token
+  - Frontend: team invites from team pages; staff invites via the Admin Dashboard "Add CTAC Staff" card (`InviteStaffModal`). **Never email a password** — the invite link → `/set-password` flow is the deliberate design.
 - **Email flow:** Supabase `inviteUserByEmail()` → user clicks link → `AuthRedirectHandler` catches `type=invite` hash → redirects to `/set-password` → user sets password → redirects to `/admin`
 - **Redirect URL:** Hardcoded to `https://bsc.ctac.app/set-password`
 - **Rate limits:** Custom SMTP via Resend is configured (see `INFRASTRUCTURE.md`). Auth email rate limit raised from 2/h to 30/h. If hitting that ceiling, raise it in Supabase Auth → Rate Limits.

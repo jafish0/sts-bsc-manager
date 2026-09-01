@@ -54,11 +54,37 @@ Deno.serve(async (req) => {
       })
     }
 
-    // Parse request body
-    const { email, name, team_id, role, agency_role, is_senior_leader, resend } = await req.json()
+    // Parse request body.
+    // collaborative_ids (uuid[]) applies to trainer_admin invites only: the
+    // collaboratives the new trainer is assigned to via collaborative_trainers.
+    const { email, name, team_id, role, agency_role, is_senior_leader, resend, collaborative_ids } = await req.json()
 
-    // Authorization: super_admin can invite to any team, agency_admin/team_leader can invite to own team
-    if (callerProfile.role === 'super_admin') {
+    // Validate role parameter. Two families:
+    //  - team roles (require a team; agency admins can invite to their own team)
+    //  - CTAC staff roles (no team; SUPER ADMINS ONLY — added 2026-09-01 for
+    //    the Admin Dashboard "Add CTAC Staff" feature). The invite email link
+    //    lets the person set their own password; no password is ever emailed.
+    const inviteRole = role || 'agency_admin'
+    const teamRoles = ['agency_admin', 'team_leader', 'team_member']
+    const staffRoles = ['super_admin', 'trainer_admin']
+    const isStaffInvite = staffRoles.includes(inviteRole)
+    if (!teamRoles.includes(inviteRole) && !isStaffInvite) {
+      return new Response(JSON.stringify({ error: 'Invalid role: ' + inviteRole }), {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      })
+    }
+
+    // Authorization: staff invites are super_admin-only. For team invites,
+    // super_admin can invite to any team; agency_admin/team_leader to their own.
+    if (isStaffInvite) {
+      if (callerProfile.role !== 'super_admin') {
+        return new Response(JSON.stringify({ error: 'Only super admins can add CTAC staff' }), {
+          status: 403,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        })
+      }
+    } else if (callerProfile.role === 'super_admin') {
       // allowed for any team
     } else if (['agency_admin', 'team_leader'].includes(callerProfile.role)) {
       if (callerProfile.team_id !== team_id) {
@@ -74,35 +100,47 @@ Deno.serve(async (req) => {
       })
     }
 
-    // Validate role parameter
-    const inviteRole = role || 'agency_admin'
-    const allowedRoles = ['agency_admin', 'team_leader', 'team_member']
-    if (!allowedRoles.includes(inviteRole)) {
-      return new Response(JSON.stringify({ error: 'Invalid role: ' + inviteRole }), {
+    if (!email || !name || (!isStaffInvite && !team_id)) {
+      return new Response(JSON.stringify({ error: isStaffInvite ? 'email and name are required' : 'email, name, and team_id are required' }), {
         status: 400,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       })
     }
 
-    if (!email || !name || !team_id) {
-      return new Response(JSON.stringify({ error: 'email, name, and team_id are required' }), {
-        status: 400,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      })
+    // Verify team exists (team invites only — staff have no team)
+    let team: { id: string; agency_name: string } | null = null
+    if (!isStaffInvite) {
+      const { data: teamRow, error: teamError } = await adminClient
+        .from('teams')
+        .select('id, agency_name')
+        .eq('id', team_id)
+        .single()
+
+      if (teamError || !teamRow) {
+        return new Response(JSON.stringify({ error: 'Team not found' }), {
+          status: 404,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        })
+      }
+      team = teamRow
     }
 
-    // Verify team exists
-    const { data: team, error: teamError } = await adminClient
-      .from('teams')
-      .select('id, agency_name')
-      .eq('id', team_id)
-      .single()
-
-    if (teamError || !team) {
-      return new Response(JSON.stringify({ error: 'Team not found' }), {
-        status: 404,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      })
+    // Validate trainer collaborative assignments up front, before any user is
+    // created, so a bad id can't leave a half-provisioned account.
+    const trainerCollabIds: string[] = inviteRole === 'trainer_admin' && Array.isArray(collaborative_ids)
+      ? collaborative_ids.filter((v: unknown) => typeof v === 'string' && v.length > 0)
+      : []
+    if (trainerCollabIds.length > 0) {
+      const { data: collabRows, error: collabErr } = await adminClient
+        .from('collaboratives')
+        .select('id')
+        .in('id', trainerCollabIds)
+      if (collabErr || !collabRows || collabRows.length !== trainerCollabIds.length) {
+        return new Response(JSON.stringify({ error: 'One or more collaboratives not found' }), {
+          status: 400,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        })
+      }
     }
 
     // Check if user already exists
@@ -139,13 +177,13 @@ Deno.serve(async (req) => {
 
     const newUser = inviteData.user
 
-    // Create user_profiles record
+    // Create user_profiles record (staff have no team)
     const profileData: Record<string, unknown> = {
       id: newUser.id,
       email: email,
       full_name: name,
       role: inviteRole,
-      team_id: team_id,
+      team_id: isStaffInvite ? null : team_id,
       is_active: true,
     }
     if (agency_role) profileData.agency_role = agency_role
@@ -164,12 +202,37 @@ Deno.serve(async (req) => {
       })
     }
 
+    // Trainer collaborative assignments (source of truth for what a
+    // trainer_admin can see — collaborative_trainers, never is_coordinator
+    // from here; coordinators stay a deliberate one-per-collab assignment).
+    if (trainerCollabIds.length > 0) {
+      const { error: assignError } = await adminClient
+        .from('collaborative_trainers')
+        .insert(trainerCollabIds.map((cid: string) => ({
+          collaborative_id: cid,
+          user_id: newUser.id,
+          is_coordinator: false,
+        })))
+      if (assignError) {
+        // Roll back the whole invite — a trainer with no assignments would
+        // land on an empty dashboard and the failure would be invisible.
+        await adminClient.from('user_profiles').delete().eq('id', newUser.id)
+        await adminClient.auth.admin.deleteUser(newUser.id)
+        return new Response(JSON.stringify({ error: 'Failed to assign collaboratives: ' + assignError.message }), {
+          status: 500,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        })
+      }
+    }
+
     return new Response(
       JSON.stringify({
         success: true,
         user_id: newUser.id,
         email: email,
-        team: team.agency_name,
+        role: inviteRole,
+        team: team ? team.agency_name : null,
+        collaboratives_assigned: trainerCollabIds.length,
       }),
       {
         status: 200,

@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import { supabase } from '../utils/supabase'
 import { PROGRAM_TYPE_COLORS } from '../config/programConfig'
+import InviteStaffModal from '../components/InviteStaffModal'
 
 export default function AdminDashboard() {
   const navigate = useNavigate()
@@ -11,6 +12,7 @@ export default function AdminDashboard() {
   const [unmatchedCount, setUnmatchedCount] = useState(0)
   const [unmatchedList, setUnmatchedList] = useState([])
   const [showUnmatched, setShowUnmatched] = useState(false)
+  const [showInviteStaff, setShowInviteStaff] = useState(false)
 
   useEffect(() => {
     loadSelfRatingStats()
@@ -450,6 +452,39 @@ export default function AdminDashboard() {
 
           {isSuperAdmin && (
           <button
+            onClick={() => setShowInviteStaff(true)}
+            style={{
+              padding: '2rem',
+              background: 'var(--bg-card)',
+              border: '2px solid var(--border-light)',
+              borderRadius: '0.75rem',
+              cursor: 'pointer',
+              transition: 'all 0.2s',
+              textAlign: 'left'
+            }}
+            onMouseOver={(e) => {
+              e.currentTarget.style.borderColor = '#00A79D'
+              e.currentTarget.style.transform = 'translateY(-2px)'
+              e.currentTarget.style.boxShadow = '0 4px 6px rgba(0,0,0,0.1)'
+            }}
+            onMouseOut={(e) => {
+              e.currentTarget.style.borderColor = 'var(--border-light)'
+              e.currentTarget.style.transform = 'translateY(0)'
+              e.currentTarget.style.boxShadow = 'none'
+            }}
+          >
+            <div style={{ fontSize: '2rem', marginBottom: '0.5rem' }}>➕</div>
+            <div style={{ color: 'var(--text-heading)', fontSize: '1.25rem', fontWeight: '600', marginBottom: '0.5rem' }}>
+              Add CTAC Staff
+            </div>
+            <div style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>
+              Invite a trainer or super admin — they get an email link to set their own password
+            </div>
+          </button>
+          )}
+
+          {isSuperAdmin && (
+          <button
             onClick={() => navigate('/admin/feedback')}
             style={{
               padding: '2rem',
@@ -692,6 +727,11 @@ export default function AdminDashboard() {
               </table>
             </div>
           </div>
+        )}
+
+        {/* Add CTAC Staff modal (super_admin only) */}
+        {showInviteStaff && (
+          <InviteStaffModal onClose={() => setShowInviteStaff(false)} />
         )}
       </div>
     </div>

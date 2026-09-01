@@ -865,8 +865,11 @@ export default function TeamDashboard() {
           />
         </div>
 
-        {/* Parking Lot — submit a question or comment for the next session */}
-        {phaseInfo?.nextEvent && (
+        {/* Parking Lot — submit a question or comment for the next session.
+            Only when the trainer has opted that event in (parking_lot_enabled,
+            off by default): questions shouldn't be collected if nobody is
+            going to read them. */}
+        {phaseInfo?.nextEvent && phaseInfo.nextEvent.parking_lot_enabled === true && (
           <div style={{
             background: 'var(--bg-card)',
             borderRadius: '0.75rem',

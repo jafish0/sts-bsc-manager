@@ -290,8 +290,12 @@ function HubHome({ token, hub }) {
         >Browse resources →</button>
       </Card>
 
-      {/* Parking lot */}
-      <ParkingLotCard token={token} currentTitle={current?.title} />
+      {/* Parking lot — only when the trainer has opted the current session in
+          (parking_lot_enabled, off by default). hub_post_parking_lot refuses
+          server-side too, so the hidden card is UX, not the boundary. */}
+      {current?.parking_lot_enabled === true && (
+        <ParkingLotCard token={token} currentTitle={current?.title} />
+      )}
     </>
   )
 }

@@ -99,7 +99,7 @@ export default function SessionSignIn() {
 
   const handleSubmit = async (e) => {
     e.preventDefault()
-    if (!form.name.trim() || !form.email.trim() || !form.agency.trim()) return
+    if (!form.name.trim() || !form.email.trim() || !form.agency.trim() || !form.role.trim()) return
     // Belt and braces alongside the disabled button: a mismatched address would
     // make sign-out unreachable for this person, so never let it through.
     if (form.email.trim().toLowerCase() !== form.emailConfirm.trim().toLowerCase()) return
@@ -306,10 +306,11 @@ export default function SessionSignIn() {
           </div>
           <div style={{ marginBottom: '1.5rem' }}>
             <label style={{ display: 'block', fontWeight: '600', color: '#374151', marginBottom: '0.35rem', fontSize: '0.9rem' }}>
-              Role / Job Title
+              Role / Job Title <span style={{ color: '#DC2626' }}>*</span>
             </label>
             <input
               type="text"
+              required
               value={form.role}
               onChange={(e) => setForm({ ...form, role: e.target.value })}
               placeholder="e.g., Case Worker, Therapist, Supervisor"

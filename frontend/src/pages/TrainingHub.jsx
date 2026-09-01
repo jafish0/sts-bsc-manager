@@ -9,20 +9,13 @@ const TEAL = '#00A79D'
 
 // Public participant-facing training hub. URL: /training/:hub_token
 //
-// Access is gated by THREE conditions:
-//   1. hub_token matches a bsc_events row with kind='standalone_training'
-//   2. Current time is within the event window (start_time of event_date
-//      through end_time of (end_date OR event_date) + 30 minutes)
-//   3. Client-side sessionStorage flag signedInForEvent_<event.id> is set
-//      (set after successful sign-in via /session/:token)
-//
-// The sessionStorage check is a soft gate — anyone who knows the
-// hub_token can bypass via dev tools. Acceptable per the V1 spec:
-// the intent is "we want people to physically show up before we hand
-// them the deck", not a hard security boundary.
-//
-// Auto-refreshes the access-state check every 5 minutes so a hub open
-// in the background transitions through windows without manual reload.
+// Access: the link IS the access (plus the per-training hub_enabled toggle).
+// The original V1 gates — a time window around the training and a per-device
+// "signed in first" sessionStorage flag — were all dropped on Josh's decision
+// (2026-09-01 feedback): there is no point gating materials until the training
+// happens, and the hub now stays up permanently afterward, matching the
+// posture of the TIPE collaborative hub. A trainer who doesn't want a hub
+// switches it off (hub_enabled), which also hides this page.
 export default function TrainingHub() {
   const { hub_token } = useParams()
   const [loading, setLoading] = useState(true)
@@ -30,13 +23,6 @@ export default function TrainingHub() {
   const [event, setEvent] = useState(null)
   const [trainer, setTrainer] = useState(null)
   const [documents, setDocuments] = useState([])
-  const [nowTick, setNowTick] = useState(Date.now())
-
-  // Re-render every 5 minutes to recompute the access window state.
-  useEffect(() => {
-    const id = setInterval(() => setNowTick(Date.now()), 5 * 60 * 1000)
-    return () => clearInterval(id)
-  }, [])
 
   useEffect(() => {
     let cancelled = false
@@ -47,6 +33,7 @@ export default function TrainingHub() {
           .select('id, title, event_date, end_date, start_time, end_time, timezone, kind, hub_token, zoom_link, location_name, address, city, state, zip, room, parking_notes, accessibility_notes, training_hub_intro, created_by')
           .eq('hub_token', hub_token)
           .eq('kind', 'standalone_training')
+          .eq('hub_enabled', true)
           .maybeSingle()
         if (cancelled) return
         if (evErr || !ev) { setError('Training not found.'); setLoading(false); return }
@@ -83,55 +70,8 @@ export default function TrainingHub() {
   }, [hub_token])
 
   if (loading) return <Shell><p style={{ color: '#6b7280' }}>Loading…</p></Shell>
-  if (error) return <Shell><h2 style={{ color: NAVY }}>Training not found</h2><p>The link you followed doesn't match an active training.</p></Shell>
+  if (error) return <Shell><h2 style={{ color: NAVY }}>Training not found</h2><p>The link you followed doesn't match an active training hub.</p></Shell>
   if (!event) return <Shell><h2 style={{ color: NAVY }}>Training not found</h2></Shell>
-
-  // Compute access window. Use plain Date math; precision to the minute is fine.
-  const now = new Date(nowTick)
-  const startTime = event.start_time || '00:00:00'
-  const endTime = event.end_time || '23:59:00'
-  const endDateStr = event.end_date || event.event_date
-  const windowStart = new Date(`${event.event_date}T${startTime}`)
-  const windowEnd = new Date(`${endDateStr}T${endTime}`)
-  // +30 min grace after end
-  windowEnd.setMinutes(windowEnd.getMinutes() + 30)
-
-  if (now < windowStart) {
-    return (
-      <Shell>
-        <h2 style={{ color: NAVY }}>{event.title}</h2>
-        <p style={{ color: '#374151' }}>
-          This training hub opens at the start of the training. See you on <strong>{fmtFull(event.event_date, event.start_time)}</strong>.
-        </p>
-      </Shell>
-    )
-  }
-
-  if (now > windowEnd) {
-    return (
-      <Shell>
-        <h2 style={{ color: NAVY }}>{event.title}</h2>
-        <p style={{ color: '#374151' }}>
-          This training has ended. Materials are no longer available through this hub. Reach out to the trainer if you need anything.
-        </p>
-      </Shell>
-    )
-  }
-
-  const signedInFlag = sessionStorage.getItem(`signedInForEvent_${event.id}`)
-  if (!signedInFlag) {
-    return (
-      <Shell>
-        <h2 style={{ color: NAVY }}>Please sign in first</h2>
-        <p style={{ color: '#374151' }}>
-          The training hub is available after you sign in at the venue. Look for a sign-in QR code (or short URL) from your trainer and use that first.
-        </p>
-        <p style={{ color: '#6b7280', fontSize: '0.85rem', marginTop: '1rem' }}>
-          Already signed in on a different device? You'll need to sign in on this device too — the sign-in flag is stored per-device.
-        </p>
-      </Shell>
-    )
-  }
 
   const agenda = documents.find(d => d.document_type === 'agenda')
   const materials = documents.filter(d => d.document_type !== 'agenda')
@@ -255,9 +195,6 @@ export default function TrainingHub() {
           </Card>
         )}
 
-        <div style={{ marginTop: '2rem', textAlign: 'center', fontSize: '0.78rem', color: '#9ca3af' }}>
-          Hub access closes 30 minutes after the training ends.
-        </div>
       </div>
     </div>
   )
@@ -323,11 +260,6 @@ function Shell({ children }) {
   )
 }
 
-function fmtFull(dateStr, timeStr) {
-  if (!dateStr) return ''
-  const d = new Date(`${dateStr}T${timeStr || '00:00:00'}`)
-  return d.toLocaleString('en-US', { weekday: 'long', month: 'long', day: 'numeric', hour: 'numeric', minute: '2-digit' })
-}
 function fmtRange(startDate, endDate) {
   if (!startDate) return ''
   const start = new Date(startDate + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })
