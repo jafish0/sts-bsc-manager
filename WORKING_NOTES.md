@@ -244,12 +244,11 @@ A bidirectional scratchpad shared between Josh, Claude Cowork (Claude desktop ch
 
 **✅ ALL FOUR QUEUED DRAFTS SHIPPED 2026-08-26** (`ac5c4d3` TIPE teamless hub, `264ea9b` anon-UPDATE retired, `d8f4d8e` scale direction + contradiction flagging, `d29e5e8` evaluation PDF restyle).
 
-**READY (3 drafts at the bottom of this file):**
-1. **Assignable trainers for standalone trainings (`event_trainers`, 6 items).** Driver: **Tracy's real training on 2026-09-14** has its hub live and shows **Josh** as the trainer, because `created_by` currently *is* the trainer and doubles as the permission field. Adds the `event_trainers` table the original standalone spec predicted, extends `can_admin_bsc_event` so assigned trainers can manage without being the creator, and fixes a 🔒 **public email leak** on the hub. Also: 🐛 **standalone trainings never appear on the Trainer Dashboard at all.**
-2. **TIPE Collaborative Detail: roster + hub scoping (4 items).** Remove Teams/Team Rosters for `tipe_lc`, add the cohort roster with live sign-in status, and 🔴 restrict the Participant Hub panel to `tipe_lc` only (it currently renders on STS-BSC and TIC LC too).
-3. **PDF defect fixes — 5 defects across 2 exporters.** All 5 exports now confirmed downloading; remaining defects are cosmetic plus one `y`-clobber in the Team Report.
+**✅ QUEUE IS CLEAR — all three drafts shipped.** `event_trainers` (`d04a9d3`), TIPE roster + TIPE-only hub (`f4c4845`), and the 5 PDF QA defects (`92d0c06`). Plus Josh's 2026-09-01 feedback batch (`962d951`), which Cowork was not involved in.
 
-⬜ **Also still open:** admin-side UI across the recent batches is unverified pending test accounts.
+⬜ **Open, not blocking:** (1) the **two non-super_admin test accounts** — still the single highest-leverage unblock, since admin-gated UI across every recent batch ships unverified without them; (2) **supervisor self-rating PDF** downloads but its contents have never been reviewed; (3) **QA seed data** still in the live DB (tagged `QA Seed` / `qaseed01` / notes prefixed `QA seed:`, all on demo collaboratives) — Cowork removes it on request, but the seeded self-rating is the only data backing item 2; (4) still **blocked on Ginny**: the data-cleaning ruleset and the STSI-OA/STSS percentile basis.
+
+⚠️ **Time-sensitive (as of 2026-09-08): Tracy's training is 2026-09-14, six days out.** She is correctly LEAD trainer with the hub live, but **`user_profiles.bio` is still empty**, so her hub card is name-only. Bio RLS is self-only by design, so only Tracy can write it.
 
 _Cowork also deleted the standalone training's test data (4 attendance + 3 evaluations) — verified 0 remaining, event intact for 2026-08-07._
 
