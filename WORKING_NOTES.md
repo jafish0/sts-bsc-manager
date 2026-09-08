@@ -14,6 +14,14 @@ A bidirectional scratchpad shared between Josh, Claude Cowork (Claude desktop ch
 
 > What's been built recently, so Claude Cowork has the running context without re-reading the entire git log.
 
+- **2026-09-08 — both Safe Links drafts shipped: `token_hash` set-password flow (inert until Josh flips the two email templates), `invite_accepted_at` now means a human finished, and the three scanner-triggerable public writes are closed. `send-event-reminder` v5 deployed (also ships the long-pending A3 calendar-links change — v4 never had it). 2 migrations.**
+  - **Safe Links item 1:** `/set-password` reads `token_hash` + `type`, shows the form immediately, and calls `verifyOtp` **only on password submit** (typed input, not a bare Continue — a detonation sandbox can click but can't invent a password), then `updateUser`; on failure it keeps the typed input and shows the bad-link copy; `token_hash` is stripped from history after success. The legacy `#access_token` flow still works for links in flight. ⚠️ **Inert until the templates point at it — Josh's dashboard step, exact strings in INFRASTRUCTURE.md → "Email templates".** Verified in-browser: the page renders the form with no auth call on load.
+  - **Item 2:** `AuthContext` no longer stamps `invite_accepted_at` on first profile load (that is exactly what the scanner's render did to Tracy); `SetPassword` stamps it after a successful password submit. No backfill; Tracy's false-positive value left for Josh's call.
+  - **Item 3:** delete guards unchanged. **Item 4:** ops note only.
+  - **Public-writes draft:** `/unsubscribe/:token` reads on load and writes on the **Unsubscribe me** click — and while fixing it, found it had **never worked for a logged-out recipient at all**: anon has no `user_profiles` SELECT policy, so every emailed unsubscribe link rendered "This link is invalid." Now token-scoped RPCs `unsubscribe_lookup` / `unsubscribe_set` (name + state only, never email). `/rsvp/:token?status=attending` **still auto-applies on load (Josh's constraint, kept)**; `?status=not_attending` renders a confirmation and writes only on the click; after any auto-apply the page states what was recorded and offers the opposite. **Belt and suspenders — option taken: a new `event_rsvps.confirmed_at` set only by a page click; `send-event-reminder` suppresses a decline only when `confirmed_at` is set.** `responded_at` could NOT be used: `tg_event_rsvps_bump_updated_at` stamps it on every status change, auto-apply included. `/cancel-registration` untouched (already correct). Rule written into CLAUDE.md.
+  - **Verified in-browser on real rows, all restored afterward:** Josh's unsubscribe link → loads as subscribed with **no write** (DB still null), click → unsubscribed, click → resubscribed (null again). Josh's AWARE RSVP: decline link → confirmation shown, **status unchanged in DB**; click → `not_attending` + `confirmed_at` set; attending link → auto-applied and stated; row restored to `no_response`/null. Live counts still **0 unsubscribed, 0 declines**. Reminder v5 source read back == repo.
+  - ⬜ Needs a real invite to a `@uky.edu` address once the templates change: **no `auth.sessions` row until a human submits a password** is the whole test (a Microsoft-range session first = regression). ⬜ Tracy still has no password; she is LEAD on the 2026-09-14 training — the server-side temporary-password decision is Josh's, as the draft says.
+
 - **2026-09-08 — 🔴 Resend-invite no longer destroys trainer assignments; the "expired link" page is actionable; plus a pre-existing infinite-loop fix on that same page. `invite-team-leader` v11 deployed (`verify_jwt: false` passed explicitly; deployed source read back and matches the repo).**
   - **Item 1 (function guards, in the draft's order):** on `resend: true` the function now (1) refuses when the account has already accepted / signed in (`409 code=already_accepted`, "send a password reset instead"), (2) refuses when the user holds any `collaborative_trainers` or `event_trainers` rows (`409 code=has_assignments`, counts in the message), and only then (3) keeps the delete-and-reinvite path for a never-accepted, unassigned account — **approach taken for item 3: deletion retained but only where there is provably nothing to lose**, since `inviteUserByEmail` refuses an existing address and no assignments exist to re-create. Plain "exists" 409s now carry `code=exists` too.
   - **Item 4 (admin-facing reset):** `InviteStaffModal` branches on the code — `already_accepted` shows the message with a **"Send password reset instead"** button (same `resetPasswordForEmail` the login page uses, landing on `/set-password` via the existing `type=recovery` route); `has_assignments` is a plain refusal; only a never-accepted unassigned account still gets the confirm-and-resend prompt. There is no staff *list* with per-user actions (StaffDirectory is the `bsc_staff` display page), so the reset action lives where the failure surfaces. **TeamMembers** gained a **"Send password reset"** button for members who have already accepted (Resend stays for pending ones).
@@ -1278,7 +1286,7 @@ The 2026-08-07 training is stored as **07:00 to 17:00** (7 AM to 5 PM). If that 
 
 ---
 
-### 2026-08-13: 🔴 EVERY PDF export in the app is broken + standalone attendance needs Excel (2 items) — READY
+### 2026-08-13: 🔴 EVERY PDF export in the app is broken + standalone attendance needs Excel (2 items) — ✅ SHIPPED (`279ac9b`, `22f1992`; all 5 exports click-verified 2026-08-26) — spec kept for reference
 
 > **Context.** The standalone training "Belonging, Recognition, and Sustainable Care for Counselors & Therapists" (`6ab3e622-6369-4e57-aa4d-9b3328b3ae90`) ran for real on **2026-08-07**: **44 attendees, 41 evaluations**, mean trainer-effectiveness 4.71, NPS 76. Real data, keep it safe — Cowork deleted only the four Aug-4 test rows and verified zero real rows were touched.
 >
@@ -2021,7 +2029,7 @@ Tracy's account is fine and her lead-trainer assignment is intact. The immediate
 
 ---
 
-### 2026-09-08: 🔴 ROOT CAUSE — Microsoft Safe Links consumes every invite/reset token before the human clicks (4 items) — READY
+### 2026-09-08: 🔴 ROOT CAUSE — Microsoft Safe Links consumes every invite/reset token before the human clicks (4 items) — ✅ CODE SHIPPED 2026-09-08 (⏳ inert until Josh switches both email templates to `token_hash` — INFRASTRUCTURE.md) — spec kept for reference
 
 > **This supersedes the "consumed single-use token" explanation in the previous draft, which was wrong.** Cowork's 2026-09-04 read of Tracy's account ("she accepted and signed in, password set") was based on `email_confirmed_at` / `last_sign_in_at` / `invite_accepted_at` without checking **who** created the session. Checking that changes the diagnosis completely: those timestamps were written by **Microsoft's mail link scanner**, not by Tracy. She has never set a password. Recording the error plainly because the previous draft's queue note asserted the opposite.
 >
@@ -2120,7 +2128,7 @@ Two further notes from the live logs, both useful to whoever implements this:
 Tracy is lead trainer on the **2026-09-14** training and still has no password. She cannot reliably be onboarded by email until item 1 ships, because every link sent to her is detonated on delivery. Setting a temporary password server-side is the only path that does not route a single-use token through Microsoft's scanner. That is Josh's decision to make, not Code's — it is noted here so the sequencing is visible, not as a task.
 ---
 
-### 2026-09-08: 🔴 Three public links perform a write on page load, so a mail scanner can trigger them (4 items) — READY
+### 2026-09-08: 🔴 Three public links perform a write on page load, so a mail scanner can trigger them (4 items) — ✅ SHIPPED 2026-09-08 (`confirmed_at` option; reminder v5 deployed; unsubscribe page also fixed for anon) — spec kept for reference
 
 > **Same root cause as the Safe Links draft above, different blast radius.** That draft is about a token being *spent* by a scanner. This one is about a scanner *performing the action*. Both come from the same mistake: putting a side effect on a plain `GET`.
 >

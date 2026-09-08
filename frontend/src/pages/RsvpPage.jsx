@@ -23,12 +23,28 @@ function fmt12h(t) {
 
 // Public RSVP confirmation page reached from one-click email links.
 // URL: /rsvp/:token?status=attending|not_attending
-// If a status query param is present, immediately persist it; otherwise show
-// buttons so the user can pick.
+//
+// ASYMMETRIC by design (Josh's constraint: one-click RSVP from the email
+// stays). Mail security scanners fetch and render emailed links and run the
+// JS before the human sees the mail (verified 2026-09-08 against Microsoft's
+// scanner), so anything the load effect writes, a scanner can write:
+//   - ?status=attending  -> still auto-applied on load. A false "attending" is
+//     visible in the roster and self-correcting.
+//   - ?status=not_attending -> renders a confirmation and writes only on the
+//     click. A false decline would have SILENCED every future reminder to
+//     that person for the rest of the cycle (send-event-reminder skips
+//     declines) — the same invisible lockout as a scanner-triggered
+//     unsubscribe, reached by a different route.
+// Every write from a human click also stamps confirmed_at (responded_at is
+// owned by a DB trigger that fires on ANY status change, auto-apply included,
+// so it cannot carry this meaning); the reminder function now suppresses only
+// declines that carry confirmed_at.
 export default function RsvpPage() {
   const { token } = useParams()
   const [searchParams] = useSearchParams()
   const requestedStatus = searchParams.get('status')
+  // True when the email link asked to decline but we are waiting for the click.
+  const [pendingDecline, setPendingDecline] = useState(false)
 
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
@@ -68,15 +84,18 @@ export default function RsvpPage() {
         setSavedStatus(r.status)
         setLoading(false)
 
-        // If the email link carried a status, persist it now.
+        // One-click ATTENDING from the email persists on load (kept on purpose).
         // NOTE: rsvp_id, not id — the RPC names it rsvp_id, and passing the
         // wrong key sends `undefined` into .eq() which Postgres rejects with
         // 'invalid input syntax for type uuid'. This is the one-click path the
         // email buttons use, so it is the one that must not break.
-        if (requestedStatus && (requestedStatus === 'attending' || requestedStatus === 'not_attending')) {
-          if (r.status !== requestedStatus) {
-            await persist(requestedStatus, r.rsvp_id)
+        if (requestedStatus === 'attending') {
+          if (r.status !== 'attending') {
+            await persist('attending', r.rsvp_id, { fromEmailLink: true })
           }
+        } else if (requestedStatus === 'not_attending' && r.status !== 'not_attending') {
+          // Decline needs a human click — see the note at the top of the file.
+          setPendingDecline(true)
         }
       } catch (err) {
         if (!cancelled) { setError(err.message || String(err)); setLoading(false) }
@@ -87,15 +106,21 @@ export default function RsvpPage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token])
 
-  const persist = async (status, rsvpId) => {
+  // confirmed_at marks a status a HUMAN chose on this page (a click). The
+  // email-link auto-apply deliberately leaves it null, so a decline can never
+  // suppress reminders unless someone actually clicked.
+  const persist = async (status, rsvpId, { fromEmailLink = false } = {}) => {
     setSaving(true)
-    const { error: err } = await supabase
+    const patch = fromEmailLink ? { status } : { status, confirmed_at: new Date().toISOString() }
+    const { data, error: err } = await supabase
       .from('event_rsvps')
-      .update({ status })
+      .update(patch)
       .eq('id', rsvpId || rsvp?.id)
+      .select('status')
     setSaving(false)
-    if (err) { setError(err.message); return }
+    if (err || !data || data.length === 0) { setError(err?.message || 'Could not save your response.'); return }
     setSavedStatus(status)
+    setPendingDecline(false)
   }
 
   if (loading) return <CenterShell>Loading…</CenterShell>
@@ -125,13 +150,19 @@ export default function RsvpPage() {
         }}>🎦 Join Zoom</a>
       )}
 
-      {savedStatus === 'attending' && (
-        <Banner color={GREEN}>You're marked as <strong>attending</strong>. Thanks!</Banner>
+      {pendingDecline && (
+        <Banner color={RED}>
+          You're about to mark yourself as <strong>unable to attend</strong>. Confirm below — we'll stop
+          sending you reminders for this session once you do.
+        </Banner>
       )}
-      {savedStatus === 'not_attending' && (
-        <Banner color={RED}>You're marked as <strong>not attending</strong>. We'll miss you.</Banner>
+      {!pendingDecline && savedStatus === 'attending' && (
+        <Banner color={GREEN}>You're marked as <strong>attending</strong>. Thanks! Not coming after all? Use the button below.</Banner>
       )}
-      {savedStatus === 'no_response' && (
+      {!pendingDecline && savedStatus === 'not_attending' && (
+        <Banner color={RED}>You're marked as <strong>not attending</strong>. We'll miss you — change your mind with the button below.</Banner>
+      )}
+      {!pendingDecline && savedStatus === 'no_response' && (
         <Banner color="#6b7280">Let us know if you'll be there:</Banner>
       )}
 
@@ -150,12 +181,12 @@ export default function RsvpPage() {
           disabled={saving || savedStatus === 'not_attending'}
           onClick={() => persist('not_attending')}
           style={{
-            background: '#fee2e2', color: RED, border: 'none',
+            background: pendingDecline ? RED : '#fee2e2', color: pendingDecline ? 'white' : RED, border: 'none',
             padding: '0.6rem 1rem', borderRadius: '6px',
             fontWeight: 600, cursor: saving ? 'wait' : 'pointer',
             opacity: savedStatus === 'not_attending' ? 0.6 : 1,
           }}
-        >✕ Can't attend</button>
+        >{pendingDecline ? "✕ Yes, I can't attend" : "✕ Can't attend"}</button>
       </div>
 
       <div style={{ marginTop: '1.5rem', fontSize: '0.78rem', color: '#9ca3af' }}>

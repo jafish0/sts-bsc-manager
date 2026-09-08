@@ -7,8 +7,11 @@ const NAVY = '#0E1F56'
 // Public unsubscribe page reached via the link at the bottom of every
 // notification email.  URL: /unsubscribe/:token
 //
-// Sets user_profiles.notifications_unsubscribed_at = NOW() (and lets the user
-// undo by clicking "Resubscribe me" right after).
+// Page load is a READ. The unsubscribe write happens only on the button click:
+// mail security scanners fetch and fully render emailed links (and run the JS)
+// before the human sees the mail — verified 2026-09-08 against Microsoft's
+// scanner — so a write in the load effect silently unsubscribed whoever the
+// scanner happened to render. CancelRegistrationPage is the reference shape.
 export default function UnsubscribePage() {
   const { token } = useParams()
   const [loading, setLoading] = useState(true)
@@ -19,53 +22,41 @@ export default function UnsubscribePage() {
   useEffect(() => {
     let cancelled = false
     ;(async () => {
-      // Read by token, then immediately stamp unsubscribed_at if not already set.
-      const { data: p, error: pErr } = await supabase
-        .from('user_profiles')
-        .select('id, full_name, email, notifications_unsubscribed_at')
-        .eq('unsubscribe_token', token)
-        .maybeSingle()
+      // Look up only, through a token-scoped SECURITY DEFINER RPC. No write
+      // here — see the note above. (Reading user_profiles directly never worked
+      // for a logged-out recipient: anon has no SELECT policy on that table, so
+      // every emailed unsubscribe link rendered "This link is invalid.")
+      const { data, error: pErr } = await supabase.rpc('unsubscribe_lookup', { p_token: token })
       if (cancelled) return
+      const p = Array.isArray(data) ? data[0] : data
       if (pErr || !p) { setError('This link is invalid.'); setLoading(false); return }
-      setProfile(p)
+      setProfile({ full_name: p.full_name, unsubscribed: p.unsubscribed })
       setLoading(false)
-
-      if (!p.notifications_unsubscribed_at) {
-        const { data: updated } = await supabase
-          .from('user_profiles')
-          .update({ notifications_unsubscribed_at: new Date().toISOString() })
-          .eq('id', p.id)
-          .select('notifications_unsubscribed_at')
-          .single()
-        if (!cancelled && updated) {
-          setProfile(prev => ({ ...prev, notifications_unsubscribed_at: updated.notifications_unsubscribed_at }))
-        }
-      }
     })()
     return () => { cancelled = true }
   }, [token])
 
-  const resubscribe = async () => {
+  // Both writes happen only on a button click, via the token-scoped RPC.
+  const setUnsubscribed = async (value) => {
     if (!profile) return
     setSaving(true)
-    const { error: err } = await supabase
-      .from('user_profiles')
-      .update({ notifications_unsubscribed_at: null })
-      .eq('id', profile.id)
+    const { data: status, error: err } = await supabase.rpc('unsubscribe_set', { p_token: token, p_unsubscribe: value })
     setSaving(false)
-    if (err) { setError(err.message); return }
-    setProfile(prev => ({ ...prev, notifications_unsubscribed_at: null }))
+    if (err || status === 'invalid_token') { setError(err?.message || 'Could not update your preference.'); return }
+    setProfile(prev => ({ ...prev, unsubscribed: value }))
   }
+  const unsubscribe = () => setUnsubscribed(true)
+  const resubscribe = () => setUnsubscribed(false)
 
   if (loading) return <Shell>Loading…</Shell>
   if (error) return <Shell><p>{error}</p></Shell>
 
-  const unsubscribed = !!profile?.notifications_unsubscribed_at
+  const unsubscribed = !!profile?.unsubscribed
   return (
     <Shell>
       <h2 style={{ color: NAVY, marginTop: 0 }}>Email Notifications</h2>
       <p style={{ color: '#374151' }}>
-        Hi <strong>{profile.full_name || profile.email}</strong>,
+        Hi <strong>{profile.full_name || 'there'}</strong>,
       </p>
       {unsubscribed ? (
         <>
@@ -85,7 +76,21 @@ export default function UnsubscribePage() {
           >Resubscribe me</button>
         </>
       ) : (
-        <p style={{ color: '#374151' }}>You're currently subscribed to notifications.</p>
+        <>
+          <p style={{ color: '#374151' }}>
+            You're currently subscribed to CTAC BSC Manager notifications — event reminders, RSVP requests,
+            and other automated emails. Account-level emails like password resets are unaffected either way.
+          </p>
+          <button
+            onClick={unsubscribe}
+            disabled={saving}
+            style={{
+              background: '#991b1b', color: 'white', border: 'none',
+              padding: '0.6rem 1rem', borderRadius: '6px',
+              fontWeight: 600, cursor: saving ? 'wait' : 'pointer',
+            }}
+          >{saving ? 'Saving…' : 'Unsubscribe me'}</button>
+        </>
       )}
     </Shell>
   )

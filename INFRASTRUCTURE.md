@@ -74,6 +74,15 @@ This requires a Supabase Personal Access Token (PAT), which is **not** committed
 
 **Default path for template edits:** Supabase dashboard → Authentication → Email Templates → pick template → Source view → edit → Save.
 
+### ⬜ JOSH: switch both auth templates to `token_hash` links (Safe Links fix, 2026-09-08)
+
+Microsoft Defender Safe Links fetches every emailed URL seconds after delivery (verified: `135.232.0.0/16`, 19 s after send). Supabase's default `{{ .ConfirmationURL }}` verifies on that GET, so the single-use token is dead before the human clicks. The app-side fix is shipped: `/set-password` reads `token_hash` + `type` from the query string and only calls `verifyOtp` when a typed password is submitted. **It is inert until the templates point at it.** In the dashboard (Authentication → Email Templates), replace the link target in each template:
+
+- **Invite user:** `{{ .SiteURL }}/set-password?token_hash={{ .TokenHash }}&type=invite`
+- **Reset password:** `{{ .SiteURL }}/set-password?token_hash={{ .TokenHash }}&type=recovery`
+
+`Site URL` must be `https://bsc.ctac.app` (Authentication → URL Configuration). The old `#access_token` fragment flow keeps working for links already in flight. **Verification that matters:** invite a `@uky.edu` address, then check `auth.sessions` for that user — there must be **no session** until a human submits a password; a session from a Microsoft range appearing first is the regression signal.
+
 ### Outlook gotcha (don't repeat)
 
 Microsoft Outlook on Windows uses Word's rendering engine, which does not support CSS `linear-gradient` on email elements. When present, Outlook silently strips the entire `background` property — making gradient-styled buttons invisible. The current invite-user template uses a **bulletproof table-based pattern** with solid `background-color: #00A79D` (brand teal) for the CTA. Don't reintroduce gradients on email elements regardless of how good they look in Gmail/Apple Mail — UKY's Exchange is the canonical recipient and Outlook is unforgiving.

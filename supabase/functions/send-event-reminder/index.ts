@@ -384,14 +384,22 @@ Deno.serve(async (req) => {
     await admin.from('event_rsvps').upsert(rsvpRows, { onConflict: 'event_id,email', ignoreDuplicates: true })
     const { data: rsvps } = await admin
       .from('event_rsvps')
-      .select('email, rsvp_token, status')
+      .select('email, rsvp_token, status, confirmed_at')
       .eq('event_id', event_id)
     const tokenByEmail = new Map<string, string>((rsvps || []).map(r => [r.email.toLowerCase(), r.rsvp_token]))
 
-    // Drop anyone who already told us they can't attend THIS event. Their other
-    // sessions are unaffected — event_rsvps is per (event, email).
+    // Drop anyone who told us they can't attend THIS event — but only when a
+    // human CONFIRMED it on the RSVP page (confirmed_at is stamped by the page's
+    // click handler and never by the email-link auto-apply; responded_at can't
+    // be used — a trigger sets it on every status change). Mail security
+    // scanners fetch and render the emailed decline link (verified 2026-09-08
+    // against Microsoft's scanner); an unconfirmed decline must therefore
+    // never silence someone's reminders for the rest of the cycle. Their other
+    // sessions are unaffected either way — event_rsvps is per (event, email).
     const declined = new Set(
-      (rsvps || []).filter(r => r.status === 'not_attending').map(r => r.email.toLowerCase())
+      (rsvps || [])
+        .filter(r => r.status === 'not_attending' && r.confirmed_at)
+        .map(r => r.email.toLowerCase())
     )
     const skippedDeclined = recipients.filter(r => declined.has(r.email.toLowerCase())).length
     recipients = recipients.filter(r => !declined.has(r.email.toLowerCase()))

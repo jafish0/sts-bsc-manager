@@ -72,12 +72,13 @@ export const AuthProvider = ({ children }) => {
         .single()
 
       if (error) throw error
-      // Mark invite as accepted on first login
-      if (data && !data.invite_accepted_at) {
-        const now = new Date().toISOString()
-        await supabase.from('user_profiles').update({ invite_accepted_at: now }).eq('id', userId)
-        data.invite_accepted_at = now
-      }
+      // invite_accepted_at is NOT stamped here any more. Stamping it on the
+      // first profile load meant "a session rendered this page" — and mail
+      // security scanners (Microsoft Safe Links, verified 2026-09-08 against
+      // Tracy's account) render invite links and execute the SPA before the
+      // human ever clicks, so scanner sessions were marking invites accepted.
+      // It is now written by SetPassword on a successful password submit,
+      // which is what "accepted" was always meant to mean.
       setProfile(data)
     } catch (error) {
       console.error('Error loading profile:', error)
