@@ -252,9 +252,13 @@ A bidirectional scratchpad shared between Josh, Claude Cowork (Claude desktop ch
 
 **✅ ALL FOUR QUEUED DRAFTS SHIPPED 2026-08-26** (`ac5c4d3` TIPE teamless hub, `264ea9b` anon-UPDATE retired, `d8f4d8e` scale direction + contradiction flagging, `d29e5e8` evaluation PDF restyle).
 
-**READY: 🔴 Resend-invite destroys trainer assignments + misleading "expired link" copy (2 items) — see the LAST draft at the bottom.** Found live: Tracy's "expired" invite was simply a **consumed single-use token** (she accepted and signed in 2026-09-04; password set, assignments intact) — she needed a **password reset**, which the app already supports. But diagnosing it exposed that `invite-team-leader`'s `resend: true` path **deletes the user**, and `collaborative_trainers` + `event_trainers` both `ON DELETE CASCADE` from `user_profiles` (verified) — so clicking Resend on Tracy would have silently removed her **lead trainer** row on the **2026-09-14** training. ⚠️ **Do not click Resend on an accepted staff account until this ships.**
+**✅ SHIPPED 2026-09-08 (`1c36ac1` drafted → deployed): resend guard + expired-link copy.** ⚠️ **The diagnosis behind that draft was WRONG and is corrected below.** Tracy's "expired" links were not re-clicked single-use tokens. **Microsoft Defender Safe Links detonates the verification URL ~19 seconds after delivery and consumes the token before any human clicks it** — proven from `auth.sessions` (two of her three sessions originate in Microsoft's `135.232.0.0/16`, on Windows, while she is on a Mac). She has **never set a password**, and `invite_accepted_at` was stamped by the scanner's page load, which is what misled Cowork. Superseded queue note follows:
 
-**✅ QUEUE IS CLEAR — all three drafts shipped.** `event_trainers` (`d04a9d3`), TIPE roster + TIPE-only hub (`f4c4845`), and the 5 PDF QA defects (`92d0c06`). Plus Josh's 2026-09-01 feedback batch (`962d951`), which Cowork was not involved in.
+~~READY: 🔴 Resend-invite destroys trainer assignments + misleading "expired link" copy (2 items) — see the LAST draft at the bottom. Found live: Tracy's "expired" invite was read as a consumed single-use token (she accepted and signed in 2026-09-04; password set) — **that read was wrong; it was the scanner.** The *second* half of that draft stands on its own and shipped: `resend: true` **deletes the user**, and `collaborative_trainers` + `event_trainers` both `ON DELETE CASCADE` from `user_profiles` (verified), so Resend on an assigned trainer would silently remove their lead-trainer row. The guard now refuses, so Resend is safe.~~
+
+**READY: 🔴 Microsoft Safe Links consumes every invite/reset token before the human clicks (4 items) — see the LAST draft at the bottom.** The real root cause, verified from live `auth.sessions` + `edge_logs` and an RDAP lookup. Affects **every** staff invite and password reset to a `@uky.edu` address; participant registration is unaffected (no accounts). Fix is to stop verifying on page load: move the email templates to `token_hash` and call `verifyOtp` on **password submit**, not in a `useEffect`. Also: `AuthContext.jsx:76-79` stamps `invite_accepted_at` on page load, so that column currently cannot be trusted. ⚠️ **Tracy is lead trainer on the 2026-09-14 training and still has no password** — she cannot be onboarded by email until this ships.
+
+**✅ QUEUE IS CLEAR (2026-09-01) — all three drafts shipped.** `event_trainers` (`d04a9d3`), TIPE roster + TIPE-only hub (`f4c4845`), and the 5 PDF QA defects (`92d0c06`). Plus Josh's 2026-09-01 feedback batch (`962d951`), which Cowork was not involved in.
 
 ⬜ **Open, not blocking:** (1) the **two non-super_admin test accounts** — still the single highest-leverage unblock, since admin-gated UI across every recent batch ships unverified without them; (2) **supervisor self-rating PDF** downloads but its contents have never been reviewed; (3) **QA seed data** still in the live DB (tagged `QA Seed` / `qaseed01` / notes prefixed `QA seed:`, all on demo collaboratives) — Cowork removes it on request, but the seeded self-rating is the only data backing item 2; (4) still **blocked on Ginny**: the data-cleaning ruleset and the STSI-OA/STSS percentile basis.
 
@@ -2011,3 +2015,90 @@ A consumed single-use invite renders as expired, which sends the user (and Josh)
 #### Note for Josh, no action needed
 
 Tracy's account is fine and her lead-trainer assignment is intact. The immediate resolution is the existing forgot-password flow at `bsc.ctac.app/login`. **Do not click Resend on her** until item 1 ships.
+
+---
+
+### 2026-09-08: 🔴 ROOT CAUSE — Microsoft Safe Links consumes every invite/reset token before the human clicks (4 items) — READY
+
+> **This supersedes the "consumed single-use token" explanation in the previous draft, which was wrong.** Cowork's 2026-09-04 read of Tracy's account ("she accepted and signed in, password set") was based on `email_confirmed_at` / `last_sign_in_at` / `invite_accepted_at` without checking **who** created the session. Checking that changes the diagnosis completely: those timestamps were written by **Microsoft's mail link scanner**, not by Tracy. She has never set a password. Recording the error plainly because the previous draft's queue note asserted the opposite.
+>
+> **Nothing here is inferred. Evidence, from `auth.sessions` and `edge_logs` on the live project:**
+>
+> Tracy (`taclem1@uky.edu`, `86cd069b-604b-4298-9795-1cf68a2d6b57`) has exactly three sessions, ever:
+>
+> | created_at (UTC) | ip | user_agent | who |
+> |---|---|---|---|
+> | 2026-09-04 18:51:59 | `135.232.19.31` | Windows, Chrome/142.0.7444.**175** | scanner |
+> | 2026-09-08 17:59:07 | `135.232.20.35` | Windows, Chrome/142.0.7444.**162** | scanner |
+> | 2026-09-08 18:08:28 | `72.153.153.77` | **Mac OS X 15_7_2**, Chrome/142 | Tracy |
+>
+> `135.232.0.0/16` is registered to **Microsoft, One Microsoft Way, Redmond** (RIPE RDAP, netname `cloud`) — verified, not guessed. Tracy is on a Mac; the two Microsoft-origin sessions are not her.
+>
+> The timeline for today's first reset is unambiguous:
+>
+> ```
+> 17:58:48  POST /auth/v1/recover                      from 128.163.7.156 (UK campus — Josh)
+> 17:59:07  GET  /auth/v1/verify?token=27e9b1c9…  303  from 135.232.20.35 (Microsoft)   ← token consumed, 19s after send
+> 17:59:09  GET  /auth/v1/user                    200  from 135.232.20.35 (Microsoft)   ← scanner loaded the SPA and ran its JS
+> 18:06:16  GET  /auth/v1/verify?token=27e9b1c9…  303  from 128.163.7.156 (Josh)        ← already dead → "link can't be used"
+> 18:06:40  POST /auth/v1/recover                      (Josh resends; token 371b26a7…)
+> 18:08:27  GET  /auth/v1/verify?token=371b26a7…  303  from 72.153.153.77 (Tracy's Mac) ← worked
+> 18:17:53  GET  /auth/v1/verify?token=371b26a7…  303  from 128.163.7.156 (Josh)        ← Tracy already used it → the error Josh reported
+> ```
+>
+> **19 seconds after send, from a Microsoft IP, before any human saw the mail.** That is Microsoft Defender for Office 365 **Safe Links URL detonation**, and it is fatal to a single-use `GET`-to-verify link. Separately, `104.47.73.254` (Microsoft Exchange Online Protection) fires a **HEAD** at the same URL ~0.6s before each human click; that returns `405` and is harmless.
+>
+> **Scope:** staff invites and password resets to any Microsoft-filtered tenant, which is every `@uky.edu` address. Participant registration is unaffected (no accounts). This is also why the only accounts that have ever worked are the three tester accounts, whose passwords were set server-side and never travelled through a link.
+
+#### Three facts that follow, all verified
+
+1. **Tracy has never set a password.** No `PUT /auth/v1/user` appears in any log window we can see, her `last_sign_in_at` only ever advanced on the two scanner hits and the 18:08 Mac hit, and no password update followed that session. She holds a live session created 18:08:28 today and nothing else.
+2. **`invite_accepted_at` does not mean what the app assumes.** `frontend/src/contexts/AuthContext.jsx:76-79` stamps it the moment a profile loads with it null — **on page load, not on password submit**. The scanner's render stamped Tracy's at `18:52:03` on 9/4, four seconds after its own session. This is the specific thing that misled Cowork.
+3. **Today's resend guard keys on two scanner-settable signals.** `supabase/functions/invite-team-leader/index.ts:165` computes `alreadyAccepted = !!existingProfile?.invite_accepted_at || !!existingUser.last_sign_in_at`. A detonated invite sets both. The refusal is still correct — never delete a user holding assignments — but it will now refuse resends for precisely the people the scanner locked out, so the 409's routing to password reset is carrying real weight. Keep it.
+
+#### Item 1 (the actual fix): stop verifying on page load — `token_hash` + verify on a real gesture
+
+The current design hands the token to a `GET` that Supabase consumes on arrival, so anything that fetches the URL burns it. Move verification behind a human action.
+
+- **Email templates** (Supabase Auth → Email Templates, both **Invite user** and **Reset password**): replace `{{ .ConfirmationURL }}` with
+
+  ```
+  {{ .SiteURL }}/set-password?token_hash={{ .TokenHash }}&type=invite
+  ```
+
+  and the same with `type=recovery` for the reset template. Loading that URL is now just an SPA page load — it consumes nothing. The existing `frontend/vercel.json` SPA rewrite already handles the query string; no routing change needed.
+- **`frontend/src/pages/SetPassword.jsx`:** read `token_hash` and `type` from the query string. **Do not call `verifyOtp` in a `useEffect`** — that just recreates the bug one layer up.
+- **Preferred shape, and the reason it is preferred:** show the password fields immediately, and on submit call `supabase.auth.verifyOtp({ token_hash, type })` and then `supabase.auth.updateUser({ password })` back to back. The token is consumed only when a password is actually being set. A scanner can load a page and execute JS — ours provably did, it hit `/auth/v1/user` — but it cannot invent a password and submit a form. **A bare "Continue" button is weaker;** a sufficiently aggressive detonation sandbox may click it. Requiring typed input is the robust version. Build that one.
+- If `verifyOtp` fails on submit, show the existing already-used copy (which is good) and keep whatever the user typed on screen.
+- After a successful `verifyOtp`, strip `token_hash` from the URL with `history.replaceState` so it does not survive in history or in a screenshot.
+- **Keep the current hash-fragment path working in parallel** for links already in flight, then remove it once no live invites predate the change.
+
+#### Item 2: stamp `invite_accepted_at` on password set, not on page load
+
+- Remove the stamp from `AuthContext.jsx:76-79`. Write it in the successful `updateUser({ password })` path in `SetPassword.jsx` instead, so it means "this human finished onboarding" — which is how both the staff list (`TeamMembers.jsx:295`) and the resend guard already read it.
+- **Do not backfill and do not clear other users' values.** The three tester rows all carry an identical `2026-07-17 16:13:20.998898` to the microsecond (a manual backfill), so they prove nothing either way; leave them.
+- ⬜ **Josh's call, one line:** Tracy's `2026-09-04 18:52:03` is a known false positive and makes the staff list say she joined on the 4th. Clearing it to `null` would make the list honest and let item 1's flow re-stamp it correctly. Do not do this unilaterally.
+
+#### Item 3: do not weaken the delete guard
+
+`last_sign_in_at` and `invite_accepted_at` are both scanner-settable, so neither proves a human accepted anything. Once item 2 lands, `invite_accepted_at` becomes a trustworthy signal again. Until then:
+
+- Keep refusing to delete any user holding `collaborative_trainers` / `event_trainers` rows, unconditionally. That guard is correct for reasons independent of this bug.
+- Keep the `already_accepted` 409 pointing at password reset.
+- Do **not** add a "force" override. There is no situation in this app where deleting an assigned trainer is the right response to a login complaint.
+
+#### Item 4: the ops fallback (not a dependency, and not a code change)
+
+Safe Links URL detonation is a tenant-level Defender for Office 365 policy. UK ITS could add the Supabase auth hostname to the policy's **"Do not rewrite the following URLs"** list, which would stop the pre-click. Worth knowing as a fallback, but **item 1 removes the need for it entirely** and does not require a ticket with central IT or trust in someone else's mail policy. Fix the app; mention the policy only if item 1 somehow proves insufficient.
+
+#### Verification — the assertion that matters
+
+- Send a fresh invite to a `@uky.edu` address. Then query `auth.sessions` for that user: **there must be no session at all** until a human submits a password. A session from `135.232.0.0/16` (or any Microsoft range) appearing after the fix is the regression signal, and it is the whole test.
+- Confirm `auth.users.confirmation_token` / `recovery_token` are **still non-empty** after the emailed URL has merely been loaded.
+- Confirm a real human can still complete the flow end to end, and that `invite_accepted_at` is `null` after a page load and set after the password submit.
+- Confirm a second click of a completed link shows the already-used copy rather than a blank or a crash.
+- ⬜ Admin-gated as always: the staff-list "Send password reset" action still needs the test accounts.
+
+#### Out of band, before 2026-09-14
+
+Tracy is lead trainer on the **2026-09-14** training and still has no password. She cannot reliably be onboarded by email until item 1 ships, because every link sent to her is detonated on delivery. Setting a temporary password server-side is the only path that does not route a single-use token through Microsoft's scanner. That is Josh's decision to make, not Code's — it is noted here so the sequencing is visible, not as a task.
