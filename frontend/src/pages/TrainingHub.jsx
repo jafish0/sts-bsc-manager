@@ -21,7 +21,7 @@ export default function TrainingHub() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [event, setEvent] = useState(null)
-  const [trainer, setTrainer] = useState(null)
+  const [trainers, setTrainers] = useState([]) // [{ full_name, bio, is_lead }] — lead first
   const [documents, setDocuments] = useState([])
 
   useEffect(() => {
@@ -39,14 +39,14 @@ export default function TrainingHub() {
         if (evErr || !ev) { setError('Training not found.'); setLoading(false); return }
         setEvent(ev)
 
-        if (ev.created_by) {
-          const { data: u } = await supabase
-            .from('user_profiles')
-            .select('full_name, email, bio')
-            .eq('id', ev.created_by)
-            .maybeSingle()
-          if (!cancelled) setTrainer(u || null)
-        }
+        // Assigned trainers (event_trainers), lead first, through the
+        // token-scoped SECURITY DEFINER RPC — anon has no grant on
+        // event_trainers or other users' profiles. Returns name + bio only;
+        // the old created_by lookup fell back to printing a staff EMAIL on
+        // this public page whenever a name was missing.
+        const { data: tr } = await supabase
+          .rpc('training_hub_trainers', { p_hub_token: hub_token })
+        if (!cancelled) setTrainers(Array.isArray(tr) ? tr : [])
 
         // Pull documents (agenda + materials). RLS allows authenticated reads;
         // public token-based reads aren't currently RLS-permitted on
@@ -144,15 +144,26 @@ export default function TrainingHub() {
           </Card>
         )}
 
-        {/* Trainer */}
-        {trainer && (
-          <Card title="👤 Trainer">
-            <div style={{ fontWeight: 600, color: NAVY, fontSize: '1rem' }}>{trainer.full_name || trainer.email}</div>
-            {trainer.bio && (
-              <div style={{ marginTop: '0.5rem', color: '#374151', fontSize: '0.9rem' }}>
-                <ReactMarkdown>{trainer.bio}</ReactMarkdown>
-              </div>
-            )}
+        {/* Trainer(s) — name + optional bio. Never an email on this public page. */}
+        {trainers.length > 0 && (
+          <Card title={trainers.length > 1 ? '👤 Trainers' : '👤 Trainer'}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.9rem' }}>
+              {trainers.map((t, i) => (
+                <div key={i} style={i > 0 ? { borderTop: '1px solid #e5e7eb', paddingTop: '0.9rem' } : undefined}>
+                  <div style={{ fontWeight: 600, color: NAVY, fontSize: '1rem' }}>
+                    {t.full_name}
+                    {trainers.length > 1 && t.is_lead && (
+                      <span style={{ marginLeft: '0.5rem', background: TEAL, color: 'white', padding: '0.05rem 0.45rem', borderRadius: '999px', fontSize: '0.65rem', fontWeight: 700, verticalAlign: 'middle' }}>LEAD</span>
+                    )}
+                  </div>
+                  {t.bio && (
+                    <div style={{ marginTop: '0.4rem', color: '#374151', fontSize: '0.9rem' }}>
+                      <ReactMarkdown>{t.bio}</ReactMarkdown>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
           </Card>
         )}
 

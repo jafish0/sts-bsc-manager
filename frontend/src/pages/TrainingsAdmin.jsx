@@ -23,12 +23,33 @@ export default function TrainingsAdmin() {
     setLoading(true)
     const { data } = await supabase
       .from('bsc_events')
-      .select('id, title, event_date, end_date, start_time, end_time, zoom_link, location_name, city, state, hub_token, created_by, user_profiles:created_by ( full_name )')
+      .select('id, title, event_date, end_date, start_time, end_time, zoom_link, location_name, city, state, hub_token, created_by')
       .eq('kind', 'standalone_training')
       .order('event_date', { ascending: false })
 
-    // Attach registration counts per training (sum across all registration links for the event)
     const trainingIds = (data || []).map(t => t.id)
+
+    // Trainer assignments (event_trainers) + the staff directory to name them.
+    // Names go through the staff_for_trainer_assignment RPC: user_profiles RLS
+    // would hide other staff from a trainer_admin, and the Trainer column has
+    // to show who runs a training you can't manage yourself.
+    let trainersByEvent = {}
+    if (trainingIds.length > 0) {
+      const [{ data: etRows }, { data: staff }] = await Promise.all([
+        supabase.from('event_trainers').select('bsc_event_id, user_id, is_lead, sort_order').in('bsc_event_id', trainingIds),
+        supabase.rpc('staff_for_trainer_assignment'),
+      ])
+      const nameById = Object.fromEntries((Array.isArray(staff) ? staff : []).map(s => [s.id, s.full_name]))
+      ;(etRows || []).forEach(r => {
+        if (!trainersByEvent[r.bsc_event_id]) trainersByEvent[r.bsc_event_id] = []
+        trainersByEvent[r.bsc_event_id].push({ ...r, full_name: nameById[r.user_id] || null })
+      })
+      Object.values(trainersByEvent).forEach(list => list.sort((a, b) =>
+        (b.is_lead - a.is_lead) || ((a.sort_order ?? 1e9) - (b.sort_order ?? 1e9))
+      ))
+    }
+
+    // Attach registration counts per training (sum across all registration links for the event)
     let countsByEvent = {}
     if (trainingIds.length > 0) {
       const { data: linkRows } = await supabase
@@ -57,11 +78,18 @@ export default function TrainingsAdmin() {
       }
     }
 
-    setTrainings((data || []).map(t => ({
-      ...t,
-      registered_count: countsByEvent[t.id] || 0,
-      can_manage: isSuperAdmin || t.created_by === user?.id,
-    })))
+    // can_manage mirrors can_admin_bsc_event's standalone branch exactly
+    // (super_admin OR creator OR assigned trainer) so the UI never offers a
+    // button the database will reject.
+    setTrainings((data || []).map(t => {
+      const trainers = trainersByEvent[t.id] || []
+      return {
+        ...t,
+        trainers,
+        registered_count: countsByEvent[t.id] || 0,
+        can_manage: isSuperAdmin || t.created_by === user?.id || trainers.some(tr => tr.user_id === user?.id),
+      }
+    }))
     setLoading(false)
   }
 
@@ -166,8 +194,11 @@ export default function TrainingsAdmin() {
                         <td style={tdStyle}>
                           <span style={{ background: status.bg, color: status.color, padding: '0.1rem 0.5rem', borderRadius: '999px', fontSize: '0.7rem', fontWeight: 700 }}>{status.label}</span>
                         </td>
-                        <td style={{ ...tdStyle, fontSize: '0.78rem', color: 'var(--text-muted)' }}>
-                          {t.user_profiles?.full_name || '—'}
+                        <td style={{ ...tdStyle, fontSize: '0.78rem', color: 'var(--text-muted)' }}
+                          title={t.trainers.map(tr => `${tr.full_name || 'Unknown'}${tr.is_lead ? ' (lead)' : ''}`).join(', ')}>
+                          {t.trainers.length === 0
+                            ? '—'
+                            : <>{t.trainers[0].full_name || 'Unknown'}{t.trainers.length > 1 && <span style={{ color: 'var(--text-faint)' }}> +{t.trainers.length - 1}</span>}</>}
                         </td>
                         <td style={tdStyle}>
                           <div style={{ display: 'flex', gap: '0.3rem' }}>

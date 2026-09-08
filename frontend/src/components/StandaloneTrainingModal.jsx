@@ -51,21 +51,6 @@ export default function StandaloneTrainingModal({ editingEvent, onClose, onSaved
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState(null)
 
-  // Trainer info (creator). Read-only in V1.
-  const [trainer, setTrainer] = useState(null)
-  useEffect(() => {
-    if (!user?.id) return
-    ;(async () => {
-      const trainerId = editingEvent?.created_by || user.id
-      const { data } = await supabase
-        .from('user_profiles')
-        .select('id, full_name, email, bio')
-        .eq('id', trainerId)
-        .maybeSingle()
-      setTrainer(data || null)
-    })()
-  }, [user?.id, editingEvent?.created_by])
-
   const handleSave = async () => {
     setError(null)
     if (!title.trim()) { setError('Title is required'); return }
@@ -197,7 +182,7 @@ export default function StandaloneTrainingModal({ editingEvent, onClose, onSaved
             </div>
             {isMultiDay && (
               <div style={{ fontSize: '0.78rem', color: '#6b7280', marginTop: '0.5rem' }}>
-                For multi-day trainings, the start/end times apply to each day. Hub access window is from start of Day 1 through end of last day + 30 min.
+                For multi-day trainings, the start/end times apply to each day.
               </div>
             )}
           </div>
@@ -250,11 +235,14 @@ export default function StandaloneTrainingModal({ editingEvent, onClose, onSaved
         )}
 
         {section === 'trainer' && (
-          <TrainerSection
-            user={user}
-            trainer={trainer}
-            onBioSaved={(newBio) => setTrainer(t => t ? { ...t, bio: newBio } : t)}
-          />
+          isEdit
+            ? <TrainersSection eventId={editingEvent.id} user={user} />
+            : (
+              <div style={{ fontSize: '0.85rem', color: '#374151', lineHeight: 1.55, padding: '0.85rem', background: '#f9fafb', border: '1px solid #e5e7eb', borderRadius: '8px' }}>
+                You'll be added as the <strong>lead trainer</strong> automatically when this training is created.
+                Add co-trainers, hand the lead to someone else, or write bios from this tab after creating it.
+              </div>
+            )
         )}
 
         {section === 'hub' && (
@@ -325,82 +313,184 @@ const inputStyle = {
   fontSize: '0.9rem', boxSizing: 'border-box',
 }
 
-// Trainer section with inline bio editor (only for the current user — V1 doesn't
-// let admins edit another user's bio). Bio is markdown; surfaces on the
-// participant training hub at /training/:hub_token.
-function TrainerSection({ user, trainer, onBioSaved }) {
-  const [editing, setEditing] = useState(false)
-  const [draft, setDraft] = useState('')
-  const [saving, setSaving] = useState(false)
+// Trainer assignments for an existing training (event_trainers — the "V2"
+// co-trainer support). Assigned trainers appear on the public hub and can
+// manage the training (can_admin_bsc_event admits them alongside created_by).
+//
+// Bio editing is SELF-ONLY: user_profiles RLS permits UPDATE on your own row
+// only (there is no super_admin update policy either). Per the draft we do not
+// widen RLS to let one trainer edit another's bio — the other trainer writes
+// their own from this same tab when they open the training.
+//
+// Names/emails resolve through staff_for_trainer_assignment(), a SECURITY
+// DEFINER RPC: user_profiles RLS lets a trainer_admin read only their own and
+// team profiles, so a plain query here would show them nobody but themselves.
+function TrainersSection({ eventId, user }) {
+  const [assignments, setAssignments] = useState([])  // event_trainers rows
+  const [staff, setStaff] = useState([])              // staff directory
+  const [loading, setLoading] = useState(true)
+  const [busy, setBusy] = useState(false)
   const [error, setError] = useState(null)
+  const [pickId, setPickId] = useState('')
+  const [editingBio, setEditingBio] = useState(false)
+  const [bioDraft, setBioDraft] = useState('')
+  const [myBio, setMyBio] = useState(null)
 
-  const isSelf = trainer?.id && user?.id && trainer.id === user.id
-
-  const startEdit = () => {
-    setDraft(trainer?.bio || '')
-    setEditing(true)
+  const load = async () => {
+    setLoading(true)
+    const [{ data: rows }, { data: dir }] = await Promise.all([
+      supabase.from('event_trainers')
+        .select('id, user_id, is_lead, sort_order, created_at')
+        .eq('bsc_event_id', eventId)
+        .order('is_lead', { ascending: false })
+        .order('sort_order', { ascending: true, nullsFirst: false })
+        .order('created_at'),
+      supabase.rpc('staff_for_trainer_assignment'),
+    ])
+    setAssignments(rows || [])
+    setStaff(Array.isArray(dir) ? dir : [])
+    // Own bio for the inline editor (own profile is always readable)
+    if (user?.id) {
+      const { data: me } = await supabase.from('user_profiles').select('bio').eq('id', user.id).maybeSingle()
+      setMyBio(me?.bio || null)
+    }
+    setLoading(false)
   }
-  const cancel = () => { setEditing(false); setError(null) }
-  const save = async () => {
-    setError(null)
-    setSaving(true)
-    const { error: e } = await supabase
-      .from('user_profiles').update({ bio: draft.trim() || null }).eq('id', user.id)
-    setSaving(false)
-    if (e) { setError(e.message); return }
-    onBioSaved?.(draft.trim() || null)
-    setEditing(false)
+
+  useEffect(() => { load() }, [eventId]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const staffById = Object.fromEntries(staff.map(s => [s.id, s]))
+  const assignedIds = new Set(assignments.map(a => a.user_id))
+  const addable = staff.filter(s => !assignedIds.has(s.id))
+
+  // Every write checks the returned row count: an RLS refusal comes back as
+  // 0 rows and no error (same trap as the hub toggle).
+  const addTrainer = async () => {
+    if (!pickId) return
+    setBusy(true); setError(null)
+    const nextOrder = assignments.reduce((m, a) => Math.max(m, a.sort_order ?? 0), 0) + 1
+    const { data, error: e } = await supabase
+      .from('event_trainers')
+      .insert({ bsc_event_id: eventId, user_id: pickId, sort_order: nextOrder })
+      .select('id')
+    setBusy(false)
+    if (e || !data || data.length === 0) { setError('Could not add trainer' + (e ? ': ' + e.message : ' (no permission).')); return }
+    setPickId('')
+    load()
   }
 
-  if (!trainer) return <div style={{ fontSize: '0.85rem', color: '#9ca3af' }}>Loading trainer info…</div>
+  const removeTrainer = async (a) => {
+    if (assignments.length <= 1) {
+      setError('A training must keep at least one trainer — add someone else before removing this one.')
+      return
+    }
+    const who = staffById[a.user_id]?.full_name || 'this trainer'
+    if (!window.confirm(`Remove ${who} from this training?${a.is_lead ? ' The next trainer will become lead.' : ''}`)) return
+    setBusy(true); setError(null)
+    const { data, error: e } = await supabase.from('event_trainers').delete().eq('id', a.id).select('id')
+    setBusy(false)
+    if (e || !data || data.length === 0) { setError('Could not remove trainer' + (e ? ': ' + e.message : ' (no permission).')); return }
+    load()
+  }
+
+  const makeLead = async (a) => {
+    setBusy(true); setError(null)
+    const { error: e } = await supabase.rpc('set_event_lead_trainer', { p_event_id: eventId, p_user_id: a.user_id })
+    setBusy(false)
+    if (e) { setError('Could not change the lead: ' + e.message); return }
+    load()
+  }
+
+  const saveBio = async () => {
+    setBusy(true); setError(null)
+    const { data, error: e } = await supabase
+      .from('user_profiles').update({ bio: bioDraft.trim() || null }).eq('id', user.id).select('id')
+    setBusy(false)
+    if (e || !data || data.length === 0) { setError('Could not save bio' + (e ? ': ' + e.message : '.')); return }
+    setMyBio(bioDraft.trim() || null)
+    setEditingBio(false)
+    load()
+  }
+
+  if (loading) return <div style={{ fontSize: '0.85rem', color: '#9ca3af' }}>Loading trainers…</div>
 
   return (
     <div>
-      <div style={{ fontSize: '0.85rem', color: '#374151', marginBottom: '0.75rem' }}>
-        You are the trainer for this training. Co-trainer support is deferred to V2.
+      <div style={{ fontSize: '0.85rem', color: '#374151', marginBottom: '0.75rem', lineHeight: 1.5 }}>
+        Assigned trainers are shown to participants on the training hub (lead first) and can manage this
+        training — upload materials, run sign-in, see evaluations. The person who created it keeps access too.
       </div>
-      <div style={{ padding: '1rem', background: '#f9fafb', border: '1px solid #e5e7eb', borderRadius: '8px' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '0.5rem' }}>
-          <div>
-            <div style={{ fontWeight: 600, color: NAVY }}>{trainer.full_name || trainer.email}</div>
-            <div style={{ fontSize: '0.8rem', color: '#6b7280', marginBottom: '0.5rem' }}>{trainer.email}</div>
-          </div>
-          {isSelf && !editing && (
-            <button onClick={startEdit} style={{ background: 'transparent', color: NAVY, border: `1px solid ${NAVY}`, padding: '0.3rem 0.7rem', borderRadius: '6px', cursor: 'pointer', fontSize: '0.78rem' }}>
-              {trainer.bio ? 'Edit bio' : 'Add bio'}
-            </button>
-          )}
-        </div>
 
-        {!editing ? (
-          <div style={{ fontSize: '0.85rem', color: '#374151', whiteSpace: 'pre-wrap' }}>
-            {trainer.bio || <em style={{ color: '#9ca3af' }}>No bio set yet. {isSelf ? 'Click "Add bio" above to write one — it shows on the participant training hub.' : ''}</em>}
-          </div>
-        ) : (
-          <div>
-            <textarea
-              value={draft}
-              onChange={(e) => setDraft(e.target.value)}
-              rows={6}
-              placeholder={'## About me\n\nJosh is a senior researcher at the University of Kentucky Center on Trauma and Children, where he leads...\n\nSupports markdown.'}
-              style={{
-                width: '100%', padding: '0.5rem 0.75rem',
-                border: '1px solid #d1d5db', borderRadius: '6px',
-                fontSize: '0.9rem', boxSizing: 'border-box',
-                fontFamily: 'ui-monospace, SFMono-Regular, Consolas, monospace',
-                resize: 'vertical',
-              }}
-            />
-            {error && (
-              <div style={{ background: '#fef2f2', color: '#991b1b', padding: '0.4rem 0.6rem', borderRadius: '6px', fontSize: '0.8rem', marginTop: '0.5rem' }}>{error}</div>
-            )}
-            <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.5rem' }}>
-              <button onClick={save} disabled={saving} style={{ background: TEAL, color: 'white', border: 'none', padding: '0.4rem 0.85rem', borderRadius: '6px', cursor: saving ? 'wait' : 'pointer', fontSize: '0.85rem', fontWeight: 600 }}>{saving ? 'Saving…' : 'Save bio'}</button>
-              <button onClick={cancel} disabled={saving} style={{ background: 'transparent', color: '#374151', border: '1px solid #d1d5db', padding: '0.4rem 0.85rem', borderRadius: '6px', cursor: 'pointer', fontSize: '0.85rem' }}>Cancel</button>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginBottom: '0.9rem' }}>
+        {assignments.map(a => {
+          const s = staffById[a.user_id]
+          const isSelf = a.user_id === user?.id
+          return (
+            <div key={a.id} style={{ padding: '0.75rem 0.9rem', background: '#f9fafb', border: `1px solid ${a.is_lead ? TEAL : '#e5e7eb'}`, borderRadius: '8px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '0.5rem', flexWrap: 'wrap' }}>
+                <div>
+                  <div style={{ fontWeight: 600, color: NAVY }}>
+                    {s?.full_name || 'Unknown staff member'}
+                    {a.is_lead && <span style={{ marginLeft: '0.5rem', background: TEAL, color: 'white', padding: '0.05rem 0.45rem', borderRadius: '999px', fontSize: '0.65rem', fontWeight: 700 }}>LEAD</span>}
+                    {isSelf && <span style={{ marginLeft: '0.4rem', fontSize: '0.72rem', color: '#6b7280' }}>(you)</span>}
+                  </div>
+                  <div style={{ fontSize: '0.78rem', color: '#6b7280' }}>{s?.email}</div>
+                </div>
+                <div style={{ display: 'flex', gap: '0.35rem' }}>
+                  {!a.is_lead && (
+                    <button onClick={() => makeLead(a)} disabled={busy} style={{ background: 'transparent', color: NAVY, border: `1px solid ${NAVY}`, padding: '0.25rem 0.6rem', borderRadius: '6px', cursor: 'pointer', fontSize: '0.75rem' }}>Make lead</button>
+                  )}
+                  <button onClick={() => removeTrainer(a)} disabled={busy || assignments.length <= 1}
+                    title={assignments.length <= 1 ? 'A training must keep at least one trainer' : 'Remove from this training'}
+                    style={{ background: 'transparent', color: assignments.length <= 1 ? '#9ca3af' : '#991b1b', border: `1px solid ${assignments.length <= 1 ? '#e5e7eb' : '#fca5a5'}`, padding: '0.25rem 0.6rem', borderRadius: '6px', cursor: assignments.length <= 1 ? 'not-allowed' : 'pointer', fontSize: '0.75rem' }}>Remove</button>
+                </div>
+              </div>
+
+              {/* Bio: editable only for yourself (user_profiles RLS is self-only). */}
+              <div style={{ marginTop: '0.5rem', fontSize: '0.82rem', color: '#374151' }}>
+                {isSelf ? (
+                  editingBio ? (
+                    <div>
+                      <textarea value={bioDraft} onChange={(e) => setBioDraft(e.target.value)} rows={5}
+                        placeholder={'## About me\n\nA short bio shown on the participant training hub. Supports markdown.'}
+                        style={{ width: '100%', padding: '0.5rem 0.75rem', border: '1px solid #d1d5db', borderRadius: '6px', fontSize: '0.88rem', boxSizing: 'border-box', fontFamily: 'ui-monospace, SFMono-Regular, Consolas, monospace', resize: 'vertical' }} />
+                      <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.4rem' }}>
+                        <button onClick={saveBio} disabled={busy} style={{ background: TEAL, color: 'white', border: 'none', padding: '0.35rem 0.8rem', borderRadius: '6px', cursor: 'pointer', fontSize: '0.8rem', fontWeight: 600 }}>{busy ? 'Saving…' : 'Save bio'}</button>
+                        <button onClick={() => setEditingBio(false)} disabled={busy} style={{ background: 'transparent', color: '#374151', border: '1px solid #d1d5db', padding: '0.35rem 0.8rem', borderRadius: '6px', cursor: 'pointer', fontSize: '0.8rem' }}>Cancel</button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div style={{ display: 'flex', justifyContent: 'space-between', gap: '0.5rem', alignItems: 'flex-start' }}>
+                      <div style={{ whiteSpace: 'pre-wrap' }}>{myBio || <em style={{ color: '#9ca3af' }}>No bio yet — it shows under your name on the hub.</em>}</div>
+                      <button onClick={() => { setBioDraft(myBio || ''); setEditingBio(true) }} style={{ background: 'transparent', color: NAVY, border: `1px solid ${NAVY}`, padding: '0.25rem 0.6rem', borderRadius: '6px', cursor: 'pointer', fontSize: '0.75rem', flexShrink: 0 }}>{myBio ? 'Edit my bio' : 'Add my bio'}</button>
+                    </div>
+                  )
+                ) : (
+                  <em style={{ color: s?.has_bio ? '#6b7280' : '#9ca3af' }}>
+                    {s?.has_bio ? 'Has a bio (shown on the hub).' : 'No bio yet — only they can write it, from this tab when they open the training.'}
+                  </em>
+                )}
+              </div>
             </div>
-          </div>
-        )}
+          )
+        })}
       </div>
+
+      {/* Add trainer picker — name AND email so two similar names are distinguishable */}
+      <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap' }}>
+        <select value={pickId} onChange={(e) => setPickId(e.target.value)} disabled={busy || addable.length === 0}
+          style={{ ...inputStyle, width: 'auto', flex: '1 1 260px' }}>
+          <option value="">{addable.length === 0 ? 'Everyone on staff is already assigned' : 'Add a trainer…'}</option>
+          {addable.map(s => (
+            <option key={s.id} value={s.id}>{s.full_name || '(no name)'} — {s.email}{s.role === 'super_admin' ? ' (super admin)' : ''}</option>
+          ))}
+        </select>
+        <button onClick={addTrainer} disabled={busy || !pickId} style={{ background: pickId ? TEAL : '#9ca3af', color: 'white', border: 'none', padding: '0.5rem 1rem', borderRadius: '6px', cursor: pickId ? 'pointer' : 'not-allowed', fontSize: '0.85rem', fontWeight: 600 }}>Add</button>
+      </div>
+
+      {error && (
+        <div style={{ background: '#fef2f2', color: '#991b1b', padding: '0.5rem 0.75rem', borderRadius: '6px', fontSize: '0.82rem', marginTop: '0.75rem' }}>{error}</div>
+      )}
     </div>
   )
 }

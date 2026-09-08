@@ -33,7 +33,9 @@ function fmtTimeRange(start, end) {
 }
 
 const PROGRAM_BADGE = (programType) => {
-  const meta = PROGRAM_TYPE_COLORS[programType] || { bg: '#e5e7eb', color: '#374151', label: programType }
+  const meta = programType === 'standalone'
+    ? { bg: '#e0f2f1', color: '#00695c', label: 'Standalone Training' } // same badge EventDetail uses
+    : (PROGRAM_TYPE_COLORS[programType] || { bg: '#e5e7eb', color: '#374151', label: programType })
   return (
     <span style={{
       background: meta.bg, color: meta.color,
@@ -59,6 +61,10 @@ export default function TrainerDashboard() {
   const [expandedRsvpEvent, setExpandedRsvpEvent] = useState(null)
   const [participationScores, setParticipationScores] = useState([])  // ranked [{ team, score, components }]
   const [downloadStats, setDownloadStats] = useState(null)  // { topItems: [...], byDomain: [...] }
+  // Standalone trainings I'm ASSIGNED to (event_trainers — not created_by, so a
+  // trainer sees trainings someone else set up for them). Previously this
+  // dashboard had no reference to standalone trainings at all.
+  const [myTrainings, setMyTrainings] = useState([])  // [{ ...bsc_event, registered_count, is_lead }]
 
   useEffect(() => {
     if (!user?.id) return
@@ -84,8 +90,70 @@ export default function TrainerDashboard() {
 
       const collabIds = collabRows.map(c => c.id)
 
+      const today = new Date()
+      const fourWeeksOut = new Date(today.getTime() + 28 * 24 * 60 * 60 * 1000)
+      const todayStr = today.toISOString().split('T')[0]
+      const futureStr = fourWeeksOut.toISOString().split('T')[0]
+
+      // 1b. Standalone trainings I'm assigned to (before the no-collabs early
+      // return: a trainer with only a standalone training must still see it).
+      const { data: myAssign } = await supabase
+        .from('event_trainers')
+        .select('bsc_event_id, is_lead')
+        .eq('user_id', user.id)
+      const trainingIds = (myAssign || []).map(a => a.bsc_event_id)
+      let trainingRows = []
+      if (trainingIds.length > 0) {
+        const { data: tr } = await supabase
+          .from('bsc_events')
+          .select('id, title, event_date, end_date, start_time, end_time, zoom_link, location_name, city, state, hub_enabled')
+          .in('id', trainingIds)
+          .eq('kind', 'standalone_training')
+          .order('event_date', { ascending: false })
+        trainingRows = tr || []
+
+        // Registered count per training (sum over its registration links),
+        // same shape TrainingsAdmin uses.
+        const { data: linkRows } = await supabase
+          .from('event_registration_link_events')
+          .select('event_id, registration_link_id')
+          .in('event_id', trainingIds)
+        const linkIds = [...new Set((linkRows || []).map(r => r.registration_link_id))]
+        const regCountByLink = {}
+        if (linkIds.length > 0) {
+          const { data: regs } = await supabase
+            .from('event_registrations')
+            .select('registration_link_id')
+            .in('registration_link_id', linkIds)
+            .in('status', ['registered', 'checked_in'])
+          ;(regs || []).forEach(r => { regCountByLink[r.registration_link_id] = (regCountByLink[r.registration_link_id] || 0) + 1 })
+        }
+        const leadById = Object.fromEntries((myAssign || []).map(a => [a.bsc_event_id, a.is_lead]))
+        trainingRows = trainingRows.map(t => ({
+          ...t,
+          is_lead: !!leadById[t.id],
+          registered_count: (linkRows || []).filter(r => r.event_id === t.id)
+            .reduce((sum, r) => sum + (regCountByLink[r.registration_link_id] || 0), 0),
+        }))
+      }
+      if (cancelled) return
+      setMyTrainings(trainingRows)
+
+      // Upcoming standalone trainings sit in the same 4-week window as
+      // collaborative events, tagged so the row reads as a training.
+      const upcomingTrainings = trainingRows
+        .filter(t => t.event_date >= todayStr && t.event_date <= futureStr)
+        .map(t => ({
+          ...t,
+          collaborative_id: null,
+          event_type: 'standalone_training',
+          location: t.location_name || null,
+          collaborative_name: 'Standalone training',
+          program_type: 'standalone',
+        }))
+
       if (collabIds.length === 0) {
-        setUpcomingEvents([])
+        setUpcomingEvents(upcomingTrainings)
         setRecentEvalSessions([])
         setLoading(false)
         return
@@ -93,11 +161,6 @@ export default function TrainerDashboard() {
 
       // 2. Upcoming events (next 4 weeks — widened from 3 per Leah's feedback)
       // across my collaboratives
-      const today = new Date()
-      const fourWeeksOut = new Date(today.getTime() + 28 * 24 * 60 * 60 * 1000)
-      const todayStr = today.toISOString().split('T')[0]
-      const futureStr = fourWeeksOut.toISOString().split('T')[0]
-
       const { data: events } = await supabase
         .from('bsc_events')
         .select('id, collaborative_id, event_type, title, event_date, start_time, end_time, location, zoom_link')
@@ -108,11 +171,16 @@ export default function TrainerDashboard() {
 
       if (cancelled) return
       const collabById = Object.fromEntries(collabRows.map(c => [c.id, c]))
-      setUpcomingEvents((events || []).map(e => ({
-        ...e,
-        collaborative_name: collabById[e.collaborative_id]?.name || '',
-        program_type: collabById[e.collaborative_id]?.program_type || '',
-      })))
+      setUpcomingEvents(
+        [
+          ...(events || []).map(e => ({
+            ...e,
+            collaborative_name: collabById[e.collaborative_id]?.name || '',
+            program_type: collabById[e.collaborative_id]?.program_type || '',
+          })),
+          ...upcomingTrainings,
+        ].sort((a, b) => (a.event_date || '').localeCompare(b.event_date || '') || (a.start_time || '').localeCompare(b.start_time || ''))
+      )
 
       // 2b. RSVPs for those upcoming events.
       const upcomingEventIds = (events || []).map(e => e.id)
@@ -409,6 +477,44 @@ export default function TrainerDashboard() {
                 </div>
               )}
             </CollapsibleCard>
+
+            {/* My Standalone Trainings — assigned via event_trainers */}
+            {myTrainings.length > 0 && (
+              <CollapsibleCard title="My Standalone Trainings" count={myTrainings.length}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                  {myTrainings.map(t => (
+                    <button
+                      key={t.id}
+                      onClick={() => navigate(`/admin/event/${t.id}`)}
+                      style={{
+                        textAlign: 'left', background: 'var(--bg-card)',
+                        border: '1px solid var(--border-light)', borderLeft: '4px solid #00695c',
+                        borderRadius: '6px', padding: '0.75rem 1rem', cursor: 'pointer',
+                        display: 'grid', gridTemplateColumns: '7rem 1fr auto', gap: '1rem', alignItems: 'center',
+                      }}
+                    >
+                      <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
+                        <div style={{ fontWeight: 700 }}>{fmtDateShort(t.event_date)}{t.end_date ? ` – ${fmtDateShort(t.end_date)}` : ''}</div>
+                        <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{fmtTimeRange(t.start_time, t.end_time)}</div>
+                      </div>
+                      <div>
+                        <div style={{ fontWeight: 600 }}>
+                          {t.title}
+                          {t.is_lead && <span style={{ marginLeft: '0.5rem', background: COLORS.teal, color: 'white', padding: '0.05rem 0.45rem', borderRadius: '999px', fontSize: '0.65rem', fontWeight: 700 }}>LEAD</span>}
+                        </div>
+                        <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
+                          {t.zoom_link ? 'Online' : 'In-person'}
+                          {t.location_name ? ` · ${t.location_name}` : ''}
+                          {` · ${t.registered_count} registered`}
+                          {t.hub_enabled ? ' · hub on' : ' · hub off'}
+                        </div>
+                      </div>
+                      <span style={{ color: COLORS.teal, fontSize: '0.85rem', fontWeight: 600, whiteSpace: 'nowrap' }}>Manage ›</span>
+                    </button>
+                  ))}
+                </div>
+              </CollapsibleCard>
+            )}
 
             {/* My Upcoming Events */}
             <CollapsibleCard title="My Upcoming Events" subtitle="(next 4 weeks)" count={visibleUpcoming.length}>

@@ -183,9 +183,25 @@ export default function EventDetail() {
   //   standalone_training -> is_super_admin() OR created_by = auth.uid()
   // Trainer admins have a read-only SELECT policy on standalone trainings; they
   // deliberately do NOT get write access to ones they didn't create.
+  // Assigned trainers (event_trainers) can manage a standalone training they
+  // did not create — Tracy's case. Mirrors can_admin_bsc_event's standalone
+  // branch: super_admin OR created_by OR assigned trainer.
+  const [isAssignedTrainer, setIsAssignedTrainer] = useState(false)
+  useEffect(() => {
+    if (!user?.id || event?.kind !== 'standalone_training') { setIsAssignedTrainer(false); return }
+    let cancelled = false
+    supabase.from('event_trainers')
+      .select('id')
+      .eq('bsc_event_id', eventId)
+      .eq('user_id', user.id)
+      .maybeSingle()
+      .then(({ data }) => { if (!cancelled) setIsAssignedTrainer(!!data) })
+    return () => { cancelled = true }
+  }, [eventId, user?.id, event?.kind])
+
   const isStandalone = event?.kind === 'standalone_training'
   const canManage = isStandalone
-    ? (isSuperAdmin || (!!event?.created_by && event.created_by === user?.id))
+    ? (isSuperAdmin || (!!event?.created_by && event.created_by === user?.id) || isAssignedTrainer)
     : canAdminCollaborative(event?.collaborative_id)
 
   // 2. Attendance fetcher (initial + 30s polling + manual refresh button)
