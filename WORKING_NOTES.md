@@ -2099,6 +2099,19 @@ Safe Links URL detonation is a tenant-level Defender for Office 365 policy. UK I
 - Confirm a second click of a completed link shows the already-used copy rather than a blank or a crash.
 - ⬜ Admin-gated as always: the staff-list "Send password reset" action still needs the test accounts.
 
+#### Supabase documents this exact failure, and their suggested fix is weaker than item 1
+
+From the Supabase production checklist, "Email link validity":
+
+> When working with enterprise systems, email scanners may scan and make a `GET` request to the reset password link or sign-up link in your email. Since links in Supabase Auth are single-use, a user who opens an email post-scan to click on a link will receive an error.
+
+So this is a known, documented interaction, not an exotic edge case. Their recommended workaround is an interstitial page with a "Sign in" button that forwards to the original magic-link URL. **Item 1 is deliberately stronger:** a button can be clicked by a detonation sandbox, so gate the token on a *typed password* instead. Same idea, one notch more robust, and it removes a redirect hop.
+
+Two further notes from the live logs, both useful to whoever implements this:
+
+- **Detonation is intermittent, which is worse than consistent failure.** Today's first token was detonated 19 seconds after send; the second, issued 8 minutes later, was not (Safe Links appears to cache URL reputation). So the flow half-works, which is exactly why it read as flaky rather than broken.
+- **The `HEAD` requests from `104.47.73.254` are harmless.** Outlook fires one at the link ~0.6s before a human click; `/auth/v1/verify` answers `405` and consumes nothing. Do not chase these.
+
 #### Out of band, before 2026-09-14
 
 Tracy is lead trainer on the **2026-09-14** training and still has no password. She cannot reliably be onboarded by email until item 1 ships, because every link sent to her is detonated on delivery. Setting a temporary password server-side is the only path that does not route a single-use token through Microsoft's scanner. That is Josh's decision to make, not Code's — it is noted here so the sequencing is visible, not as a task.
