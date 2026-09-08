@@ -22,6 +22,23 @@ export default function InviteStaffModal({ onClose, onSuccess }) {
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState('')
   const [success, setSuccess] = useState(null)
+  // Set when the function refuses because the address already has an active
+  // account — the right tool is then a password reset, offered inline.
+  const [offerReset, setOfferReset] = useState(false)
+  const [resetSent, setResetSent] = useState(false)
+
+  // Same call the login page's "Forgot password" uses; the recovery link lands
+  // on /set-password via the existing type=recovery redirect.
+  const sendPasswordReset = async () => {
+    setError('')
+    setSubmitting(true)
+    const { error: e } = await supabase.auth.resetPasswordForEmail(email.trim(), {
+      redirectTo: 'https://bsc.ctac.app/set-password',
+    })
+    setSubmitting(false)
+    if (e) { setError('Could not send the reset email: ' + e.message); return }
+    setResetSent(true)
+  }
 
   useEffect(() => {
     let cancelled = false
@@ -69,14 +86,24 @@ export default function InviteStaffModal({ onClose, onSuccess }) {
       })
       const json = await resp.json().catch(() => ({}))
 
-      if (resp.status === 409 && !resend) {
-        // Existing account: offer the same delete-and-reinvite path the team
-        // invite flow uses.
-        if (window.confirm(`${email.trim()} already has an account. Delete it and send a fresh invite?`)) {
-          setSubmitting(false)
+      if (resp.status === 409) {
+        setSubmitting(false)
+        // The function refuses to re-invite someone who has already accepted
+        // (they need a password reset) or who holds trainer assignments
+        // (re-inviting deletes the user and the assignments cascade away).
+        // Both come back with a code; only a never-accepted, unassigned
+        // account is offered the delete-and-reinvite path.
+        if (json.code === 'already_accepted') {
+          setError(json.error)
+          setOfferReset(true)
+          return
+        }
+        if (json.code === 'has_assignments') {
+          setError(json.error)
+          return
+        }
+        if (!resend && window.confirm(`${email.trim()} already has an invite that was never accepted. Delete it and send a fresh one?`)) {
           await invite(true)
-        } else {
-          setSubmitting(false)
         }
         return
       }
@@ -141,7 +168,7 @@ export default function InviteStaffModal({ onClose, onSuccess }) {
             </div>
             <div style={{ marginBottom: '1rem' }}>
               <label style={labelStyle}>Email *</label>
-              <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="name@uky.edu" style={inputStyle} />
+              <input type="email" value={email} onChange={(e) => { setEmail(e.target.value); setOfferReset(false); setResetSent(false) }} placeholder="name@uky.edu" style={inputStyle} />
             </div>
 
             <div style={{ marginBottom: '1rem' }}>
@@ -197,8 +224,20 @@ export default function InviteStaffModal({ onClose, onSuccess }) {
             )}
 
             {error && (
-              <div style={{ background: '#fee2e2', color: '#991b1b', padding: '0.6rem 0.85rem', borderRadius: '6px', fontSize: '0.85rem', marginBottom: '1rem' }}>
+              <div style={{ background: offerReset ? '#FFFBEB' : '#fee2e2', color: offerReset ? '#92400E' : '#991b1b', border: offerReset ? '1px solid #FDE68A' : 'none', padding: '0.6rem 0.85rem', borderRadius: '6px', fontSize: '0.85rem', marginBottom: '1rem', lineHeight: 1.5 }}>
                 {error}
+                {offerReset && (
+                  <div style={{ marginTop: '0.6rem' }}>
+                    {resetSent ? (
+                      <strong>✅ Password reset email sent to {email.trim()}.</strong>
+                    ) : (
+                      <button onClick={sendPasswordReset} disabled={submitting} style={{
+                        background: NAVY, color: 'white', border: 'none', padding: '0.45rem 0.9rem',
+                        borderRadius: '6px', cursor: submitting ? 'wait' : 'pointer', fontSize: '0.82rem', fontWeight: 600,
+                      }}>{submitting ? 'Sending…' : 'Send password reset instead'}</button>
+                    )}
+                  </div>
+                )}
               </div>
             )}
 

@@ -60,6 +60,13 @@ function AuthRedirectHandler() {
 
   useEffect(() => {
     const hash = window.location.hash
+    // Already on /set-password: nothing to do. Navigating to the same path
+    // here produced an infinite loop whenever Supabase could NOT consume the
+    // token (expired or already-used invite/recovery link): each navigate
+    // created a new location, the effect re-ran, the hash was still there...
+    // "Maximum update depth exceeded" on precisely the page meant to tell
+    // the person what to do next.
+    if (location.pathname === '/set-password') return
     if (hash && (hash.includes('type=invite') || hash.includes('type=recovery'))) {
       // Preserve the hash so Supabase client can process the token
       navigate('/set-password' + hash, { replace: true })
@@ -117,7 +124,7 @@ function App() {
               noindex/nofollow meta tag so the URL never enters a search index. */}
           <Route path="/roster/:token" element={<RosterSharePage />} />
 
-          {/* Public training hub — gated by hub_token + sessionStorage sign-in flag */}
+          {/* Public standalone training hub — link + hub_enabled is the access (no time window, no sign-in gate) */}
           <Route path="/training/:hub_token" element={<TrainingHub />} />
 
           {/* Public collaborative hub — static URL all cycle, no auth, no time

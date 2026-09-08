@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { supabase } from '../utils/supabase'
 import { useAuth } from '../contexts/AuthContext'
 import ctacLogo from '../assets/UKCTAC_logoasuite_web__primary_tagline_color.png'
@@ -10,7 +10,10 @@ function Login() {
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
-  const [showForgotPassword, setShowForgotPassword] = useState(false)
+  // /login?reset=1 opens the forgot-password modal directly — the set-password
+  // page's "this link can't be used" screen links here.
+  const [searchParams] = useSearchParams()
+  const [showForgotPassword, setShowForgotPassword] = useState(searchParams.get('reset') === '1')
   const [resetEmail, setResetEmail] = useState('')
   const [resetSent, setResetSent] = useState(false)
   const [resetLoading, setResetLoading] = useState(false)

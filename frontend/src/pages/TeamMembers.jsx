@@ -115,6 +115,19 @@ export default function TeamMembers() {
     }
   }
 
+  // For members who already accepted their invite, Resend is the wrong tool
+  // (and the function now refuses it): a consumed single-use invite link reads
+  // as "expired" when what they need is a password reset. Same call the login
+  // page's Forgot-password uses; the link lands on /set-password.
+  const handleSendReset = async (member) => {
+    if (!confirm(`Email a password-reset link to ${member.full_name} (${member.email})?`)) return
+    const { error } = await supabase.auth.resetPasswordForEmail(member.email, {
+      redirectTo: window.location.origin + '/set-password',
+    })
+    if (error) { alert('Could not send the reset email: ' + error.message); return }
+    alert(`Password reset email sent to ${member.email}`)
+  }
+
   const handleDeactivate = async (memberId, memberName) => {
     if (!confirm(`Remove ${memberName} from the team? They will lose access to the dashboard.`)) return
 
@@ -390,6 +403,25 @@ export default function TeamMembers() {
                 onMouseOut={(e) => { e.currentTarget.style.background = 'none'; e.currentTarget.style.color = COLORS.teal }}
               >
                 Resend
+              </button>
+            )}
+            {!isPending && (
+              <button
+                onClick={() => handleSendReset(member)}
+                title="Email a password-reset link (they already have an account)"
+                style={{
+                  background: 'none',
+                  border: `1px solid ${COLORS.navy}`,
+                  borderRadius: '6px',
+                  padding: '0.35rem 0.6rem',
+                  cursor: 'pointer',
+                  color: COLORS.navy,
+                  fontSize: '0.75rem',
+                  fontWeight: '500',
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                Send password reset
               </button>
             )}
             {member.role === 'team_member' && (

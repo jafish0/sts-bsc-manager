@@ -87,25 +87,34 @@ export default function SetPassword() {
     return (
       <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh', background: 'var(--bg-page)' }}>
         <div style={{ maxWidth: '400px', textAlign: 'center', padding: '2rem' }}>
-          <h2 style={{ color: NAVY }}>Invalid or Expired Link</h2>
-          <p style={{ color: 'var(--text-muted)' }}>
-            This link may have expired or already been used. Please request a new invite or use the "Forgot Password" option on the login page.
+          {/* Invite / recovery links are single-use, and Supabase reports a
+              consumed link the same way as an expired one — so this copy
+              covers both honestly instead of guessing. The common real case
+              (2026-09-08): someone already set a password, clicked the old
+              invite email again, and went looking for a broken invite when
+              they just needed to sign in or reset their password. */}
+          <h2 style={{ color: NAVY }}>This link can't be used</h2>
+          <p style={{ color: 'var(--text-muted)', lineHeight: 1.55 }}>
+            Sign-in links work once and expire after a while, so this one may already have been used.
           </p>
-          <button
-            onClick={() => navigate('/login')}
-            style={{
-              marginTop: '1rem',
-              padding: '0.75rem 1.5rem',
-              background: TEAL,
-              color: 'white',
-              border: 'none',
-              borderRadius: '8px',
-              cursor: 'pointer',
-              fontWeight: '600'
-            }}
-          >
-            Go to Login
-          </button>
+          <p style={{ color: 'var(--text-secondary)', lineHeight: 1.55 }}>
+            If you've set a password before, just <strong>sign in</strong>. Forgotten it, or never got to set one?
+            Use <strong>Forgot password</strong> and we'll email you a fresh link.
+          </p>
+          <div style={{ display: 'flex', gap: '0.6rem', justifyContent: 'center', flexWrap: 'wrap', marginTop: '1rem' }}>
+            <button
+              onClick={() => navigate('/login')}
+              style={{ padding: '0.75rem 1.5rem', background: TEAL, color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: '600' }}
+            >
+              Sign in
+            </button>
+            <button
+              onClick={() => navigate('/login?reset=1')}
+              style={{ padding: '0.75rem 1.5rem', background: 'white', color: NAVY, border: `2px solid ${NAVY}`, borderRadius: '8px', cursor: 'pointer', fontWeight: '600' }}
+            >
+              Forgot password
+            </button>
+          </div>
         </div>
       </div>
     )

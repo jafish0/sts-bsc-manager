@@ -147,12 +147,55 @@ Deno.serve(async (req) => {
     const { data: existingUsers } = await adminClient.auth.admin.listUsers()
     const existingUser = existingUsers?.users?.find(u => u.email === email)
 
-    // Handle resend: delete existing user and re-invite
+    // Handle resend. The resend path DELETES the auth user and re-invites, and
+    // both collaborative_trainers and event_trainers cascade on user_profiles
+    // delete — so a careless Resend used to silently wipe a trainer's
+    // assignments (found 2026-09-08 with Tracy: she had already accepted her
+    // invite and signed in; the "expired link" was a consumed single-use
+    // token, and what she needed was a password reset, not a re-invite).
+    // Two guards, in order, before anything destructive:
     if (existingUser && resend) {
+      // 1) Someone who already accepted / signed in has an account. Refuse:
+      //    the right tool is a password reset, and the UI offers one.
+      const { data: existingProfile } = await adminClient
+        .from('user_profiles')
+        .select('invite_accepted_at')
+        .eq('id', existingUser.id)
+        .maybeSingle()
+      const alreadyAccepted = !!existingProfile?.invite_accepted_at || !!existingUser.last_sign_in_at
+      if (alreadyAccepted) {
+        return new Response(JSON.stringify({
+          code: 'already_accepted',
+          error: `${email} already has an account and has signed in. They don't need a new invite — send them a password reset instead.`,
+        }), {
+          status: 409,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        })
+      }
+
+      // 2) Never delete a user who holds assignments — removing a trainer
+      //    mid-cohort must be deliberate, never a side effect of Resend.
+      const [{ count: collabCount }, { count: eventCount }] = await Promise.all([
+        adminClient.from('collaborative_trainers').select('id', { count: 'exact', head: true }).eq('user_id', existingUser.id),
+        adminClient.from('event_trainers').select('id', { count: 'exact', head: true }).eq('user_id', existingUser.id),
+      ])
+      if ((collabCount || 0) + (eventCount || 0) > 0) {
+        return new Response(JSON.stringify({
+          code: 'has_assignments',
+          error: `${email} is assigned as a trainer (${collabCount || 0} collaborative${collabCount === 1 ? '' : 's'}, ${eventCount || 0} standalone training${eventCount === 1 ? '' : 's'}). Re-inviting would delete those assignments. Remove the assignments first if you really mean to re-create this account.`,
+        }), {
+          status: 409,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        })
+      }
+
+      // Unaccepted AND unassigned: nothing to lose, so the delete-and-reinvite
+      // path stays (inviteUserByEmail refuses an existing address, so a fresh
+      // invite needs a fresh auth user).
       await adminClient.from('user_profiles').delete().eq('id', existingUser.id)
       await adminClient.auth.admin.deleteUser(existingUser.id)
     } else if (existingUser) {
-      return new Response(JSON.stringify({ error: `A user with email ${email} already exists` }), {
+      return new Response(JSON.stringify({ code: 'exists', error: `A user with email ${email} already exists` }), {
         status: 409,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       })
