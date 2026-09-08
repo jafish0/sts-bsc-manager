@@ -235,11 +235,12 @@ A bidirectional scratchpad shared between Josh, Claude Cowork (Claude desktop ch
 
 **✅ ALL FOUR QUEUED DRAFTS SHIPPED 2026-08-26** (`ac5c4d3` TIPE teamless hub, `264ea9b` anon-UPDATE retired, `d8f4d8e` scale direction + contradiction flagging, `d29e5e8` evaluation PDF restyle).
 
-**READY (2 drafts at the bottom of this file):**
-1. **TIPE Collaborative Detail: roster + hub scoping (4 items).** Includes 🔴 **restricting the Participant Hub panel to `tipe_lc` only** — it currently renders on STS-BSC and TIC LC too (Cowork's spec gap; data is clean, no token minted on either). Follow-on from the teamless decision. Remove Teams + Team Rosters for `tipe_lc`, add one cohort roster sourced from **registrations** (no accounts) with District/School grouping, and **live signed-in status for the current session** including a separate walk-in group for people who signed in but never registered.
-2. **PDF defect fixes — 5 defects across 2 exporters.** ✅ All 5 exports download (autoTable migration confirmed end to end). Remaining: 3 evaluation-PDF defects (1 is Cowork's own spec error) + 2 Team Report defects (logos at wrong aspect ratio; a `y`-clobber at `exportPdf.js:132` drawing STSS on top of Demographics).
+**READY (3 drafts at the bottom of this file):**
+1. **Assignable trainers for standalone trainings (`event_trainers`, 6 items).** Driver: **Tracy's real training on 2026-09-14** has its hub live and shows **Josh** as the trainer, because `created_by` currently *is* the trainer and doubles as the permission field. Adds the `event_trainers` table the original standalone spec predicted, extends `can_admin_bsc_event` so assigned trainers can manage without being the creator, and fixes a 🔒 **public email leak** on the hub. Also: 🐛 **standalone trainings never appear on the Trainer Dashboard at all.**
+2. **TIPE Collaborative Detail: roster + hub scoping (4 items).** Remove Teams/Team Rosters for `tipe_lc`, add the cohort roster with live sign-in status, and 🔴 restrict the Participant Hub panel to `tipe_lc` only (it currently renders on STS-BSC and TIC LC too).
+3. **PDF defect fixes — 5 defects across 2 exporters.** All 5 exports now confirmed downloading; remaining defects are cosmetic plus one `y`-clobber in the Team Report.
 
-⬜ **Also still open:** the TIPE hub batch's admin-side UI is unverified pending test accounts.
+⬜ **Also still open:** admin-side UI across the recent batches is unverified pending test accounts.
 
 _Cowork also deleted the standalone training's test data (4 attendance + 3 evaluations) — verified 0 remaining, event intact for 2026-08-07._
 
@@ -1817,3 +1818,110 @@ An **export** of this roster (Excel/CSV) via the shared builder from `exportAtte
 - Seed or use a session with attendance and confirm signed-in state, the summary count, and that a signed-in email not on the roster lands in the walk-in group.
 - Confirm an email differing only by case or surrounding whitespace still matches.
 - ⬜ Admin-gated, so click-through verification needs the test accounts.
+
+---
+
+### 2026-08-27: Assignable trainers for standalone trainings (`event_trainers`) — READY
+
+> **Driver: onboarding Tracy Clemans.** She is set up correctly (`taclem1@uky.edu`, `trainer_admin`, active, invite accepted, 1 collaborative assigned) and has a **real training on 2026-09-14** — "Secondary Traumatic Stress Solutions for Educators and School Personnel" (`7e4159e5-40a3-4dd2-a6eb-6f6cc21186c9`, **hub_enabled = true**). Josh needs her listed as the trainer and himself removed.
+>
+> **Today that is impossible.** There is no trainer field: `created_by` *is* the trainer by definition. Verified across four places:
+> - `TrainingHub.jsx` (~line 42) reads `created_by`, looks up that user's `full_name, email, bio`, and renders it in the public "👤 Trainer" card. **Participants currently see Josh.**
+> - `TrainingsAdmin.jsx` (~line 26) sources its Trainer column from `user_profiles:created_by ( full_name )`, and line 63 gates `can_manage` on `isSuperAdmin || created_by === user.id`.
+> - `can_admin_bsc_event(uuid)` for `kind='standalone_training'` is `is_super_admin() OR e.created_by = auth.uid()` — so `created_by` is doing double duty as *both* "who is the trainer" and "who may manage this."
+> - The Edit modal's Trainer tab says outright: *"You are the trainer for this training. Co-trainer support is deferred to V2."*
+>
+> **This is that V2.** The original standalone spec predicted the shape: "would mirror `collaborative_trainers` via a new `event_trainers` table."
+
+#### Item 1: `event_trainers` table
+
+Mirror the proven `collaborative_trainers` pattern.
+
+```sql
+CREATE TABLE public.event_trainers (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  bsc_event_id uuid NOT NULL REFERENCES bsc_events(id) ON DELETE CASCADE,
+  user_id uuid NOT NULL REFERENCES user_profiles(id) ON DELETE CASCADE,
+  is_lead boolean NOT NULL DEFAULT false,
+  sort_order integer,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  UNIQUE (bsc_event_id, user_id)
+);
+```
+
+- **Unique partial index enforcing one lead per event:** `CREATE UNIQUE INDEX ... ON event_trainers (bsc_event_id) WHERE is_lead = true;` — same guard `collaborative_trainers` uses for `is_coordinator`.
+- **Explicit GRANTs are mandatory** (new `public` table, per the `CLAUDE.md` 2026-10-30 Data API section). This table is admin-only and the public hub must read it through a token-scoped path, so: `GRANT SELECT, INSERT, UPDATE, DELETE ON public.event_trainers TO authenticated; GRANT ALL ON public.event_trainers TO service_role;` and **nothing to `anon`**.
+- RLS: manage rows where `can_admin_bsc_event(bsc_event_id)` (after item 2's change, so assigned trainers can manage their own roster).
+
+**Invariant: every standalone training has at least one trainer.** Achieve it without fallback logic:
+- **Backfill:** insert the current `created_by` as `is_lead = true` for both existing standalone trainings (`6ab3e622-...` Aug 7, `7e4159e5-...` Sep 14 — both created by Josh).
+- **On create:** auto-insert the creator as lead trainer.
+- Then every reader can trust `event_trainers` and **no `created_by` fallback is needed anywhere.** Do not leave a silent fallback in the hub; it hides missing data.
+- **UI guard:** refuse to remove the last remaining trainer (a training with a hub and no trainer renders an empty card to participants). Removing the lead should require promoting someone else to lead first, or auto-promote the next by `sort_order`.
+
+#### Item 2: `created_by` keeps ownership; trainers gain management
+
+**Do NOT repurpose `created_by`.** It is the audit/ownership field and it is what `can_admin_bsc_event` uses. Extend the standalone branch to also admit assigned trainers:
+
+```sql
+WHEN e.kind = 'standalone_training' THEN
+  public.is_super_admin()
+  OR e.created_by = auth.uid()
+  OR EXISTS (SELECT 1 FROM event_trainers et
+             WHERE et.bsc_event_id = e.id AND et.user_id = auth.uid())
+```
+
+- Keep it `STABLE SECURITY DEFINER` with the pinned `search_path`, exactly as now.
+- Keep the `created_by` clause: it prevents a `trainer_admin` creator from locking themselves out by removing themselves as trainer.
+- **The collaborative branch must not change at all.**
+- After deploying, re-verify the whole standalone chain still authorizes correctly, since every standalone RLS policy routes through this one function.
+
+#### Item 3: Trainer assignment UI (replaces the "deferred to V2" copy)
+
+On the Edit Standalone Training modal's **Trainer** tab (currently static text plus an "Add bio" button):
+
+- List the assigned trainers with name, email, a **Lead** badge, remove buttons, and reordering if cheap.
+- **Add trainer** picker: users with role `trainer_admin` or `super_admin`. Show `full_name` and email so two similar names are distinguishable.
+- **Set lead** control (radio-style, since only one lead is allowed).
+- Replace the *"You are the trainer for this training. Co-trainer support is deferred to V2."* line with real copy explaining that assigned trainers appear on the participant hub and can manage the training.
+- **Bio matters here and Tracy has none.** Keep the "Add bio" affordance, but make clear it edits **that trainer's own** `user_profiles.bio`. A trainer_admin editing *another* user's bio is a permissions question — if `user_profiles` RLS does not already allow it, **do not widen RLS to make it work**; instead show the missing-bio state and let Josh ask Tracy to write her own. Say which way you found it.
+- Check the returned row count on writes: an RLS refusal comes back as **0 rows, not an error** (the same trap already documented for the hub toggle).
+
+#### Item 4: The public hub renders assigned trainers
+
+`TrainingHub.jsx`:
+
+- Read from `event_trainers` (lead first, then `sort_order`, then name) instead of `created_by`. Route it through the **token-scoped** path the hub already uses; **do not grant `anon` access to `event_trainers`**.
+- Support **multiple** trainers: render the "👤 Trainer" card as a list, and pluralize the heading when there is more than one.
+- 🔒 **Privacy fix:** line ~150 is `{trainer.full_name || trainer.email}`, which prints a staff **email address on a public page** whenever a name is missing. Remove the email fallback — show the name, or omit the entry. Never expose an email on the hub.
+- A trainer with no bio must render cleanly (name only, no empty block). The existing `trainer.bio &&` guard is correct; keep it.
+
+#### Item 5: `TrainingsAdmin` list
+
+- The **Trainer** column should show assigned trainers (lead first; "+N" if several) rather than `user_profiles:created_by ( full_name )`.
+- `can_manage` (line ~63) should be `isSuperAdmin || created_by === user.id || <user is an assigned trainer>`, matching item 2 so the UI and RLS agree. A button that renders but fails server-side is worse than a hidden one.
+
+#### Item 6: 🐛 Standalone trainings are missing from the Trainer Dashboard entirely
+
+Verified: `TrainerDashboard.jsx` contains **no reference to `standalone_training` or `kind`**. It only surfaces collaborative work. So even as creator, Tracy would not see her 2026-09-14 training on her own dashboard — she would have to navigate to `/admin/trainings` and find it.
+
+- Add the trainer's **assigned standalone trainings** to the Trainer Dashboard alongside their collaboratives: title, date(s), mode, registered count, and a link to Manage.
+- Include them in the upcoming-events window (4 weeks, per the earlier agreed tuning) so an imminent training actually surfaces.
+- Scope by `event_trainers`, not `created_by`, so an assigned trainer sees trainings someone else set up for them. That is exactly Tracy's case.
+
+#### Verification — use Tracy's real training
+
+- Assign **Tracy as lead trainer** on `7e4159e5-40a3-4dd2-a6eb-6f6cc21186c9` and **remove Josh**. Then confirm:
+  - The **public hub** (hub_enabled is already true) shows Tracy, not Josh, and shows **no email address** anywhere.
+  - Tracy can open and manage that training (item 2's RLS change) while **not** being its creator.
+  - It appears on **Tracy's** Trainer Dashboard.
+  - Josh still has full access as super_admin.
+- Add a second trainer temporarily and confirm the hub lists both with the lead first, then remove them.
+- Confirm the last-trainer guard refuses to leave the training with zero trainers.
+- Confirm the backfill covered **both** existing standalone trainings.
+- Confirm the **Aug 7 training is unaffected** (hub_enabled is false there, but its trainer row should still exist) and that **collaborative events are completely untouched**.
+- ⬜ Admin-gated: full click-through still needs the non-super_admin test accounts. State clearly what was and was not click-verified.
+
+#### Note for Josh, not a code task
+
+Tracy has **no bio** (`user_profiles.bio` is empty). The hub renders a trainer's bio when present, so once she is assigned, her card will show her name alone until she writes one. Worth asking her for a short bio before 2026-09-14.
