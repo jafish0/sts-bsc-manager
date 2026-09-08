@@ -256,7 +256,9 @@ A bidirectional scratchpad shared between Josh, Claude Cowork (Claude desktop ch
 
 ~~READY: 🔴 Resend-invite destroys trainer assignments + misleading "expired link" copy (2 items) — see the LAST draft at the bottom. Found live: Tracy's "expired" invite was read as a consumed single-use token (she accepted and signed in 2026-09-04; password set) — **that read was wrong; it was the scanner.** The *second* half of that draft stands on its own and shipped: `resend: true` **deletes the user**, and `collaborative_trainers` + `event_trainers` both `ON DELETE CASCADE` from `user_profiles` (verified), so Resend on an assigned trainer would silently remove their lead-trainer row. The guard now refuses, so Resend is safe.~~
 
-**READY: 🔴 Microsoft Safe Links consumes every invite/reset token before the human clicks (4 items) — see the LAST draft at the bottom.** The real root cause, verified from live `auth.sessions` + `edge_logs` and an RDAP lookup. Affects **every** staff invite and password reset to a `@uky.edu` address; participant registration is unaffected (no accounts). Fix is to stop verifying on page load: move the email templates to `token_hash` and call `verifyOtp` on **password submit**, not in a `useEffect`. Also: `AuthContext.jsx:76-79` stamps `invite_accepted_at` on page load, so that column currently cannot be trusted. ⚠️ **Tracy is lead trainer on the 2026-09-14 training and still has no password** — she cannot be onboarded by email until this ships.
+**READY: 🔴 TWO drafts at the bottom, both from the same root cause (side effects on a plain `GET`). Ship together.** (a) *Microsoft Safe Links consumes every invite/reset token before the human clicks* (4 items) and (b) *Three public links write on page load, so a scanner can trigger them* (4 items). The real root cause, verified from live `auth.sessions` + `edge_logs` and an RDAP lookup. Affects **every** staff invite and password reset to a `@uky.edu` address; participant registration is unaffected (no accounts). Fix is to stop verifying on page load: move the email templates to `token_hash` and call `verifyOtp` on **password submit**, not in a `useEffect`. Also: `AuthContext.jsx:76-79` stamps `invite_accepted_at` on page load, so that column currently cannot be trusted. ⚠️ **Tracy is lead trainer on the 2026-09-14 training and still has no password** — she cannot be onboarded by email until this ships.
+
+**Scope of (b):** `/unsubscribe/:token` silently unsubscribes and `/rsvp/:token?status=not_attending` fabricates a decline **and** suppresses that person's future reminders, both on page load. Verified undamaged so far (0 unsubscribes, 0 declines); the first real reminder run is **AWARE 2026-10-27, 44 registrants**, which is the deadline. `/cancel-registration/:token` is already correct and is the reference implementation. **Josh wants one-click RSVP preserved**, so the fix is asymmetric: `attending` keeps auto-applying, only `not_attending` needs a click. ⬜ Josh also has a duplicate `tracy.clemans@uky.edu` account to delete (details at the end of draft b).
 
 **✅ QUEUE IS CLEAR (2026-09-01) — all three drafts shipped.** `event_trainers` (`d04a9d3`), TIPE roster + TIPE-only hub (`f4c4845`), and the 5 PDF QA defects (`92d0c06`). Plus Josh's 2026-09-01 feedback batch (`962d951`), which Cowork was not involved in.
 
@@ -2115,3 +2117,80 @@ Two further notes from the live logs, both useful to whoever implements this:
 #### Out of band, before 2026-09-14
 
 Tracy is lead trainer on the **2026-09-14** training and still has no password. She cannot reliably be onboarded by email until item 1 ships, because every link sent to her is detonated on delivery. Setting a temporary password server-side is the only path that does not route a single-use token through Microsoft's scanner. That is Josh's decision to make, not Code's — it is noted here so the sequencing is visible, not as a task.
+---
+
+### 2026-09-08: 🔴 Three public links perform a write on page load, so a mail scanner can trigger them (4 items) — READY
+
+> **Same root cause as the Safe Links draft above, different blast radius.** That draft is about a token being *spent* by a scanner. This one is about a scanner *performing the action*. Both come from the same mistake: putting a side effect on a plain `GET`.
+>
+> **This is not theoretical here.** The scanner that ate Tracy's invite tokens demonstrably renders our pages and executes their JavaScript: it loaded `/set-password` and then called `/auth/v1/user` two seconds later, from `135.232.20.35` (Microsoft, verified by RDAP). Any page whose `useEffect` writes will therefore be triggered by it.
+>
+> **Nothing is damaged yet, and there is a clean runway.** Verified on live data 2026-09-08: **0** rows in `user_profiles` with `notifications_unsubscribed_at` set, **0** `event_rsvps` rows with `status = 'not_attending'`, **1** `event_rsvps` row in total. No reminder email has gone to a real cohort. The first is **AWARE Year 4 TIPE LC, first session 2026-10-27, 44 registrants** — that is the deadline, and it is the moment this stops being latent.
+
+#### Item 1: `/unsubscribe/:token` must require a click. No design question here.
+
+`frontend/src/pages/UnsubscribePage.jsx:33-43` stamps `notifications_unsubscribed_at` inside the `useEffect`, with no interaction:
+
+```js
+if (!p.notifications_unsubscribed_at) {
+  const { data: updated } = await supabase
+    .from('user_profiles')
+    .update({ notifications_unsubscribed_at: new Date().toISOString() })
+    .eq('id', p.id)
+```
+
+A scanner that renders this page unsubscribes that person from every reminder the app sends. It is silent, it persists, and the person's only symptom is that reminders quietly stop.
+
+- **Fix:** the `useEffect` looks up the profile and renders only. Show who they are and an **"Unsubscribe me"** button; write on the click. Keep the existing "Resubscribe me" affordance.
+- If they are already unsubscribed, show that state with the resubscribe option, exactly as now.
+- Worth knowing: the email standard for one-click unsubscribe (RFC 8058) requires `POST` for precisely this reason. We are not implementing that header here, but it is the same lesson.
+
+#### Item 2: `/rsvp/:token?status=…` — keep one-click, but make it asymmetric
+
+**Josh's constraint, honor it: one-click RSVP straight from the email stays.** It is the point of the feature and it is worth protecting. But the two possible errors are not equally expensive, so treat them differently.
+
+`frontend/src/pages/RsvpPage.jsx:76-79` currently persists whatever `?status=` says, inside the `useEffect`:
+
+```js
+if (requestedStatus && (requestedStatus === 'attending' || requestedStatus === 'not_attending')) {
+  if (r.status !== requestedStatus) {
+    await persist(requestedStatus, r.rsvp_id)
+  }
+```
+
+- **`?status=attending` keeps auto-applying on load. Do not change it.** One click from the email, done, same as today. A scanner-induced false *attending* is visible in the roster and self-correcting.
+- **`?status=not_attending` renders a confirmation instead of writing.** Show "You're marking yourself as unable to attend" and a button. One extra click, only on the decline path.
+- **Why asymmetric:** `supabase/functions/send-event-reminder/index.ts` (~line 394) filters out recipients who have RSVP'd `not_attending`, so a single scanner fetch of the decline URL both fabricates a decline and **silences every future reminder to that person for the rest of the cycle.** That is the same invisible-lockout failure as item 1, reached by a different route.
+- **Belt as well as suspenders:** stop letting an unconfirmed status suppress reminders. Either drop the `not_attending` filter from the reminder query, or only suppress for a status the person confirmed on the page (a nullable `confirmed_at`, or a `source` column distinguishing `email_link` from `page_click`). Pick one and say which. With this in place, a wrong RSVP is only ever a wrong number in a roster — visible, correctable — never a silent unsubscribe.
+- After any auto-apply, the page must state plainly what was recorded and offer the opposite choice, so a human who lands there after a scanner already fired can see and fix it. The page already tracks `savedStatus` and renders buttons, so this is mostly copy.
+
+#### Item 3: `/cancel-registration/:token` is already correct. Do not "fix" it.
+
+`CancelRegistrationPage.jsx` is the reference implementation and it is in this same codebase: its `useEffect` only *looks up* the registration, and cancelling requires clicking **"Yes, cancel my registration."** A scanner rendering it does nothing. Copy this shape for items 1 and 2 rather than inventing a new one.
+
+Called out explicitly because a future pass that "makes the token pages consistent" could easily consistency-fix this one in the wrong direction.
+
+#### Item 4: write the rule down in `CLAUDE.md`
+
+Add to the Database Gotchas / conventions section, in the same spirit as the existing storage-RLS trap note:
+
+> **⚠️ No public token link may write on page load.** Any `/:token` page reachable from an email (`/unsubscribe`, `/rsvp`, `/cancel-registration`, `/set-password`, session sign-in) must treat a page load as a **read**. Mail security scanners fetch and fully render these URLs before the human ever sees them, and they execute JavaScript — verified against Microsoft's scanner on 2026-09-08. Writes belong behind a click, or behind typed input for anything credential-shaped. `CancelRegistrationPage.jsx` is the reference implementation.
+
+That one paragraph is the durable fix. Items 1 and 2 are this session's instances of it.
+
+#### Verification
+
+- Load `/unsubscribe/:token` for a test profile, do not click anything, then confirm `notifications_unsubscribed_at` is **still null**. Then click and confirm it sets.
+- Load `/rsvp/:token?status=not_attending`, do not click, confirm `event_rsvps.status` is **unchanged**. Then confirm the click path writes.
+- Load `/rsvp/:token?status=attending` and confirm it **still writes on load** — this is the behavior we are deliberately keeping, so a regression here is as much a failure as the bugs.
+- Confirm a recipient with an unconfirmed `not_attending` still receives reminders, per whichever option was chosen in item 2.
+- Re-run the live counts afterward: unsubscribed profiles and `not_attending` RSVPs should both still be **0** until a human does it on purpose.
+- Check all three pages at **360px** — every one of these is opened on a phone from an email.
+
+#### ⬜ Josh's action, unrelated to the code: delete the duplicate Tracy account
+
+`tracy.clemans@uky.edu` (`daeecf52-a2c0-44b2-b009-2ef3ea13cd32`, `trainer_admin`, invited 2026-09-08 17:28) is a duplicate created while troubleshooting — that address and her Link Blue ID `taclem1@uky.edu` deliver to the same inbox. It holds **1 `collaborative_trainers` row on AWARE Year 4 TIPE LC** and **0 `event_trainers` rows**. Both of its sessions came from Microsoft ranges (`135.232.20.49`, `74.179.68.9`, both RDAP-verified MSFT), so no human has ever used it.
+
+Deleting the auth user is clean and fully cascades, verified in `pg_constraint`: `user_profiles_id_fkey` is `ON DELETE CASCADE` from `auth.users`, and `collaborative_trainers_user_id_fkey` is `ON DELETE CASCADE` from `user_profiles`. **Every other FK pointing at `user_profiles` is `ON DELETE SET NULL`**, so nothing else is destroyed. Her real account (`86cd069b-604b-4298-9795-1cf68a2d6b57`) holds the AWARE row and **LEAD on the 2026-09-14 training** independently and is untouched by this.
+
+Do it before the AWARE roster or the training hub is shown to anyone, since it currently renders two Tracys. Also note the duplicate's invite landed in her real inbox, so had she clicked *that* link she would have set up the ghost account instead.
