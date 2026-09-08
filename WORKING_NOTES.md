@@ -244,6 +244,8 @@ A bidirectional scratchpad shared between Josh, Claude Cowork (Claude desktop ch
 
 **✅ ALL FOUR QUEUED DRAFTS SHIPPED 2026-08-26** (`ac5c4d3` TIPE teamless hub, `264ea9b` anon-UPDATE retired, `d8f4d8e` scale direction + contradiction flagging, `d29e5e8` evaluation PDF restyle).
 
+**READY: 🔴 Resend-invite destroys trainer assignments + misleading "expired link" copy (2 items) — see the LAST draft at the bottom.** Found live: Tracy's "expired" invite was simply a **consumed single-use token** (she accepted and signed in 2026-09-04; password set, assignments intact) — she needed a **password reset**, which the app already supports. But diagnosing it exposed that `invite-team-leader`'s `resend: true` path **deletes the user**, and `collaborative_trainers` + `event_trainers` both `ON DELETE CASCADE` from `user_profiles` (verified) — so clicking Resend on Tracy would have silently removed her **lead trainer** row on the **2026-09-14** training. ⚠️ **Do not click Resend on an accepted staff account until this ships.**
+
 **✅ QUEUE IS CLEAR — all three drafts shipped.** `event_trainers` (`d04a9d3`), TIPE roster + TIPE-only hub (`f4c4845`), and the 5 PDF QA defects (`92d0c06`). Plus Josh's 2026-09-01 feedback batch (`962d951`), which Cowork was not involved in.
 
 ⬜ **Open, not blocking:** (1) the **two non-super_admin test accounts** — still the single highest-leverage unblock, since admin-gated UI across every recent batch ships unverified without them; (2) **supervisor self-rating PDF** downloads but its contents have never been reviewed; (3) **QA seed data** still in the live DB (tagged `QA Seed` / `qaseed01` / notes prefixed `QA seed:`, all on demo collaboratives) — Cowork removes it on request, but the seeded self-rating is the only data backing item 2; (4) still **blocked on Ginny**: the data-cleaning ruleset and the STSI-OA/STSS percentile basis.
@@ -1933,3 +1935,71 @@ Verified: `TrainerDashboard.jsx` contains **no reference to `standalone_training
 #### Note for Josh, not a code task
 
 Tracy has **no bio** (`user_profiles.bio` is empty). The hub renders a trainer's bio when present, so once she is assigned, her card will show her name alone until she writes one. Worth asking her for a short bio before 2026-09-14.
+
+---
+
+### 2026-09-08: 🔴 Resend-invite silently destroys trainer assignments + "expired link" is misleading — READY
+
+> **Found in live use.** Josh met with Tracy Clemans; she clicked her invite email and got **"link expired."** He resent it and she got the same. Cowork diagnosed it against the live DB before anything was changed, and **there is no account problem at all:**
+>
+> | field | value |
+> |---|---|
+> | `email_confirmed_at` | 2026-09-04 18:51:59 |
+> | `last_sign_in_at` | 2026-09-04 18:51:59 |
+> | password set | **yes** |
+> | `invite_accepted_at` | 2026-09-04 18:52:03 |
+> | pending confirmation/recovery tokens | none |
+> | assignments | 1 collaborative, **lead trainer** on the 2026-09-14 training |
+>
+> **She completed the invite and signed in on 2026-09-04.** Supabase invite tokens are **single-use**, so re-clicking that same email correctly reports expired. The real need was a **password reset**, which the app already supports end to end (`Login.jsx` has a working forgot-password flow; `App.jsx` line ~63 already catches `type=recovery` in the hash and routes to `/set-password`). Nothing was created and nothing was changed.
+>
+> Two things to fix so this doesn't bite someone worse next time.
+
+#### Item 1: 🔴 `resend: true` deletes the user, and that now cascades away trainer assignments
+
+`invite-team-leader/index.ts` (~line 113):
+
+```js
+if (existingUser && resend) {
+  await adminClient.from('user_profiles').delete().eq('id', existingUser.id)
+  await adminClient.auth.admin.deleteUser(existingUser.id)
+}
+```
+
+**Verified in `pg_constraint`** — both assignment tables reference `user_profiles(id)` with `ON DELETE CASCADE`:
+
+| table | constraint | on delete |
+|---|---|---|
+| `collaborative_trainers` | `collaborative_trainers_user_id_fkey` | **CASCADE** |
+| `event_trainers` | `event_trainers_user_id_fkey` | **CASCADE** |
+
+So resending an invite to an existing staff member **silently deletes their collaborative assignments and their standalone-training trainer rows.** In Tracy's case that would have removed her **lead trainer** row on the training that runs **2026-09-14**, and the participant hub would have fallen back to whatever the `event_trainers` triggers produced next. Nobody would have been notified. This was a latent footgun before `event_trainers` existed; it is now a live one.
+
+It is also plainly the wrong behavior for the reported situation: a user who already **accepted** their invite and has a password does not need re-inviting, they need a reset.
+
+**Fix, in order of importance:**
+
+1. **Refuse to resend to a user who has already accepted.** If `invite_accepted_at IS NOT NULL` (or the auth user has a password / a `last_sign_in_at`), return a clear error instead of deleting: this person already has an account, send them a password reset. Surface that message in the admin UI, not just the function response.
+2. **Never delete a user who holds assignments.** Before the destructive path, count `collaborative_trainers` + `event_trainers` rows. If any exist, refuse and say so. Deleting a trainer mid-cohort must be deliberate, not a side effect of clicking Resend.
+3. **If a genuine re-invite of an unaccepted user is still needed**, prefer re-issuing the invite **without deleting the auth user** (Supabase can generate a fresh invite link for an existing unconfirmed user). If deletion is truly unavoidable for that path, capture the assignment rows first and re-create them against the new user id **in the same transaction**, and say in the ship summary which approach you took.
+4. Add an **admin-facing "Send password reset"** action next to Resend on the staff list, so the right tool is available at the moment someone reports they can't get in. It should call the same `resetPasswordForEmail` the login page already uses.
+
+#### Item 2: The "expired link" message is technically true and practically useless
+
+A consumed single-use invite renders as expired, which sends the user (and Josh) looking for a broken invite rather than the password reset they actually need.
+
+- On `/set-password`, when the hash token is missing, invalid or already used, replace the bare "expired" wording with something actionable: that the link may already have been used, and that if they have set a password before they should sign in or use **Forgot password** on the login page, with a link straight to it.
+- Do **not** claim to distinguish "expired" from "already used" unless Supabase actually tells you which — the two arrive the same way. Word it to cover both honestly rather than guessing at the cause.
+- Keep it short and non-alarming. This is the first screen a new CTAC staff member sees when something goes wrong.
+
+#### Verification
+
+- Attempt a resend against an **already-accepted** staff account (Tracy is the real case, but use a throwaway) and confirm it is **refused** and that her `collaborative_trainers` and `event_trainers` rows are **still present** afterwards. This is the assertion that matters.
+- Confirm a resend to a genuinely **unaccepted** invite still works.
+- Confirm the new password-reset action sends mail and that the link lands on `/set-password` (the `type=recovery` path already exists, so this should need no routing change).
+- Load `/set-password` with a junk hash and confirm the new copy appears.
+- ⬜ Admin-gated: the staff-list UI still needs the test accounts for click-through.
+
+#### Note for Josh, no action needed
+
+Tracy's account is fine and her lead-trainer assignment is intact. The immediate resolution is the existing forgot-password flow at `bsc.ctac.app/login`. **Do not click Resend on her** until item 1 ships.
