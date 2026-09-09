@@ -2236,11 +2236,11 @@ Deleting the auth user is clean and fully cascades, verified in `pg_constraint`:
 Do it before the AWARE roster or the training hub is shown to anyone, since it currently renders two Tracys. Also note the duplicate's invite landed in her real inbox, so had she clicked *that* link she would have set up the ghost account instead.
 ---
 
-**READY: THREE drafts at the bottom. Suggested order: (1) `f297b41` items 1-3 🔴 security, shipped together with (2) the role/bios/photos draft, then (3) the "CTAC App" rename.**
+**✅ ALL THREE PRIOR DRAFTS SHIPPED 2026-09-09** (`ddf09df` security + the 11-item role/bios/photos batch, `93d02b8` the CTAC App rename). Superseded queue note follows the new one.
 
-- **🔴 `f297b41` — `user_profiles` privilege escalation + two silent no-op writes.** Any authenticated user can currently set their own `role` to `super_admin` (proven with a rolled-back probe), and "Remove from team" has never worked and reports success. ⚠️ **Items 4 and 5 of that draft are SUPERSEDED** by the newer bios design below — do not build both.
-- **Role model locked + trainer_admin scoping + Forum card + bios/photos (option B) + 2 UI items (11 items).** From a 2026-09-09 design conversation with Josh plus five in-app feedback entries. Contains the live role changes made today, and a ready-made verification matrix.
-- **"CTAC App" rename**, scoped surface by surface, with an explicit warning against find-and-replace. Do the escalation one first: **any authenticated user can currently set their own `role` to `super_admin`** (proven with a rolled-back probe), and "Remove from team" has never worked and reports success. Both touch the same `user_profiles` grants that Josh's bio request needs, so they ship together.
+**READY: 🔴 Trainers cannot add or delete materials on their own standalone trainings (3 items) — see the LAST draft at the bottom.** Reported live by Tracy from the **2026-09-14** training she leads, 5 days out. All three write policies on `bsc_event_documents` gate on `is_admin_for_collaborative(collaborative_id)`, and standalone trainings have `collaborative_id = NULL`, which is **true for a super_admin and false for a trainer_admin** — so Josh could do it and she could not. `can_admin_bsc_event` already returns true for her and simply is not wired in. Also: she was shown the raw Postgres RLS string.
+
+~~READY: THREE drafts at the bottom. Suggested order: (1) `f297b41` items 1-3 🔴 security, shipped together with (2) the role/bios/photos draft, then (3) the "CTAC App" rename. | 🔴 `f297b41` — `user_profiles` privilege escalation + two silent no-op writes. Any authenticated user can currently set their own `role` to `super_admin` (proven with a rolled-back probe), and "Remove from team" has never worked and reports success. ⚠️ Items 4 and 5 of that draft are SUPERSEDED by the newer bios design below — do not build both. | Role model locked + trainer_admin scoping + Forum card + bios/photos (option B) + 2 UI items (11 items). From a 2026-09-09 design conversation with Josh plus five in-app feedback entries. Contains the live role changes made today, and a ready-made verification matrix. | "CTAC App" rename, scoped surface by surface, with an explicit warning against find-and-replace. Do the escalation one first: any authenticated user can currently set their own `role` to `super_admin` (proven with a rolled-back probe), and "Remove from team" has never worked and reports success. Both touch the same `user_profiles` grants that Josh's bio request needs, so they ship together.~~
 
 ### 2026-09-09: One name for the app: "CTAC App" (small, but do it exactly as scoped) — ✅ SHIPPED 2026-09-09 (APP_NAME in constants.js; 3 edge functions redeployed; PRODID left alone) — spec kept for reference
 
@@ -2589,3 +2589,81 @@ And they do not line up: only **Ginny** matches by email. Josh's directory row i
 **Section E:** collapse state survives a reload and is per collaborative; a fresh browser defaults to collapsed; the count is right. For E2, set a hub display name and confirm the public hub changes while the collaborative's name is untouched everywhere else.
 
 **Click-through verification is available now.** `CLAUDE.md` has an `agency_admin` and a `team_member` test account as of today, and three real trainer_admins exist. Very little in this draft should ship with "⬜ admin-gated, deferred to Josh."
+---
+
+### 2026-09-09: 🔴 Trainers cannot add or delete materials on their own standalone trainings (3 items) — READY
+
+> **Reported by Tracy Clemans**, from the 2026-09-14 training she is LEAD trainer on, trying to delete a handout and upload the correct one:
+>
+> > "I tried to upload it and it says *upload failed: new row violates row-level security policy for table `bsc_event_documents`*"
+>
+> Josh could do the same operation without trouble, and wondered whether the file came from the UK shared drive. **It is not the shared drive and not the file.** That message is Postgres refusing the row, and the source of the file cannot produce it. **Josh succeeded for the same reason Tracy failed: he is a super_admin and she is not.**
+
+#### Root cause: the document policies never learned about standalone trainings
+
+All three write policies on `bsc_event_documents` gate on the collaborative:
+
+```sql
+is_admin_for_collaborative(
+  (SELECT collaborative_id FROM bsc_events WHERE id = bsc_event_documents.event_id)
+)
+```
+
+**Standalone trainings have `collaborative_id = NULL`** (verified: all 4 standalone rows are NULL, all 31 collaborative rows are non-NULL, no malformed rows in the table). And `is_admin_for_collaborative(NULL)` short-circuits on role: **true for a super_admin regardless of the argument, false for a trainer_admin**. Hence the asymmetry.
+
+**Verified acting as Tracy** in a rolled-back transaction:
+
+```
+is_admin_for_collaborative(null)                        → false   ← the gate the policies use
+can_admin_bsc_event('7e4159e5-40a3-4dd2-a6eb-6f6cc21186c9') → true    ← the gate built for this
+```
+
+`can_admin_bsc_event` is the helper `d04a9d3` added precisely for standalone trainings, and **these three policies predate it and were never migrated.** So `event_trainers` gave assigned trainers admin rights over the training itself while its documents stayed gated on a collaborative that does not exist.
+
+This affects **DELETE and UPDATE as well as INSERT**, which is why Tracy could neither remove the wrong handout nor add the right one.
+
+#### Item 1: point the three write policies at `can_admin_bsc_event(event_id)`
+
+Replace the `is_admin_for_collaborative((SELECT collaborative_id ...))` expression in `Admins can insert event documents` (WITH CHECK), `Admins can update event documents` (USING) and `Admins can delete event documents` (USING) with `can_admin_bsc_event(event_id)`.
+
+**This is behaviour-preserving for every existing row, and I checked rather than assuming.** The function's non-standalone branch is:
+
+```sql
+ELSE e.collaborative_id IS NOT NULL AND public.is_admin_for_collaborative(e.collaborative_id)
+```
+
+which is the current expression plus a NULL guard. The only behavioural difference is that a super_admin can no longer write documents to a non-standalone event with a NULL `collaborative_id`, and **no such row exists** (31 collaborative events, all with a collaborative). For standalone trainings the function admits super_admin, the creator, or any assigned trainer, which is exactly the intended rule.
+
+Keep the SELECT policies as they are. Public read for standalone trainings is already handled by `Public can read standalone training documents`, gated on `kind = 'standalone_training' AND hub_token IS NOT NULL`.
+
+#### Item 2: the error she saw was a raw Postgres string
+
+`EventMaterialsManager.jsx` surfaces `insErr` directly, so a non-technical user got `new row violates row-level security policy for table "bsc_event_documents"`. Tracy is the Project Operations Manager, not a developer, and her email opened with "I am so sorry. LORD." over what was our bug.
+
+- Catch the RLS refusal (Postgres `42501`) and show something human: that she does not have permission to change materials on this training, and who to contact. Keep the raw error to `console.error`.
+- Do the same on the delete path.
+- **This is a general class, not one message.** Any admin-gated write that can be refused by RLS should not print the policy failure to the user. Worth a sweep of the other upload and delete handlers in the same pass, and a line in `CLAUDE.md` alongside the existing `.update()`-without-`.select()` note.
+
+#### Item 3 (secondary, not what she hit): the storage policies are looser than the table
+
+The `event-documents` bucket policies are role-only:
+
+```sql
+(bucket_id = 'event-documents') AND profile_is_trainer_admin()
+```
+
+for both INSERT and DELETE. So **any** trainer_admin can upload to or delete from **any** event's folder, including events they have nothing to do with. That is looser than the table policy this draft is tightening, and it means the table is the only thing actually scoping materials.
+
+Consider gating the storage policies on `can_admin_bsc_event` too, deriving the event id from the first path segment (paths are `${eventId}/${uuid}.${ext}`, set in `EventMaterialsManager.jsx:66`). **⬜ Josh's call on whether to do it now** — exposure is modest since paths are keyed by event id and every trainer_admin is CTAC staff, and it is a different change from the bug fix. Do not silently skip it either way; say which you did.
+
+#### Note: no orphaned files, and the client deserves credit
+
+`EventMaterialsManager.jsx:67-84` uploads to storage, inserts the row, and **on insert failure removes the storage object** (line 82) before rethrowing. So Tracy's storage upload succeeded, the row was refused, and the file was correctly cleaned up. Confirmed: the `event-documents` bucket holds exactly 2 objects, both Josh's, both referenced by rows. **Nothing to clean up.** Preserve that rollback when touching this file.
+
+#### Verification
+
+- **The assertion:** acting as Tracy (`86cd069b-604b-4298-9795-1cf68a2d6b57`), INSERT, UPDATE and DELETE against `bsc_event_documents` for event `7e4159e5-40a3-4dd2-a6eb-6f6cc21186c9` must all succeed. Probe it in a rolled-back transaction with `set local role authenticated` and `request.jwt.claims`, the same way this bug was confirmed.
+- Confirm a trainer_admin **not** assigned to that training is still refused. Alex (`893acb62-5fff-497b-b67f-1c818c4b8255`) is a good negative case: trainer_admin, STS-BSC Demo only, no `event_trainers` rows.
+- Confirm collaborative-event documents are unchanged: a super_admin and an assigned trainer can still write, others cannot. Use one of the 31 collaborative events.
+- Confirm the public training hub still reads documents for a hub-enabled standalone training.
+- Then have **Tracy** retry the real thing on the 2026-09-14 training. Her training is in 5 days and she is the one who needs those handouts posted, so a live confirmation from her matters more than a probe here.
