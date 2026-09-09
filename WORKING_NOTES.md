@@ -2223,6 +2223,8 @@ Deleting the auth user is clean and fully cascades, verified in `pg_constraint`:
 Do it before the AWARE roster or the training hub is shown to anyone, since it currently renders two Tracys. Also note the duplicate's invite landed in her real inbox, so had she clicked *that* link she would have set up the ghost account instead.
 ---
 
+**READY x2 at the bottom: 🔴 `user_profiles` privilege escalation + trainer bios/photos (5 items, from Josh's 2026-09-09 in-app feedback plus three bugs found while verifying it), and the "CTAC App" rename.** Do the escalation one first: **any authenticated user can currently set their own `role` to `super_admin`** (proven with a rolled-back probe), and "Remove from team" has never worked and reports success. Both touch the same `user_profiles` grants that Josh's bio request needs, so they ship together.
+
 ### 2026-09-09: One name for the app: "CTAC App" (small, but do it exactly as scoped) — READY
 
 > **Josh's decision, 2026-09-09: the app is called "CTAC App".** Both Supabase auth email templates already say it (he edited them in the dashboard, so they are not in the repo and need no change). Everything else disagrees with them and with each other.
@@ -2280,3 +2282,123 @@ That is an iCalendar *producer identifier*, not user-facing copy. It is never di
 - **Click-through with the new test accounts** (`CLAUDE.md` → Test Accounts, added today): sign in as `agency_admin` and confirm the login page no longer says "Admin Portal" and the tab title reads "CTAC App". This is exactly the kind of item that used to ship unverified, and it no longer has to.
 - Redeploy the three edge functions with `verify_jwt: false` passed **explicitly**, then read the deployed source back and compare, per INFRASTRUCTURE.md. Copy-only changes still need the flag discipline.
 - Do **not** edit the two auth email templates. They already say "CTAC App" and they are dashboard config, not repo.
+---
+
+### 2026-09-09: 🔴 `user_profiles` privilege escalation + two silent-no-op writes, and trainer bios/photos (5 items) — READY
+
+> **Origin:** Josh filed three in-app feedback items on 2026-09-09, all about trainer bios and photos. Verifying them meant reading `user_profiles`' RLS and grants, and that turned up **three defects nobody reported**, one of which is a live privilege escalation. Items 1 to 3 are those. Items 4 and 5 are Josh's actual requests, which have to land *after* item 1 because they touch the same policies.
+>
+> **Do items 1 to 3 in one migration with items 4 and 5.** Touching `user_profiles` grants twice is how one of these gets half-done.
+
+#### Item 1: 🔴 Any authenticated user can make themselves a super_admin. Verified, not theorised.
+
+`user_profiles` has **exactly one** UPDATE policy, `Users can update own profile`, `USING (auth.uid() = id)` with **no `WITH CHECK`**, and **no triggers of any kind**. Meanwhile both `anon` and `authenticated` hold table-wide `UPDATE`, which expands to every column including `role`, `team_id`, `is_active` and all three `can_*` flags.
+
+A `WITH CHECK` that falls back to `USING` only stops a user reassigning the row to *someone else*. It does nothing to stop them rewriting their own row's `role`.
+
+**Proven with a rolled-back probe** against the `team_member` test account created today:
+
+```sql
+begin;
+set local role authenticated;
+set local "request.jwt.claims" = '{"sub":"322c998a-160e-49cc-955b-2dc426e4d2a4","role":"authenticated"}';
+update public.user_profiles set role = 'super_admin', can_manage_users = true
+where id = '322c998a-160e-49cc-955b-2dc426e4d2a4';
+select email, role, can_manage_users from public.user_profiles
+where id = '322c998a-160e-49cc-955b-2dc426e4d2a4';
+rollback;
+```
+
+Returned `role = super_admin`, `can_manage_users = true`. Rolled back; re-checked afterwards and the row is `team_member` with all flags false. **Any signed-in user can do this from the browser console with the app's own client.** `team_id` is equally writable, which additionally lets someone move into another team and read its data, since Teams RLS is `id = user_team_id()`.
+
+**Fix, and the column list is not guesswork.** Every client-side write to `user_profiles` was enumerated first:
+
+| file | writes | on whose row |
+|---|---|---|
+| `StandaloneTrainingModal.jsx:407` | `bio` | own |
+| `SetPassword.jsx:72` | `invite_accepted_at` | own |
+| `TeamMembers.jsx:136` | `is_active` | **someone else's** (see item 2) |
+
+`UnsubscribePage` no longer writes directly; it goes through `unsubscribe_set`. So:
+
+```sql
+REVOKE UPDATE ON public.user_profiles FROM anon, authenticated;
+
+GRANT UPDATE (full_name, phone, organization, bio, photo_path, invite_accepted_at)
+  ON public.user_profiles TO authenticated;
+```
+
+`anon` needs **no** UPDATE at all now, and `notifications_unsubscribed_at` needs no grant either because the SECURITY DEFINER RPC writes it as the owner. Everything an admin legitimately needs to change on someone else's row moves to an RPC (items 2 and 4).
+
+**Also add a BEFORE UPDATE trigger** that raises if `role`, `team_id`, `is_active`, `agency_role`, `is_senior_leader` or any `can_*` column changed and the caller is not a super_admin. Column grants alone would be sufficient today, but **the 2026-10-30 Data API grants cutover means somebody will be editing GRANTs on this table**, and a re-added blanket `GRANT UPDATE` would silently reopen this. The trigger survives that; the grant list would not.
+
+**Verification is the probe above, re-run verbatim: it must now fail.** Then confirm the three legitimate writes in the table still work.
+
+#### Item 2: 🐞 "Remove from team" has never worked, and reports success
+
+`TeamMembers.jsx:131-146`:
+
+```js
+const { error } = await supabase
+  .from('user_profiles')
+  .update({ is_active: false })
+  .eq('id', memberId)
+if (error) { ... }
+await loadMembers()
+```
+
+The only UPDATE policy is self-only, so this matches **zero rows for every caller including a super_admin**. There is no `.select()` chained, and a 0-row UPDATE is not an error, so `error` is null. The admin confirms the dialog, sees no error, the list reloads, and the member is still there and still active.
+
+- **Fix:** a SECURITY DEFINER `set_user_active(p_target uuid, p_active boolean)` that admits a super_admin, or an `agency_admin` acting on a member of their own team, and refuses otherwise. Call it from `handleDeactivate` and surface a real error.
+- While here, decide and state whether deactivating should also revoke live sessions. It currently would not, so a removed member keeps working until their token expires.
+
+#### Item 3: the pattern behind items 1, 2 and the unsubscribe bug. Write it into `CLAUDE.md`.
+
+This is the **third** instance in this codebase of "the write silently did nothing because RLS filtered it, and nothing surfaced." Unsubscribe was one. Item 2 is another. Add to Database Gotchas:
+
+> **⚠️ A Supabase `.update()` / `.delete()` without `.select()` cannot tell you RLS blocked it.** A statement that matches zero rows because of RLS returns `error: null`, indistinguishable from success. Every admin-acting-on-someone-else write must either chain `.select()` and assert a row came back, or go through a SECURITY DEFINER RPC that raises. Found three times: `/unsubscribe` (anon could not read `user_profiles` so the page always said "invalid"), `TeamMembers.handleDeactivate` (no UPDATE policy admits an admin), and the `user_profiles` escalation audit.
+
+#### Item 4: trainer bio + photo, and super_admins editing both (Josh's items 1 and 2)
+
+Josh, on `/admin/trainings`: *"I was attempting to edit the Trainer, Tracy Cleman's bio. It says 'No bio yet, only they can write it.' I would like to be able to do that as a Super_Admin as well. I am thinking it would also be cool if they could add a photo that stays with their bio."* And on `/admin/trainer`: *"Let's add a section here is the Trainer Bio. It will have their current bio and picture. The trainer should be allowed to edit that and change the picture."*
+
+**⚠️ This reverses a decision already recorded in `CLAUDE.md`** (`user_profiles` UPDATE RLS is self-only, bios are written by their owner, "don't widen it"). Code deliberately declined to widen it during the `event_trainers` work. **Josh has now asked for it, so it is a reversal, not a regression** — update the `CLAUDE.md` line rather than leaving the two in contradiction.
+
+**Do not widen the UPDATE policy to do it.** That would hand super_admins write access to `role` on every row, which is the same hole item 1 closes. Instead:
+
+- `photo_path text` column on `user_profiles` (nullable). `bio` already exists.
+- New **public** storage bucket `trainer-photos`, with a file size cap (2 MB is ample) and mime types limited to jpeg/png/webp. **Public is deliberate:** the photo is rendered on the public training hub, and a private bucket would need an anon-readable SELECT policy, which is the storage/RLS subquery trap already documented as having bitten this codebase twice. A headshot uploaded for a public page is public content. Say so in the upload UI so nobody is surprised.
+- Writes to the bucket: the owner for their own photo, plus super_admins.
+- `set_trainer_bio(p_target uuid, p_bio text, p_photo_path text)`, SECURITY DEFINER, admits **self or super_admin**, touches only those two columns. This is what both UIs call.
+- `StandaloneTrainingModal.jsx:407` switches from the direct `.update({ bio })` to this RPC, and its "only they can write it" copy becomes an editor for super_admins.
+- `training_hub_trainers(hub_token)` returns the photo path alongside name/bio/is_lead. **Never an email** — that rule stands.
+- Handle the empty states: no photo should render initials or a neutral placeholder, not a broken image. Tracy currently has **no bio and no photo**, so the empty state is the default state today.
+
+#### Item 5: Trainer Dashboard bio section, and the landing-page question
+
+The dashboard section is straightforward: a Trainer Bio card on `/admin/trainer` showing the signed-in trainer's current bio and photo, with edit and photo replace, calling the same RPC. Check it at 360px.
+
+**Josh's question, answered factually:** *"This screen here should be the default screen for a Trainer Admin Role when they sign in. Can you confirm?"*
+
+**No, it is not what happens today.** `App.jsx:81-86`:
+
+```js
+function DashboardRouter() {
+  const { profile, loading } = useAuth()
+  if (loading) return null
+  if (profile?.role === 'super_admin' || profile?.role === 'trainer_admin') return <AdminDashboard />
+  return <TeamDashboard />
+}
+```
+
+A `trainer_admin` lands on **AdminDashboard**, same as a super_admin but with cross-collab cards hidden. `/admin/trainer` is only reachable by clicking a card (`AdminDashboard.jsx:160`). Tracy is confirmed `trainer_admin` in the DB, so that is what she will see.
+
+**⬜ Decision for Josh, do not implement unilaterally.** Making `/admin/trainer` the landing page for `trainer_admin` is a one-line change to `DashboardRouter`, but the Trainer Dashboard would then have to be a hub rather than a leaf: a trainer_admin still needs to reach collaborative detail, resources management for their program, and their standalone trainings' edit modals. If those are only linked from AdminDashboard, the new landing page is a dead end and it will feel worse than the status quo. **Either add that navigation to the Trainer Dashboard in the same change, or leave the landing page alone.** Say which, and do not ship the one-liner on its own.
+
+#### Verification
+
+- **Item 1 is the one that matters:** re-run the escalation probe verbatim and confirm it fails. Then confirm the trainer bio self-edit, the `SetPassword` stamp, and the new `set_user_active` all still work.
+- Item 2: deactivate a member as a super_admin and confirm `is_active` actually flips, then as the `agency_admin` test account for their own team, then confirm a `team_member` cannot call the RPC at all.
+- Item 4: upload a photo as the trainer, then edit the same trainer's bio and photo as a super_admin, then load the public hub and confirm the photo renders and **no email appears anywhere in the page source**.
+- Confirm a trainer with no photo renders a placeholder, not a broken image.
+- **Click-through verification is now available** — `CLAUDE.md` has an `agency_admin` and a `team_member` account as of today. Item 2 in particular should not ship with "⬜ admin-gated, deferred to Josh."
