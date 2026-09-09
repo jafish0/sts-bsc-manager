@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { supabase } from '../utils/supabase'
 import { useAuth } from '../contexts/AuthContext'
 import { logDownload } from '../utils/logDownload'
+import { friendlyWriteError, noRowsMessage } from '../utils/friendlyError'
 
 const NAVY = '#0E1F56'
 const TEAL = '#00A79D'
@@ -85,7 +86,10 @@ export default function EventMaterialsManager({ eventId, canManage, onCountChang
       }
       await fetchDocuments()
     } catch (err) {
-      setUploadError(err.message || String(err))
+      // Never the raw Postgres string: a refused row read to Tracy as
+      // "upload failed: new row violates row-level security policy" over what
+      // was our bug. The storage object was already rolled back above.
+      setUploadError(friendlyWriteError(err, 'add materials to this training'))
     } finally {
       setUploading(false)
     }
@@ -106,11 +110,15 @@ export default function EventMaterialsManager({ eventId, canManage, onCountChang
     window.open(data.signedUrl, '_blank')
   }
 
+  // Row FIRST, file second. The old order removed the storage object before
+  // the row delete, so an RLS refusal on the row (0 rows, no error) left a
+  // document pointing at a file that no longer existed.
   const handleDelete = async (doc) => {
     if (!window.confirm(`Delete "${doc.file_name}"? This cannot be undone.`)) return
+    const { data, error } = await supabase.from('bsc_event_documents').delete().eq('id', doc.id).select('id')
+    if (error) { alert(friendlyWriteError(error, 'remove materials from this training')); return }
+    if (!data || data.length === 0) { alert(noRowsMessage('remove materials from this training')); return }
     await supabase.storage.from('event-documents').remove([doc.storage_path])
-    const { error } = await supabase.from('bsc_event_documents').delete().eq('id', doc.id)
-    if (error) { alert('Error deleting document: ' + error.message); return }
     fetchDocuments()
   }
 
@@ -122,10 +130,8 @@ export default function EventMaterialsManager({ eventId, canManage, onCountChang
       .select('id')
     // An RLS refusal comes back as 0 rows with no error — surface it instead
     // of letting the UI silently snap back on reload.
-    if (error || !data || data.length === 0) {
-      alert('Could not change the category' + (error ? ': ' + error.message : '.'))
-      return
-    }
+    if (error) { alert(friendlyWriteError(error, 'change materials on this training')); return }
+    if (!data || data.length === 0) { alert(noRowsMessage('change materials on this training')); return }
     fetchDocuments()
   }
 

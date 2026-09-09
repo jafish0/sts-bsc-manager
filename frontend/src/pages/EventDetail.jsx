@@ -10,6 +10,7 @@ import { PROGRAM_TYPE_COLORS } from '../config/programConfig'
 import { exportEvaluationReportPdf } from '../utils/exportEvaluationPdf'
 import { flagEvaluations } from '../utils/evaluationFlags'
 import { logDownload } from '../utils/logDownload'
+import { friendlyWriteError, noRowsMessage } from '../utils/friendlyError'
 import AgendaBanner from '../components/AgendaBanner'
 import StandaloneSessionPanel from '../components/StandaloneSessionPanel'
 import { downloadAttendanceExcel, downloadAttendanceCsv } from '../utils/exportAttendance'
@@ -395,7 +396,8 @@ export default function EventDetail() {
       }
       await fetchDocuments()
     } catch (err) {
-      setUploadError(err.message || String(err))
+      // Human message, raw error to the console (see utils/friendlyError.js).
+      setUploadError(friendlyWriteError(err, 'add materials to this event'))
     } finally {
       setUploading(false)
     }
@@ -438,11 +440,13 @@ export default function EventDetail() {
     window.open(data.signedUrl, '_blank')
   }
 
+  // Row first, file second — see EventMaterialsManager.handleDelete.
   const handleDocumentDelete = async (doc) => {
     if (!window.confirm(`Delete "${doc.file_name}"? This cannot be undone.`)) return
+    const { data, error: err } = await supabase.from('bsc_event_documents').delete().eq('id', doc.id).select('id')
+    if (err) { alert(friendlyWriteError(err, 'remove materials from this event')); return }
+    if (!data || data.length === 0) { alert(noRowsMessage('remove materials from this event')); return }
     await supabase.storage.from('event-documents').remove([doc.storage_path])
-    const { error: err } = await supabase.from('bsc_event_documents').delete().eq('id', doc.id)
-    if (err) { alert('Error deleting document'); return }
     setDocuments(prev => prev.filter(d => d.id !== doc.id))
   }
 

@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { supabase } from '../utils/supabase'
+import { friendlyWriteError, noRowsMessage } from '../utils/friendlyError'
 import { useAuth } from '../contexts/AuthContext'
 import { useProgramDomains } from '../hooks/useProgramDomains'
 import { useProgramCategories } from '../hooks/useProgramCategories'
@@ -139,10 +140,8 @@ export default function Resources() {
     // pointing at a file that no longer existed.
     const { data: deleted, error } = await supabase
       .from('resources').delete().eq('id', resource.id).select('id')
-    if (error || !deleted || deleted.length === 0) {
-      alert('Could not delete this resource' + (error ? ': ' + error.message : ' (no permission).'))
-      return
-    }
+    if (error) { alert(friendlyWriteError(error, 'delete resources in this library')); return }
+    if (!deleted || deleted.length === 0) { alert(noRowsMessage('delete resources in this library')); return }
     if (resource.file_path) {
       await supabase.storage.from('resources').remove([resource.file_path])
     }

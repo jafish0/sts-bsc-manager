@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { supabase } from '../utils/supabase'
+import { friendlyWriteError } from '../utils/friendlyError'
 import { DOMAIN_OPTIONS as FALLBACK_DOMAINS } from '../utils/constants'
 
 const NAVY = '#0E1F56'
@@ -139,8 +140,7 @@ function AddResourceModal({ onClose, onSuccess, domains: propDomains, categories
       if (onSuccess) onSuccess()
       onClose()
     } catch (err) {
-      console.error('Add resource error:', err)
-      setError(err.message || 'Failed to add resource')
+      setError(friendlyWriteError(err, isEditing ? 'edit resources in this library' : 'add resources to this library'))
     } finally {
       setLoading(false)
     }
