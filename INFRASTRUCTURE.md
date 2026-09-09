@@ -72,20 +72,32 @@ PATCH https://api.supabase.com/v1/projects/{ref}/config/auth
 
 This requires a Supabase Personal Access Token (PAT), which is **not** committed to the repo and **not** exposed via MCP. To edit programmatically, the user must generate a temporary PAT — generally not worth doing for one-off changes.
 
-**Default path for template edits:** Supabase dashboard → Authentication → Email Templates → pick template → Source view → edit → Save.
+**Default path for template edits:** Supabase dashboard → Authentication → **Emails** (under the NOTIFICATIONS heading in the left sidebar) → Templates → pick template → edit the HTML → Save. ⚠️ There is no longer an "Email Templates" nav item; Supabase moved it under "Emails" alongside the SMTP settings. This doc said the old path until 2026-09-09 and it cost a round trip.
 
-### ⬜ JOSH: switch both auth templates to `token_hash` links (Safe Links fix, 2026-09-08)
+### ✅ DONE 2026-09-09: both auth templates switched to `token_hash` links (Safe Links fix)
 
-Microsoft Defender Safe Links fetches every emailed URL seconds after delivery (verified: `135.232.0.0/16`, 19 s after send). Supabase's default `{{ .ConfirmationURL }}` verifies on that GET, so the single-use token is dead before the human clicks. The app-side fix is shipped: `/set-password` reads `token_hash` + `type` from the query string and only calls `verifyOtp` when a typed password is submitted. **It is inert until the templates point at it.** In the dashboard (Authentication → Email Templates), replace the link target in each template:
+Microsoft Defender Safe Links fetches every emailed URL seconds after delivery (verified: `135.232.0.0/16`, 19 s after send). Supabase's default `{{ .ConfirmationURL }}` verifies on that GET, so the single-use token is dead before the human clicks. The app-side fix is shipped: `/set-password` reads `token_hash` + `type` from the query string and only calls `verifyOtp` when a typed password is submitted. **It is inert until the templates point at it.** In the dashboard (Authentication → Emails → Templates), replace the link target in each template:
 
 - **Invite user:** `{{ .SiteURL }}/set-password?token_hash={{ .TokenHash }}&type=invite`
 - **Reset password:** `{{ .SiteURL }}/set-password?token_hash={{ .TokenHash }}&type=recovery`
 
 `Site URL` must be `https://bsc.ctac.app` (Authentication → URL Configuration). The old `#access_token` fragment flow keeps working for links already in flight. **Verification that matters:** invite a `@uky.edu` address, then check `auth.sessions` for that user — there must be **no session** until a human submits a password; a session from a Microsoft range appearing first is the regression signal.
 
+**✅ Verified end to end 2026-09-09 on the recovery template** (Josh's own account, `jafish0@uky.edu`, from a UKY Outlook mailbox so Safe Links was in play). `edge_logs`: `POST /auth/v1/recover` 13:42:01 → then **nothing for 56 seconds** → `POST /auth/v1/verify` 13:42:57.384 from Josh's own IP `128.163.239.40` → `PUT /auth/v1/user` 13:42:57.734 (password set). `auth.sessions` holds exactly **one** row, created 13:42:57.499, 115 ms after that POST, from his IP. **Zero `GET /auth/v1/verify` requests and zero Microsoft-range hits.**
+
+The structural reason this holds, which matters more than the single clean run: the emailed URL no longer touches Supabase at all. It is a Vercel page load, and the token only moves on a `POST` that a human triggers by submitting a typed password. A scanner fetching the link now lands on `/set-password` (Vercel, so it will not even appear in `edge_logs`) and has nothing it can spend. Note the corollary when reading logs: the absence of a Microsoft hit here does **not** prove Safe Links scanned and was harmless, only that nothing reached a consumable endpoint.
+
+**⬜ Still untested end to end: the INVITE template.** Only the recovery path has been round-tripped. The invite path needs a fresh address, which is the same job as creating the long-pending non-super_admin test accounts — do both at once.
+
+**Both templates were also rewritten 2026-09-09** to be role-neutral ("CTAC App"), because Supabase has one invite template for every role and the old copy said "your team leader has invited you" and promised SMARTIE goals and team assessment results to `trainer_admin`s on TIPE, who have neither. The 24-hour expiry claim was removed rather than verified, and both now carry a Forgot-password fallback line. The recovery template additionally prints `{{ .Email }}`, so a person with two addresses routing to one mailbox can see which account is being reset (exactly Tracy's `taclem1` vs `tracy.clemans` situation).
+
+**⬜ Naming is inconsistent across surfaces:** the emails now say "CTAC App", `Login.jsx` says "Admin Portal" / "BSC Platform Manager", and `CLAUDE.md` says "STS-BSC Manager". Pick one and have Claude Code align the app to it.
+
 ### Outlook gotcha (don't repeat)
 
 Microsoft Outlook on Windows uses Word's rendering engine, which does not support CSS `linear-gradient` on email elements. When present, Outlook silently strips the entire `background` property — making gradient-styled buttons invisible. The current invite-user template uses a **bulletproof table-based pattern** with solid `background-color: #00A79D` (brand teal) for the CTA. Don't reintroduce gradients on email elements regardless of how good they look in Gmail/Apple Mail — UKY's Exchange is the canonical recipient and Outlook is unforgiving.
+
+**Found 2026-09-09:** the *header* of the invite template still used the `background: linear-gradient(...)` shorthand, so Outlook stripped it and rendered white heading text on a white background — the title and subtitle were invisible to every Outlook recipient while looking fine in Gmail. Fixed in both templates by splitting the shorthand into `background-color: #0E1F56` plus `background-image: linear-gradient(...)`: Outlook honours the color and ignores the image, everyone else still gets the gradient. **Use that two-declaration pattern rather than dropping gradients entirely.**
 
 ---
 
