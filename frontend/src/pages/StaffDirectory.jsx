@@ -4,6 +4,7 @@ import { supabase } from '../utils/supabase'
 import { useAuth } from '../contexts/AuthContext'
 import { COLORS } from '../utils/constants'
 import AddStaffModal from '../components/AddStaffModal'
+import PersonAvatar from '../components/PersonAvatar'
 import ctacLogo from '../assets/CTAC_white.png'
 
 export default function StaffDirectory() {
@@ -22,15 +23,16 @@ export default function StaffDirectory() {
     if (isSuperAdmin) fetchCollaboratives()
   }, [])
 
+  // staff_directory_resolved() applies THE resolution rule: a directory row
+  // linked to an account (bsc_staff.user_id) shows the account's bio and
+  // photo; an unlinked row (Jessica, Stephanie — no accounts yet) shows its
+  // own. Visibility mirrors bsc_staff RLS. Never read bsc_staff.bio directly
+  // for display — for a linked person it is the historical copy.
   const fetchStaff = async () => {
     setLoading(true)
-    const { data, error } = await supabase
-      .from('bsc_staff')
-      .select('*')
-      .eq('is_active', true)
-      .order('sort_order')
+    const { data, error } = await supabase.rpc('staff_directory_resolved')
     if (error) console.error('Error fetching staff:', error)
-    setStaff(data || [])
+    setStaff(Array.isArray(data) ? data : [])
     setLoading(false)
   }
 
@@ -147,16 +149,9 @@ export default function StaffDirectory() {
                   border: '1px solid #f3f4f6',
                   display: 'flex', flexDirection: 'column'
                 }}>
-                  {/* Initials Avatar */}
+                  {/* Photo, or initials when there is none — never a broken image */}
                   <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '0.75rem' }}>
-                    <div style={{
-                      width: '48px', height: '48px', borderRadius: '50%',
-                      background: `linear-gradient(135deg, ${COLORS.navy}, ${COLORS.teal})`,
-                      color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center',
-                      fontSize: '1.1rem', fontWeight: '700', flexShrink: 0
-                    }}>
-                      {s.full_name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()}
-                    </div>
+                    <PersonAvatar name={s.full_name} photoPath={s.photo_path} size={56} />
                     <div>
                       <div style={{ color: COLORS.navy, fontWeight: '700', fontSize: '1.05rem' }}>
                         {s.full_name}{s.title ? `, ${s.title}` : ''}
@@ -209,6 +204,12 @@ export default function StaffDirectory() {
                       }}>
                         {s.collaborative_id ? collaboratives.find(c => c.id === s.collaborative_id)?.name || 'Specific' : 'Global'}
                       </span>
+                      {s.has_account && (
+                        <span title="Linked to an app account — bio and photo come from the account" style={{
+                          fontSize: '0.65rem', background: '#ecfdf5', color: '#065f46',
+                          padding: '0.15rem 0.5rem', borderRadius: '4px', fontWeight: '600', marginLeft: '0.4rem'
+                        }}>Linked account</span>
+                      )}
                       <div style={{ display: 'flex', gap: '0.5rem' }}>
                         <button onClick={() => { setEditingStaff(s); setShowModal(true) }} style={{
                           background: 'none', border: 'none', color: 'var(--text-faint)',

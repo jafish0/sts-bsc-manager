@@ -20,7 +20,7 @@ import ShowProgressModal from '../components/ShowProgressModal'
 export default function DataVisualization() {
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
-  const { user, profile, isSuperAdmin, isAgencyAdmin, isTeamMember } = useAuth()
+  const { user, profile, isSuperAdmin, isTrainerAdmin, isAdminLevel, isAgencyAdmin, isTeamMember, myAdminCollaborativeIds } = useAuth()
   const [loading, setLoading] = useState(true)
   const [collaboratives, setCollaboratives] = useState([])
   const [teams, setTeams] = useState([])
@@ -57,7 +57,18 @@ export default function DataVisualization() {
         .order('name')
 
       if (error) throw error
-      setCollaboratives(data || [])
+      // Scoped for trainer_admins (Josh, 2026-09-09): their assigned
+      // collaboratives only. Before this, a trainer_admin fell through every
+      // role branch below: they got the alphabetically-first collaborative
+      // RLS let them read and — because the selectors were isSuperAdmin-only —
+      // had no way to switch to their second one. super_admin is checked
+      // FIRST (their own assignment list is not "everything").
+      const scoped = isSuperAdmin
+        ? (data || [])
+        : isTrainerAdmin
+          ? (data || []).filter(c => myAdminCollaborativeIds.includes(c.id))
+          : (data || [])
+      setCollaboratives(scoped)
 
       // Deep link from an admin's per-team button (CollaborativeDetail):
       // ?collaborative=<id>&team=<id> pre-selects that team's visualization
@@ -88,12 +99,12 @@ export default function DataVisualization() {
           .single()
         if (teamRow?.collaborative_id) {
           setSelectedCollaborative(teamRow.collaborative_id)
-        } else if (data && data.length > 0) {
-          setSelectedCollaborative(data[0].id)
+        } else if (scoped.length > 0) {
+          setSelectedCollaborative(scoped[0].id)
         }
         autoSelectLatestTimepoint(profile.team_id)
-      } else if (data && data.length > 0) {
-        setSelectedCollaborative(data[0].id)
+      } else if (scoped.length > 0) {
+        setSelectedCollaborative(scoped[0].id)
       }
     } catch (error) {
       console.error('Error loading collaboratives:', error)
@@ -529,8 +540,9 @@ export default function DataVisualization() {
       {/* Filters */}
       <div style={{ background: 'var(--bg-card)', borderBottom: '2px solid var(--border)', padding: '1rem 2rem' }}>
         <div style={{ maxWidth: '1200px', margin: '0 auto', display: 'flex', gap: '1rem', flexWrap: 'wrap', alignItems: 'center' }}>
-          {/* Collaborative selector - hidden for agency admins (they only have one) */}
-          {isSuperAdmin && (
+          {/* Collaborative selector - admin-level only (agency admins have exactly one);
+              a trainer_admin's list is already scoped to their assignments */}
+          {isAdminLevel && (
             <div style={{ flex: '1 1 250px' }}>
               <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: '500', marginBottom: '0.25rem', color: 'var(--text-secondary)' }}>Collaborative</label>
               <select value={selectedCollaborative || ''} onChange={(e) => setSelectedCollaborative(e.target.value)} style={{ width: '100%', padding: '0.5rem', border: '1px solid var(--border-light)', borderRadius: '0.375rem', fontSize: '0.875rem' }}>
@@ -544,8 +556,8 @@ export default function DataVisualization() {
               {timepoints.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
             </select>
           </div>
-          {/* Team selector - hidden for agency admins (they only see their team) */}
-          {isSuperAdmin && (
+          {/* Team selector - admin-level only (agency admins only see their team) */}
+          {isAdminLevel && (
             <div style={{ flex: '1 1 200px' }}>
               <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: '500', marginBottom: '0.25rem', color: 'var(--text-secondary)' }}>Team</label>
               <select value={selectedTeam} onChange={(e) => setSelectedTeam(e.target.value)} style={{ width: '100%', padding: '0.5rem', border: '1px solid var(--border-light)', borderRadius: '0.375rem', fontSize: '0.875rem' }}>

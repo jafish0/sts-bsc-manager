@@ -128,17 +128,21 @@ export default function TeamMembers() {
     alert(`Password reset email sent to ${member.email}`)
   }
 
+  // Through set_user_active() — a SECURITY DEFINER RPC that admits a
+  // super_admin, a trainer on this team's collaborative, or a team leader on
+  // the same team, and RAISES otherwise. The old direct .update() matched
+  // zero rows for every caller (user_profiles' only UPDATE policy is
+  // self-only), returned error: null, and reported success while the member
+  // stayed active. Deactivation does not revoke the person's live session;
+  // ProtectedRoute signs an inactive profile out on its next page load.
   const handleDeactivate = async (memberId, memberName) => {
     if (!confirm(`Remove ${memberName} from the team? They will lose access to the dashboard.`)) return
 
-    const { error } = await supabase
-      .from('user_profiles')
-      .update({ is_active: false })
-      .eq('id', memberId)
+    const { error } = await supabase.rpc('set_user_active', { p_target: memberId, p_active: false })
 
     if (error) {
       console.error('Error deactivating member:', error)
-      alert('Error removing team member')
+      alert('Could not remove this team member: ' + error.message)
       return
     }
 

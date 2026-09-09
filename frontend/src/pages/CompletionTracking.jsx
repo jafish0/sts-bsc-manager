@@ -5,7 +5,7 @@ import { useAuth } from '../contexts/AuthContext'
 
 export default function CompletionTracking() {
   const navigate = useNavigate()
-  const { user } = useAuth()
+  const { user, isSuperAdmin, isTrainerAdmin, myAdminCollaborativeIds } = useAuth()
 
   const handleSignOut = async () => {
     const { error } = await supabase.auth.signOut()
@@ -29,10 +29,10 @@ export default function CompletionTracking() {
     { value: 'followup_12mo', label: '12-Month Follow-up' }
   ]
 
-  // Load collaboratives on mount
+  // Load collaboratives on mount (and again if the role/assignments resolve later)
   useEffect(() => {
     loadCollaboratives()
-  }, [])
+  }, [isSuperAdmin, isTrainerAdmin, myAdminCollaborativeIds.join(',')]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Load completion data when collaborative or timepoint changes
   useEffect(() => {
@@ -50,9 +50,22 @@ export default function CompletionTracking() {
 
       if (error) throw error
 
-      setCollaboratives(data || [])
-      if (data && data.length > 0) {
-        setSelectedCollaborative(data[0].id)
+      // Scoped, not hidden (Josh, 2026-09-09): a trainer_admin sees completion
+      // data for their assigned collaboratives only. collaboratives RLS already
+      // returns just those rows for a trainer_admin; this filter is the
+      // client-side belt. super_admin is checked FIRST — their
+      // myAdminCollaborativeIds is their own trainer assignments (0 for
+      // Ginny), not "everything".
+      const scoped = isSuperAdmin
+        ? (data || [])
+        : isTrainerAdmin
+          ? (data || []).filter(c => myAdminCollaborativeIds.includes(c.id))
+          : (data || [])
+      setCollaboratives(scoped)
+      if (scoped.length > 0) {
+        setSelectedCollaborative(prev => (prev && scoped.some(c => c.id === prev)) ? prev : scoped[0].id)
+      } else {
+        setSelectedCollaborative(null)
       }
     } catch (error) {
       console.error('Error loading collaboratives:', error)

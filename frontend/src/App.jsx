@@ -76,12 +76,20 @@ function AuthRedirectHandler() {
   return null
 }
 
-// Routes admin-level users (super_admin, trainer_admin) to AdminDashboard;
-// everyone else (agency_admin, team_leader, team_member) lands on TeamDashboard.
+// Landing page by role (Josh, 2026-09-09):
+//   super_admin   → AdminDashboard (everything)
+//   trainer_admin → TrainerDashboard — their collaboratives, standalone
+//                   trainings, upcoming events, evaluations, bio. Safe as a
+//                   landing page only because every collaborative page now
+//                   carries a Forum card, so nothing a trainer needs is
+//                   reachable solely from AdminDashboard (which stays one
+//                   click away via its header link).
+//   everyone else → TeamDashboard.
 function DashboardRouter() {
   const { profile, loading } = useAuth()
   if (loading) return null
-  if (profile?.role === 'super_admin' || profile?.role === 'trainer_admin') return <AdminDashboard />
+  if (profile?.role === 'super_admin') return <AdminDashboard />
+  if (profile?.role === 'trainer_admin') return <TrainerDashboard />
   return <TeamDashboard />
 }
 

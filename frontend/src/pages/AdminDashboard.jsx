@@ -7,7 +7,7 @@ import InviteStaffModal from '../components/InviteStaffModal'
 
 export default function AdminDashboard() {
   const navigate = useNavigate()
-  const { user, isSuperAdmin } = useAuth()
+  const { user, isSuperAdmin, myAdminProgramTypes } = useAuth()
   const [selfRatingCount, setSelfRatingCount] = useState(0)
   const [unmatchedCount, setUnmatchedCount] = useState(0)
   const [unmatchedList, setUnmatchedList] = useState([])
@@ -380,7 +380,13 @@ export default function AdminDashboard() {
             { key: 'tipe_lc', name: 'TIPE Resources', desc: 'Resource library shared across all TIPE collaboratives' },
             { key: 'sts_bsc', name: 'STS-BSC Resources', desc: 'Resource library shared across all STS-BSC collaboratives' },
             { key: 'tic_lc', name: 'TIC Resources', desc: 'Resource library shared across all TIC collaboratives' },
-          ].map(lib => (
+          ]
+            // Resources RLS lets a trainer_admin manage only the libraries whose
+            // program_type matches one of their collaboratives, so only those
+            // tiles are offered. super_admins (isSuperAdmin FIRST — Ginny has
+            // zero trainer assignments) keep all three.
+            .filter(lib => isSuperAdmin || myAdminProgramTypes.includes(lib.key))
+            .map(lib => (
             <button
               key={lib.key}
               onClick={() => navigate(`/admin/resources?program=${lib.key}`)}

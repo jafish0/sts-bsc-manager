@@ -116,7 +116,7 @@ export default function ForumThread() {
     if (!window.confirm(`Delete "${thread.title}"? This will also delete all replies.`)) return
     const { error } = await supabase.from('forum_threads').delete().eq('id', thread.id)
     if (error) { alert('Error deleting thread'); return }
-    navigate('/admin/forum')
+    navigate(thread?.collaborative_id ? `/admin/forum?collaborative=${thread.collaborative_id}` : '/admin/forum')
   }
 
   const handlePinThread = async () => {
@@ -227,8 +227,8 @@ export default function ForumThread() {
       </div>
 
       <div style={{ maxWidth: '1200px', margin: '0 auto', padding: '1.5rem 2rem' }}>
-        {/* Back button */}
-        <button onClick={() => navigate('/admin/forum')} style={{
+        {/* Back button — to THIS collaborative's forum, not the default one */}
+        <button onClick={() => navigate(thread?.collaborative_id ? `/admin/forum?collaborative=${thread.collaborative_id}` : '/admin/forum')} style={{
           background: 'var(--bg-card)', color: 'var(--text-muted)', padding: '0.5rem 1rem',
           borderRadius: '8px', border: '1px solid var(--border)', fontWeight: '600',
           cursor: 'pointer', marginBottom: '1.5rem', fontSize: '0.9rem'

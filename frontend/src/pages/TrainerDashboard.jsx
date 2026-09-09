@@ -2,10 +2,12 @@ import { useState, useEffect, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../utils/supabase'
 import { useAuth } from '../contexts/AuthContext'
-import { COLORS, cardStyle, cardHeaderStyle } from '../utils/constants'
+import { COLORS, cardStyle } from '../utils/constants'
 import { PROGRAM_TYPE_COLORS } from '../config/programConfig'
 import { exportEvaluationReportPdf } from '../utils/exportEvaluationPdf'
 import { computeParticipationIndex, PARTICIPATION_WINDOW_DAYS } from '../utils/participationIndex'
+import CollapsibleCard from '../components/CollapsibleCard'
+import PersonBioEditor from '../components/PersonBioEditor'
 
 const PAGE_BG = 'var(--bg-page)'
 
@@ -47,9 +49,11 @@ const PROGRAM_BADGE = (programType) => {
 
 export default function TrainerDashboard() {
   const navigate = useNavigate()
-  const { user, profile } = useAuth()
+  const { user, profile, isTrainerAdmin } = useAuth()
 
   const [loading, setLoading] = useState(true)
+  // Own bio + photo for the Trainer Bio card (own row is always readable).
+  const [me, setMe] = useState(null)  // { bio, photo_path }
   const [collaboratives, setCollaboratives] = useState([])  // [{ id, name, program_type, status }]
   const [upcomingEvents, setUpcomingEvents] = useState([])  // [{ event, collaborative_name, program_type }]
   const [recentEvalSessions, setRecentEvalSessions] = useState([])  // sessions with at least 1 evaluation, newest first
@@ -72,6 +76,15 @@ export default function TrainerDashboard() {
 
     const load = async () => {
       setLoading(true)
+
+      // 0. My own bio + photo (Trainer Bio card)
+      const { data: meRow } = await supabase
+        .from('user_profiles')
+        .select('bio, photo_path')
+        .eq('id', user.id)
+        .maybeSingle()
+      if (cancelled) return
+      setMe(meRow || { bio: null, photo_path: null })
 
       // 1. Collaboratives I'm a trainer on
       const { data: myAssignments } = await supabase
@@ -396,7 +409,7 @@ export default function TrainerDashboard() {
         <div style={{ maxWidth: '1200px', margin: '0 auto', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
             <button onClick={() => navigate('/admin')} style={{ background: 'transparent', border: '1px solid rgba(255,255,255,0.3)', color: 'white', padding: '0.5rem 1rem', borderRadius: '0.375rem', cursor: 'pointer', fontSize: '0.875rem' }}>
-              ← Back to Admin
+              {isTrainerAdmin ? 'Admin Dashboard →' : '← Back to Admin'}
             </button>
             <div>
               <h1 style={{ margin: 0, fontSize: '1.4rem' }}>Trainer Dashboard</h1>
@@ -431,6 +444,20 @@ export default function TrainerDashboard() {
                 }}
               />
             </div>
+
+            {/* Trainer Bio — the bio belongs to the person, not to one training
+                (Josh, 2026-09-09), so it is edited here and shown read-only in
+                the standalone-training Trainer tab. Renders on public hubs. */}
+            <CollapsibleCard title="Trainer Bio" subtitle="shown to participants on training hubs">
+              <PersonBioEditor
+                target={{ userId: user.id }}
+                name={profile?.full_name}
+                bio={me?.bio || null}
+                photoPath={me?.photo_path || null}
+                canEdit
+                onChange={(next) => setMe({ bio: next.bio, photo_path: next.photoPath })}
+              />
+            </CollapsibleCard>
 
             {/* My Collaboratives */}
             <CollapsibleCard title="My Collaboratives" count={visibleCollaboratives.length}>
@@ -909,34 +936,8 @@ export default function TrainerDashboard() {
   )
 }
 
-// Accordion wrapper for dashboard sections (Leah's feedback: a long dashboard
-// is overwhelming — let each section fold away). The navy banner header is the
-// toggle; `count` renders a small pill so a collapsed section still says how
-// much is inside it.
-function CollapsibleCard({ title, subtitle, count, defaultOpen = true, children }) {
-  const [open, setOpen] = useState(defaultOpen)
-  return (
-    <section style={{ ...cardStyle, marginBottom: '1.5rem' }}>
-      <button
-        onClick={() => setOpen(o => !o)}
-        style={{
-          width: '100%', display: 'flex', alignItems: 'center', gap: '0.6rem',
-          background: 'transparent', border: 'none', cursor: 'pointer', padding: 0, textAlign: 'left',
-        }}
-      >
-        <div style={{ ...cardHeaderStyle, marginBottom: 0, flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem' }}>
-          <span>{title}</span>
-          {count != null && (
-            <span style={{ background: 'rgba(255,255,255,0.2)', borderRadius: '999px', padding: '0.05rem 0.5rem', fontSize: '0.75rem' }}>{count}</span>
-          )}
-          {subtitle && <span style={{ fontWeight: 400, fontSize: '0.78rem', opacity: 0.85 }}>{subtitle}</span>}
-        </div>
-        <span style={{ color: COLORS.navy, fontSize: '1.1rem', flexShrink: 0 }}>{open ? '▾' : '▸'}</span>
-      </button>
-      {open && <div style={{ marginTop: '1rem' }}>{children}</div>}
-    </section>
-  )
-}
+// CollapsibleCard moved to components/CollapsibleCard.jsx (2026-09-09) so
+// CollaborativeDetail's BSC Events section can reuse it.
 
 function Badge({ color, bg, children }) {
   return (

@@ -19,6 +19,11 @@ export const AuthProvider = ({ children }) => {
   // Empty array for anyone who isn't a trainer; super_admins also get an empty
   // array here (their access is gated by isSuperAdmin, not this list).
   const [myAdminCollaborativeIds, setMyAdminCollaborativeIds] = useState([])
+  // Distinct program_type values of those collaboratives — what a trainer_admin
+  // may manage resources for. Same caveat: empty for super_admins (Ginny has
+  // zero assignments and must still see every library — gate on isSuperAdmin
+  // FIRST, never on this list alone).
+  const [myAdminProgramTypes, setMyAdminProgramTypes] = useState([])
 
   // "View as" preview (super_admin only). When set, the exposed profile + role
   // booleans are overridden so participant-facing pages render the simulated
@@ -56,6 +61,7 @@ export const AuthProvider = ({ children }) => {
       } else {
         setProfile(null)
         setMyAdminCollaborativeIds([])
+        setMyAdminProgramTypes([])
         setLoading(false)
       }
     })
@@ -91,15 +97,17 @@ export const AuthProvider = ({ children }) => {
   const loadAdminCollabs = async (userId) => {
     const { data, error } = await supabase
       .from('collaborative_trainers')
-      .select('collaborative_id')
+      .select('collaborative_id, collaboratives(program_type)')
       .eq('user_id', userId)
     if (error) {
       // Non-fatal — page-level guards still work via isSuperAdmin.
       console.warn('Could not load admin collaboratives:', error.message)
       setMyAdminCollaborativeIds([])
+      setMyAdminProgramTypes([])
       return
     }
     setMyAdminCollaborativeIds((data || []).map(r => r.collaborative_id))
+    setMyAdminProgramTypes([...new Set((data || []).map(r => r.collaboratives?.program_type).filter(Boolean))])
   }
 
   const signIn = async (email, password) => {
@@ -161,6 +169,9 @@ export const AuthProvider = ({ children }) => {
   const effectiveAdminCollaborativeIds = previewing
     ? (viewAs.role === 'trainer_admin' && viewAs.collaborativeId ? [viewAs.collaborativeId] : [])
     : myAdminCollaborativeIds
+  const effectiveAdminProgramTypes = previewing
+    ? (viewAs.role === 'trainer_admin' && viewAs.programType ? [viewAs.programType] : [])
+    : myAdminProgramTypes
 
   // True if the user can administer (read/write) the given collaborative.
   // Super admins can administer everything; trainer admins only the
@@ -188,6 +199,7 @@ export const AuthProvider = ({ children }) => {
     isAgencyAdmin: effectiveRole === 'agency_admin' || effectiveRole === 'team_leader',
     isTeamMember: effectiveRole === 'team_member',
     myAdminCollaborativeIds: effectiveAdminCollaborativeIds,
+    myAdminProgramTypes: effectiveAdminProgramTypes,
     canAdminCollaborative,
     // "View as" preview state + controls.
     isRealSuperAdmin,

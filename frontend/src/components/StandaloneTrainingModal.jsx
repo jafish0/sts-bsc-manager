@@ -1,6 +1,9 @@
 import { useEffect, useState } from 'react'
+import ReactMarkdown from 'react-markdown'
 import { supabase } from '../utils/supabase'
 import { useAuth } from '../contexts/AuthContext'
+import PersonAvatar from './PersonAvatar'
+import PersonBioEditor from './PersonBioEditor'
 
 const NAVY = '#0E1F56'
 const TEAL = '#00A79D'
@@ -317,24 +320,23 @@ const inputStyle = {
 // co-trainer support). Assigned trainers appear on the public hub and can
 // manage the training (can_admin_bsc_event admits them alongside created_by).
 //
-// Bio editing is SELF-ONLY: user_profiles RLS permits UPDATE on your own row
-// only (there is no super_admin update policy either). Per the draft we do not
-// widen RLS to let one trainer edit another's bio — the other trainer writes
-// their own from this same tab when they open the training.
+// Bios and photos (2026-09-09, Josh): a bio belongs to the person, not to one
+// training, so this tab is READ-ONLY for trainers — each trainer edits their
+// own on the Trainer Dashboard. super_admins get an inline editor here; that
+// editing goes through set_person_bio() (self or super_admin), never through
+// a widened user_profiles UPDATE policy.
 //
-// Names/emails resolve through staff_for_trainer_assignment(), a SECURITY
+// Names/emails/bios resolve through staff_for_trainer_assignment(), a SECURITY
 // DEFINER RPC: user_profiles RLS lets a trainer_admin read only their own and
 // team profiles, so a plain query here would show them nobody but themselves.
 function TrainersSection({ eventId, user }) {
+  const { isSuperAdmin } = useAuth()
   const [assignments, setAssignments] = useState([])  // event_trainers rows
-  const [staff, setStaff] = useState([])              // staff directory
+  const [staff, setStaff] = useState([])              // staff directory (+ bio, photo_path)
   const [loading, setLoading] = useState(true)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState(null)
   const [pickId, setPickId] = useState('')
-  const [editingBio, setEditingBio] = useState(false)
-  const [bioDraft, setBioDraft] = useState('')
-  const [myBio, setMyBio] = useState(null)
 
   const load = async () => {
     setLoading(true)
@@ -349,11 +351,6 @@ function TrainersSection({ eventId, user }) {
     ])
     setAssignments(rows || [])
     setStaff(Array.isArray(dir) ? dir : [])
-    // Own bio for the inline editor (own profile is always readable)
-    if (user?.id) {
-      const { data: me } = await supabase.from('user_profiles').select('bio').eq('id', user.id).maybeSingle()
-      setMyBio(me?.bio || null)
-    }
     setLoading(false)
   }
 
@@ -401,15 +398,11 @@ function TrainersSection({ eventId, user }) {
     load()
   }
 
-  const saveBio = async () => {
-    setBusy(true); setError(null)
-    const { data, error: e } = await supabase
-      .from('user_profiles').update({ bio: bioDraft.trim() || null }).eq('id', user.id).select('id')
-    setBusy(false)
-    if (e || !data || data.length === 0) { setError('Could not save bio' + (e ? ': ' + e.message : '.')); return }
-    setMyBio(bioDraft.trim() || null)
-    setEditingBio(false)
-    load()
+  // super_admin saved a bio/photo inline — reflect it without a refetch.
+  const onBioChanged = (userId, next) => {
+    setStaff(prev => prev.map(s => s.id === userId
+      ? { ...s, bio: next.bio, has_bio: !!next.bio, photo_path: next.photoPath }
+      : s))
   }
 
   if (loading) return <div style={{ fontSize: '0.85rem', color: '#9ca3af' }}>Loading trainers…</div>
@@ -428,13 +421,16 @@ function TrainersSection({ eventId, user }) {
           return (
             <div key={a.id} style={{ padding: '0.75rem 0.9rem', background: '#f9fafb', border: `1px solid ${a.is_lead ? TEAL : '#e5e7eb'}`, borderRadius: '8px' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '0.5rem', flexWrap: 'wrap' }}>
-                <div>
-                  <div style={{ fontWeight: 600, color: NAVY }}>
-                    {s?.full_name || 'Unknown staff member'}
-                    {a.is_lead && <span style={{ marginLeft: '0.5rem', background: TEAL, color: 'white', padding: '0.05rem 0.45rem', borderRadius: '999px', fontSize: '0.65rem', fontWeight: 700 }}>LEAD</span>}
-                    {isSelf && <span style={{ marginLeft: '0.4rem', fontSize: '0.72rem', color: '#6b7280' }}>(you)</span>}
+                <div style={{ display: 'flex', gap: '0.6rem', alignItems: 'center' }}>
+                  {!isSuperAdmin && <PersonAvatar name={s?.full_name} photoPath={s?.photo_path} size={40} />}
+                  <div>
+                    <div style={{ fontWeight: 600, color: NAVY }}>
+                      {s?.full_name || 'Unknown staff member'}
+                      {a.is_lead && <span style={{ marginLeft: '0.5rem', background: TEAL, color: 'white', padding: '0.05rem 0.45rem', borderRadius: '999px', fontSize: '0.65rem', fontWeight: 700 }}>LEAD</span>}
+                      {isSelf && <span style={{ marginLeft: '0.4rem', fontSize: '0.72rem', color: '#6b7280' }}>(you)</span>}
+                    </div>
+                    <div style={{ fontSize: '0.78rem', color: '#6b7280' }}>{s?.email}</div>
                   </div>
-                  <div style={{ fontSize: '0.78rem', color: '#6b7280' }}>{s?.email}</div>
                 </div>
                 <div style={{ display: 'flex', gap: '0.35rem' }}>
                   {!a.is_lead && (
@@ -446,29 +442,33 @@ function TrainersSection({ eventId, user }) {
                 </div>
               </div>
 
-              {/* Bio: editable only for yourself (user_profiles RLS is self-only). */}
-              <div style={{ marginTop: '0.5rem', fontSize: '0.82rem', color: '#374151' }}>
-                {isSelf ? (
-                  editingBio ? (
-                    <div>
-                      <textarea value={bioDraft} onChange={(e) => setBioDraft(e.target.value)} rows={5}
-                        placeholder={'## About me\n\nA short bio shown on the participant training hub. Supports markdown.'}
-                        style={{ width: '100%', padding: '0.5rem 0.75rem', border: '1px solid #d1d5db', borderRadius: '6px', fontSize: '0.88rem', boxSizing: 'border-box', fontFamily: 'ui-monospace, SFMono-Regular, Consolas, monospace', resize: 'vertical' }} />
-                      <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.4rem' }}>
-                        <button onClick={saveBio} disabled={busy} style={{ background: TEAL, color: 'white', border: 'none', padding: '0.35rem 0.8rem', borderRadius: '6px', cursor: 'pointer', fontSize: '0.8rem', fontWeight: 600 }}>{busy ? 'Saving…' : 'Save bio'}</button>
-                        <button onClick={() => setEditingBio(false)} disabled={busy} style={{ background: 'transparent', color: '#374151', border: '1px solid #d1d5db', padding: '0.35rem 0.8rem', borderRadius: '6px', cursor: 'pointer', fontSize: '0.8rem' }}>Cancel</button>
-                      </div>
-                    </div>
-                  ) : (
-                    <div style={{ display: 'flex', justifyContent: 'space-between', gap: '0.5rem', alignItems: 'flex-start' }}>
-                      <div style={{ whiteSpace: 'pre-wrap' }}>{myBio || <em style={{ color: '#9ca3af' }}>No bio yet — it shows under your name on the hub.</em>}</div>
-                      <button onClick={() => { setBioDraft(myBio || ''); setEditingBio(true) }} style={{ background: 'transparent', color: NAVY, border: `1px solid ${NAVY}`, padding: '0.25rem 0.6rem', borderRadius: '6px', cursor: 'pointer', fontSize: '0.75rem', flexShrink: 0 }}>{myBio ? 'Edit my bio' : 'Add my bio'}</button>
-                    </div>
-                  )
+              {/* Bio + photo: super_admins edit inline (RPC); everyone else reads. */}
+              <div style={{ marginTop: '0.6rem', fontSize: '0.82rem', color: '#374151' }}>
+                {isSuperAdmin ? (
+                  <PersonBioEditor
+                    compact
+                    canEdit
+                    target={{ userId: a.user_id }}
+                    name={s?.full_name}
+                    bio={s?.bio || null}
+                    photoPath={s?.photo_path || null}
+                    onChange={(next) => onBioChanged(a.user_id, next)}
+                  />
                 ) : (
-                  <em style={{ color: s?.has_bio ? '#6b7280' : '#9ca3af' }}>
-                    {s?.has_bio ? 'Has a bio (shown on the hub).' : 'No bio yet — only they can write it, from this tab when they open the training.'}
-                  </em>
+                  <div>
+                    {s?.bio ? (
+                      <div className="hub-markdown" style={{ lineHeight: 1.5 }}><ReactMarkdown>{s.bio}</ReactMarkdown></div>
+                    ) : (
+                      <em style={{ color: '#9ca3af' }}>No bio yet.</em>
+                    )}
+                    {isSelf && (
+                      <div style={{ marginTop: '0.4rem' }}>
+                        <a href="/admin/trainer" style={{ color: NAVY, fontSize: '0.78rem', fontWeight: 600 }}>
+                          Edit your bio and photo on your Trainer Dashboard →
+                        </a>
+                      </div>
+                    )}
+                  </div>
                 )}
               </div>
             </div>

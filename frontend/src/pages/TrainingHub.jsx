@@ -3,6 +3,7 @@ import { useParams } from 'react-router-dom'
 import ReactMarkdown from 'react-markdown'
 import { supabase } from '../utils/supabase'
 import { logDownload } from '../utils/logDownload'
+import PersonAvatar from '../components/PersonAvatar'
 
 const NAVY = '#0E1F56'
 const TEAL = '#00A79D'
@@ -21,7 +22,7 @@ export default function TrainingHub() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [event, setEvent] = useState(null)
-  const [trainers, setTrainers] = useState([]) // [{ full_name, bio, is_lead }] — lead first
+  const [trainers, setTrainers] = useState([]) // [{ full_name, bio, is_lead, photo_path }] — lead first
   const [documents, setDocuments] = useState([])
 
   useEffect(() => {
@@ -144,23 +145,26 @@ export default function TrainingHub() {
           </Card>
         )}
 
-        {/* Trainer(s) — name + optional bio. Never an email on this public page. */}
+        {/* Trainer(s) — photo (or initials), name, optional bio. Never an email on this public page. */}
         {trainers.length > 0 && (
           <Card title={trainers.length > 1 ? '👤 Trainers' : '👤 Trainer'}>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.9rem' }}>
               {trainers.map((t, i) => (
-                <div key={i} style={i > 0 ? { borderTop: '1px solid #e5e7eb', paddingTop: '0.9rem' } : undefined}>
-                  <div style={{ fontWeight: 600, color: NAVY, fontSize: '1rem' }}>
-                    {t.full_name}
-                    {trainers.length > 1 && t.is_lead && (
-                      <span style={{ marginLeft: '0.5rem', background: TEAL, color: 'white', padding: '0.05rem 0.45rem', borderRadius: '999px', fontSize: '0.65rem', fontWeight: 700, verticalAlign: 'middle' }}>LEAD</span>
+                <div key={i} style={{ display: 'flex', gap: '0.9rem', alignItems: 'flex-start', ...(i > 0 ? { borderTop: '1px solid #e5e7eb', paddingTop: '0.9rem' } : {}) }}>
+                  <PersonAvatar name={t.full_name} photoPath={t.photo_path} size={64} />
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontWeight: 600, color: NAVY, fontSize: '1rem' }}>
+                      {t.full_name}
+                      {trainers.length > 1 && t.is_lead && (
+                        <span style={{ marginLeft: '0.5rem', background: TEAL, color: 'white', padding: '0.05rem 0.45rem', borderRadius: '999px', fontSize: '0.65rem', fontWeight: 700, verticalAlign: 'middle' }}>LEAD</span>
+                      )}
+                    </div>
+                    {t.bio && (
+                      <div style={{ marginTop: '0.4rem', color: '#374151', fontSize: '0.9rem' }}>
+                        <ReactMarkdown>{t.bio}</ReactMarkdown>
+                      </div>
                     )}
                   </div>
-                  {t.bio && (
-                    <div style={{ marginTop: '0.4rem', color: '#374151', fontSize: '0.9rem' }}>
-                      <ReactMarkdown>{t.bio}</ReactMarkdown>
-                    </div>
-                  )}
                 </div>
               ))}
             </div>

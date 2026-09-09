@@ -11,6 +11,7 @@ import RegistrationLinkModal from '../components/RegistrationLinkModal'
 import RegistrationRosterModal from '../components/RegistrationRosterModal'
 import EventMaterialsManager from '../components/EventMaterialsManager'
 import LearningCollaborativeRoster from '../components/LearningCollaborativeRoster'
+import CollapsibleCard from '../components/CollapsibleCard'
 import { PROGRAM_TYPE_COLORS, getProgramBranding } from '../config/programConfig'
 import { deleteRegistrationLink, deleteBlockedReason } from '../utils/registrationLinks'
 import ctacLogo from '../assets/CTAC_white.png'
@@ -44,7 +45,7 @@ function formatAutoClose(evt) {
 export default function CollaborativeDetail() {
   const { id } = useParams()
   const navigate = useNavigate()
-  const { canAdminCollaborative, isSuperAdmin } = useAuth()
+  const { canAdminCollaborative, isSuperAdmin, user } = useAuth()
   // True if the current user can administer THIS collaborative (super_admin
   // OR a trainer assigned to it via collaborative_trainers).
   const isAdminHere = canAdminCollaborative(id)
@@ -99,9 +100,16 @@ export default function CollaborativeDetail() {
   const [materialsEventId, setMaterialsEventId] = useState(null)
   const [docCounts, setDocCounts] = useState({})
 
-  // Participant hub state (collaboratives.hub_token / hub_enabled)
+  // Participant hub state (collaboratives.hub_token / hub_enabled / hub_display_name)
   const [hubSaving, setHubSaving] = useState(false)
   const [hubLinkCopied, setHubLinkCopied] = useState(false)
+  const [editingHubName, setEditingHubName] = useState(false)
+  const [hubNameDraft, setHubNameDraft] = useState('')
+
+  // Forum card: thread count + three most recent (RLS-scoped to what the
+  // caller can read; is_admin_for_collaborative or own collaborative).
+  const [forumThreads, setForumThreads] = useState([])
+  const [forumCount, setForumCount] = useState(null)
 
   // Program resource library count for the Resources card
   const [resourceCount, setResourceCount] = useState(null)
@@ -122,7 +130,20 @@ export default function CollaborativeDetail() {
     fetchEvents()
     fetchTrainers()
     fetchRegistrationLinks()
+    fetchForum()
   }, [id])
+
+  const fetchForum = async () => {
+    const { data, count } = await supabase
+      .from('forum_threads')
+      .select('id, title, reply_count, last_reply_at, is_pinned', { count: 'exact' })
+      .eq('collaborative_id', id)
+      .order('is_pinned', { ascending: false })
+      .order('last_reply_at', { ascending: false })
+      .limit(3)
+    setForumThreads(data || [])
+    setForumCount(count ?? 0)
+  }
 
   // Pull every active member of every team in this collab, so the Team
   // Rosters section can render with one fetch.
@@ -370,7 +391,7 @@ export default function CollaborativeDetail() {
       .from('collaboratives')
       .update(patch)
       .eq('id', id)
-      .select('hub_token, hub_enabled')
+      .select('hub_token, hub_enabled, hub_display_name')
     setHubSaving(false)
     // An RLS refusal returns 0 rows and no error — treat it as a failure so
     // the checkbox doesn't look saved and snap back on reload.
@@ -389,6 +410,14 @@ export default function CollaborativeDetail() {
         .map(b => b.toString(16).padStart(2, '0')).join('')
     }
     await updateHub(patch)
+  }
+
+  // E2 (Josh, 2026-09-09): the hub's title can be something less formal than
+  // the collaborative's name. Only the hub reads hub_display_name (via
+  // hub_lookup); registration, rosters, reports and emails keep using name.
+  const saveHubName = async () => {
+    const ok = await updateHub({ hub_display_name: hubNameDraft.trim() || null })
+    if (ok) setEditingHubName(false)
   }
 
   const copyHubLink = async () => {
@@ -1023,24 +1052,29 @@ export default function CollaborativeDetail() {
           )}
         </div>
 
-        {/* BSC Events Section */}
-        <div style={{
-          background: 'white', borderRadius: '12px', padding: '2rem',
-          marginBottom: '2rem', boxShadow: '0 4px 12px rgba(0,0,0,0.1)'
-        }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
-            <h3 style={{ fontSize: '1.5rem', fontWeight: '700', color: '#0E1F56', margin: 0 }}>
-              BSC Events
-            </h3>
-            {isAdminHere && (
+        {/* BSC Events Section — collapsed by default, state remembered per user
+            AND per collaborative in localStorage (Josh, 2026-09-09). This block
+            holds session-link generation and materials upload, the most-used
+            controls on the page, so remembering the choice is what keeps the
+            collapse from taxing a trainer a click on every visit. The count in
+            the header keeps the collapsed state informative. */}
+        <CollapsibleCard
+          title="BSC Events"
+          count={`${events.length} session${events.length === 1 ? '' : 's'}`}
+          subtitle="click to show or hide all sessions"
+          defaultOpen={false}
+          storageKey={user?.id ? `bsc_events_open:${user.id}:${id}` : undefined}
+        >
+          {isAdminHere && (
+            <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '1rem' }}>
               <button onClick={() => setShowAddEvent(!showAddEvent)} style={{
                 background: showAddEvent ? '#e5e7eb' : 'linear-gradient(135deg, #00A79D 0%, #0E1F56 100%)',
                 color: showAddEvent ? '#374151' : 'white',
                 padding: '0.625rem 1.25rem', borderRadius: '8px', border: 'none',
                 fontWeight: '600', cursor: 'pointer', fontSize: '0.9rem'
               }}>{showAddEvent ? 'Cancel' : '+ Add Event'}</button>
-            )}
-          </div>
+            </div>
+          )}
 
           {showAddEvent && (
             <div style={{ background: '#f9fafb', border: '1px solid #e5e7eb', borderRadius: '8px', padding: '1rem', marginBottom: '1rem' }}>
@@ -1345,7 +1379,7 @@ export default function CollaborativeDetail() {
               })}
             </div>
           )}
-        </div>
+        </CollapsibleCard>
 
         {/* Participant Hub (admin-only, TIPE ONLY) — one shared public page
             per collaborative at a static URL, no accounts. Opt-in via the
@@ -1378,6 +1412,32 @@ export default function CollaborativeDetail() {
               for the whole cycle, so it can go on a printed QR code. Anyone with the link can view it —
               that's by design; it never appears in search engines.
             </p>
+            {/* Hub title (E2): defaults to the collaborative's name; rename just the hub here. */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap', marginBottom: '1rem', fontSize: '0.88rem' }}>
+              <span style={{ color: '#6b7280' }}>Hub title:</span>
+              {editingHubName ? (
+                <>
+                  <input
+                    type="text"
+                    value={hubNameDraft}
+                    onChange={(e) => setHubNameDraft(e.target.value)}
+                    placeholder={collaborative.name}
+                    maxLength={120}
+                    style={{ padding: '0.4rem 0.6rem', border: '1px solid #d1d5db', borderRadius: '6px', fontSize: '0.88rem', flex: '1 1 240px' }}
+                  />
+                  <button onClick={saveHubName} disabled={hubSaving} style={{ padding: '0.4rem 0.8rem', background: '#00A79D', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '0.8rem', fontWeight: 600 }}>{hubSaving ? 'Saving…' : 'Save'}</button>
+                  <button onClick={() => setEditingHubName(false)} disabled={hubSaving} style={{ padding: '0.4rem 0.8rem', background: 'transparent', color: '#374151', border: '1px solid #d1d5db', borderRadius: '6px', cursor: 'pointer', fontSize: '0.8rem' }}>Cancel</button>
+                </>
+              ) : (
+                <>
+                  <strong style={{ color: '#0E1F56' }}>{collaborative.hub_display_name || collaborative.name}</strong>
+                  {!collaborative.hub_display_name && <span style={{ color: '#9ca3af', fontSize: '0.78rem' }}>(the collaborative's name)</span>}
+                  {isSuperAdmin && (
+                    <button onClick={() => { setHubNameDraft(collaborative.hub_display_name || ''); setEditingHubName(true) }} style={{ padding: '0.3rem 0.7rem', background: 'transparent', color: '#0E1F56', border: '1px solid #0E1F56', borderRadius: '6px', cursor: 'pointer', fontSize: '0.78rem', fontWeight: 600 }}>Rename hub</button>
+                  )}
+                </>
+              )}
+            </div>
             {collaborative.hub_enabled && hubUrl ? (
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
                 <code style={{ background: '#f9fafb', border: '1px solid #e5e7eb', borderRadius: '6px', padding: '0.45rem 0.7rem', fontSize: '0.8rem', color: '#0E1F56', overflowWrap: 'anywhere' }}>{hubUrl}</code>
@@ -1412,6 +1472,57 @@ export default function CollaborativeDetail() {
             )}
           </div>
         )}
+
+        {/* Community Forum — every program type (Josh: "All collaboratives").
+            Deep-links carry ?collaborative=<id> so /admin/forum opens THIS
+            collaborative's threads instead of the alphabetically-first one. */}
+        <div style={{
+          background: 'white', borderRadius: '12px', padding: '2rem',
+          marginBottom: '2rem', boxShadow: '0 4px 12px rgba(0, 0, 0, 0.1)'
+        }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.75rem', marginBottom: '0.75rem' }}>
+            <h3 style={{ fontSize: '1.5rem', fontWeight: '700', color: '#0E1F56', margin: 0 }}>
+              💬 Community Forum
+              {forumCount != null && (
+                <span style={{ marginLeft: '0.6rem', background: '#f3f4f6', color: '#374151', padding: '0.1rem 0.6rem', borderRadius: '999px', fontSize: '0.8rem', fontWeight: 600, verticalAlign: 'middle' }}>
+                  {forumCount} thread{forumCount === 1 ? '' : 's'}
+                </span>
+              )}
+            </h3>
+            <button
+              onClick={() => navigate(`/admin/forum?collaborative=${id}`)}
+              style={{
+                background: 'linear-gradient(135deg, #00A79D 0%, #0E1F56 100%)', color: 'white',
+                padding: '0.6rem 1.2rem', borderRadius: '8px', border: 'none',
+                fontWeight: '600', cursor: 'pointer', fontSize: '0.9rem',
+              }}
+            >View all →</button>
+          </div>
+          {forumThreads.length === 0 ? (
+            <p style={{ color: '#9ca3af', fontSize: '0.88rem', margin: 0 }}>No threads yet in this collaborative's forum.</p>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+              {forumThreads.map(t => (
+                <button
+                  key={t.id}
+                  onClick={() => navigate(`/admin/forum/${t.id}`)}
+                  style={{
+                    display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.75rem',
+                    width: '100%', textAlign: 'left', background: '#f9fafb', border: '1px solid #e5e7eb',
+                    borderRadius: '8px', padding: '0.6rem 0.9rem', cursor: 'pointer',
+                  }}
+                >
+                  <span style={{ color: '#0E1F56', fontWeight: 600, fontSize: '0.9rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {t.is_pinned && <span style={{ color: '#00A79D', marginRight: '0.35rem' }}>📌</span>}{t.title}
+                  </span>
+                  <span style={{ color: '#6b7280', fontSize: '0.78rem', flexShrink: 0 }}>
+                    {t.reply_count} {t.reply_count === 1 ? 'reply' : 'replies'}
+                  </span>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
 
         {/* Resources (admin-only) — manages the PROGRAM's shared library */}
         {isAdminHere && (

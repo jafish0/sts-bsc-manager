@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { supabase } from '../utils/supabase'
 import { useAuth } from '../contexts/AuthContext'
 import { COLORS, timeAgo } from '../utils/constants'
@@ -21,6 +21,7 @@ function InitialsAvatar({ name, size = 32 }) {
 
 export default function ForumThreadList() {
   const navigate = useNavigate()
+  const [searchParams, setSearchParams] = useSearchParams()
   const { user, profile, isSuperAdmin, isAdminLevel, canAdminCollaborative } = useAuth()
   const [threads, setThreads] = useState([])
   const [loading, setLoading] = useState(true)
@@ -61,8 +62,15 @@ export default function ForumThreadList() {
       .order('name')
     setCollaboratives(data || [])
     if (data?.length > 0) {
-      setCollaborativeId(data[0].id)
-      setCollaborativeName(data[0].name)
+      // A deep link from a collaborative's Forum card carries
+      // ?collaborative=<uuid>. Without honouring it, the page defaulted to
+      // the alphabetically-first collaborative and LOOKED right while showing
+      // the wrong LC's threads. Only a collaborative the caller can read (RLS
+      // already scoped `data`) is accepted; anything else falls back.
+      const wanted = searchParams.get('collaborative')
+      const pick = (wanted && data.find(c => c.id === wanted)) || data[0]
+      setCollaborativeId(pick.id)
+      setCollaborativeName(pick.name)
     }
     setLoading(false)
   }
@@ -167,6 +175,8 @@ export default function ForumThreadList() {
     setCollaborativeName(collab?.name || '')
     setThreads([])
     setLoading(true)
+    // Keep the URL in step so refresh / back / share land on the same forum.
+    setSearchParams(id ? { collaborative: id } : {}, { replace: true })
   }
 
   const handleSignOut = async () => {
@@ -345,6 +355,7 @@ export default function ForumThreadList() {
                   cursor: 'pointer', transition: 'box-shadow 0.15s'
                 }}
                   onClick={() => navigate(`/admin/forum/${thread.id}`)}
+                  role="link"
                   onMouseOver={(e) => e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.1)'}
                   onMouseOut={(e) => e.currentTarget.style.boxShadow = '0 1px 3px rgba(0,0,0,0.05)'}
                 >
