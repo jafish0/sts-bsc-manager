@@ -265,9 +265,27 @@ A bidirectional scratchpad shared between Josh, Claude Cowork (Claude desktop ch
 
 ~~READY: 🔴 Resend-invite destroys trainer assignments + misleading "expired link" copy (2 items) — see the LAST draft at the bottom. Found live: Tracy's "expired" invite was read as a consumed single-use token (she accepted and signed in 2026-09-04; password set) — **that read was wrong; it was the scanner.** The *second* half of that draft stands on its own and shipped: `resend: true` **deletes the user**, and `collaborative_trainers` + `event_trainers` both `ON DELETE CASCADE` from `user_profiles` (verified), so Resend on an assigned trainer would silently remove their lead-trainer row. The guard now refuses, so Resend is safe.~~
 
-**READY: 🔴 TWO drafts at the bottom, both from the same root cause (side effects on a plain `GET`). Ship together.** (a) *Microsoft Safe Links consumes every invite/reset token before the human clicks* (4 items) and (b) *Three public links write on page load, so a scanner can trigger them* (4 items). The real root cause, verified from live `auth.sessions` + `edge_logs` and an RDAP lookup. Affects **every** staff invite and password reset to a `@uky.edu` address; participant registration is unaffected (no accounts). Fix is to stop verifying on page load: move the email templates to `token_hash` and call `verifyOtp` on **password submit**, not in a `useEffect`. Also: `AuthContext.jsx:76-79` stamps `invite_accepted_at` on page load, so that column currently cannot be trusted. ⚠️ **Tracy is lead trainer on the 2026-09-14 training and still has no password** — she cannot be onboarded by email until this ships.
+**✅ BOTH SAFE-LINKS DRAFTS SHIPPED 2026-09-09 (`7586051`), and the fix is now VERIFIED END TO END.** Josh flipped both email templates; all three legs pass. Superseded queue note follows:
+
+~~READY: 🔴 TWO drafts, both from the same root cause (side effects on a plain `GET`). Ship together.~~ (a) *Microsoft Safe Links consumes every invite/reset token before the human clicks* (4 items) and (b) *Three public links write on page load, so a scanner can trigger them* (4 items). The real root cause, verified from live `auth.sessions` + `edge_logs` and an RDAP lookup. Affects **every** staff invite and password reset to a `@uky.edu` address; participant registration is unaffected (no accounts). Fix is to stop verifying on page load: move the email templates to `token_hash` and call `verifyOtp` on **password submit**, not in a `useEffect`. Also: `AuthContext.jsx:76-79` stamps `invite_accepted_at` on page load, so that column currently cannot be trusted. ⚠️ **Tracy is lead trainer on the 2026-09-14 training and still has no password** — she cannot be onboarded by email until this ships.
 
 **Scope of (b):** `/unsubscribe/:token` silently unsubscribes and `/rsvp/:token?status=not_attending` fabricates a decline **and** suppresses that person's future reminders, both on page load. Verified undamaged so far (0 unsubscribes, 0 declines); the first real reminder run is **AWARE 2026-10-27, 44 registrants**, which is the deadline. `/cancel-registration/:token` is already correct and is the reference implementation. **Josh wants one-click RSVP preserved**, so the fix is asymmetric: `attending` keeps auto-applying, only `not_attending` needs a click. ⬜ Josh also has a duplicate `tracy.clemans@uky.edu` account to delete (details at the end of draft b).
+
+---
+
+**✅ VERIFICATION LOG (2026-09-09) — the Safe Links fix is proven, all three legs.** Templates flipped by Josh (Authentication → **Emails** → Templates; the nav item is no longer called "Email Templates"), rewritten role-neutral as "CTAC App", 24-hour expiry claim removed, Forgot-password fallback added, Email OTP Expiration set to 86400.
+
+1. **Recovery template, through a Safe Links mailbox** (`jafish0@uky.edu`, UKY Outlook). `POST /recover` 13:42:01 → **nothing for 56 s** → `POST /verify` 13:42:57.384 from Josh's IP → `PUT /user` 13:42:57.734. One session, created 13:42:57.499. **Zero `GET /auth/v1/verify`, zero Microsoft-range hits.**
+2. **Invite template**, twice (`joshuafisherkeller@gmail.com` agency_admin, `joshuafisherkeller+bscmember@gmail.com` team_member, both on STS-BSC Demo / Center on Trauma and Children). `POST /invite` 14:02:34 → **nothing for 3m21s** → `POST /verify` 14:05:55 → `PUT /user`. Second invite identical over 33 s. One session each, both created at submit. **Zero `GET /auth/v1/verify`.**
+3. **`invite_accepted_at` semantics** (draft item 2), confirmed as a side effect: stamped 14:05:56.067 and 14:07:36.589, i.e. **after** `last_sign_in_at` (14:05:55.653 / 14:07:36.185). Under the old `AuthContext` behaviour the stamp came from the page load and would have *preceded* the session. This is the exact field that misreported Tracy's account as accepted.
+
+**Caveat on reading these logs, stated so nobody over-claims later:** the Gmail invites do not exercise Safe Links at all, and the absence of a Microsoft hit in `edge_logs` never proves the scanner ran harmlessly, because the emailed URL now lands on Vercel and never reaches Supabase. Leg 1 is what covers the scanner. The structural argument is the durable one: there is no longer a token in any `GET`-consumable endpoint.
+
+**Also done 2026-09-09:** two non-super_admin test accounts created and recorded in `CLAUDE.md` (`beb4e75`) — **the admin-gated verification gap is closed, Code should stop deferring it**; duplicate `tracy.clemans@uky.edu` deleted (the `last_trainer` trigger correctly refused the follow-on attempt on her real account, 5×); Tracy's false-positive `invite_accepted_at` cleared to null by Josh, assignments confirmed intact (1 collab + LEAD on 2026-09-14).
+
+⬜ **Open:** Tracy still needs to complete a password reset. ⬜ Josh's in-app `app_feedback` entries from 2026-09-09 are pending a Cowork triage pass.
+
+---
 
 **✅ QUEUE IS CLEAR (2026-09-01) — all three drafts shipped.** `event_trainers` (`d04a9d3`), TIPE roster + TIPE-only hub (`f4c4845`), and the 5 PDF QA defects (`92d0c06`). Plus Josh's 2026-09-01 feedback batch (`962d951`), which Cowork was not involved in.
 
@@ -2203,3 +2221,62 @@ That one paragraph is the durable fix. Items 1 and 2 are this session's instance
 Deleting the auth user is clean and fully cascades, verified in `pg_constraint`: `user_profiles_id_fkey` is `ON DELETE CASCADE` from `auth.users`, and `collaborative_trainers_user_id_fkey` is `ON DELETE CASCADE` from `user_profiles`. **Every other FK pointing at `user_profiles` is `ON DELETE SET NULL`**, so nothing else is destroyed. Her real account (`86cd069b-604b-4298-9795-1cf68a2d6b57`) holds the AWARE row and **LEAD on the 2026-09-14 training** independently and is untouched by this.
 
 Do it before the AWARE roster or the training hub is shown to anyone, since it currently renders two Tracys. Also note the duplicate's invite landed in her real inbox, so had she clicked *that* link she would have set up the ghost account instead.
+---
+
+### 2026-09-09: One name for the app: "CTAC App" (small, but do it exactly as scoped) — READY
+
+> **Josh's decision, 2026-09-09: the app is called "CTAC App".** Both Supabase auth email templates already say it (he edited them in the dashboard, so they are not in the repo and need no change). Everything else disagrees with them and with each other.
+>
+> Today a person invited to the app receives an email headed **CTAC App**, clicks through, and lands on a page headed **Admin Portal** with **BSC Platform Manager** underneath, in a browser tab reading **STS-BSC Manager**. Three names in the first ten seconds, one of which ("Admin Portal") is simply false for the `agency_admin` and `team_member` roles that now exist.
+
+#### ⚠️ Read this before touching anything: do NOT find-and-replace
+
+**"STS-BSC" is also the name of one of the four programs** (`sts_bsc`, alongside `tic_lc`, `tipe_lc` and FourC). Program labels, `program_type` values, resource scoping, report titles and assessment copy all legitimately say STS-BSC and **must not change**. Only the strings below are the *application's* name. A blind sweep would rename the program and quietly corrupt user-facing copy across three other programs.
+
+Likewise **out of scope, leave alone**: the repo name, the GitHub URL, the Vercel project slug `sts-bsc-manager`, the Supabase project label, `frontend/README.md`, and the `// Shared constants for STS-BSC Manager` comment at `constants.js:1`. Renaming deploy-level identifiers buys nothing and breaks history.
+
+#### Item 1: a single source of truth
+
+There is already a `platformName: 'BSC Manager'` field in `frontend/src/config/programConfig.js` at lines **23, 70, 110 and 174** (once per program) and **nothing reads it** — verified by grep across `frontend/src` and `supabase/functions`. So the app has a name field it never uses, four times over.
+
+- Add `export const APP_NAME = 'CTAC App'` to `frontend/src/utils/constants.js` and reference it from every surface in item 2, so the next rename is one line.
+- Then resolve the dead field: **either** delete `platformName` from all four program configs, **or** set all four to `APP_NAME`. Do not leave four stale copies saying "BSC Manager" for someone to find later and "fix" back. Say which you chose.
+- Josh chose one name for all four programs, so do **not** make the displayed name program-dependent even though the config shape invites it.
+
+#### Item 2: the exact surfaces, all of them
+
+| file | line | now | change to |
+|---|---|---|---|
+| `frontend/index.html` | 7 | `<title>STS-BSC Manager</title>` | `CTAC App` |
+| `frontend/src/pages/Login.jsx` | 85 | `Admin Portal` (h1) | `CTAC App` |
+| `frontend/src/pages/Login.jsx` | 88 | `BSC Platform Manager` | `Center on Trauma and Children, University of Kentucky` |
+| `frontend/src/pages/AdminDashboard.jsx` | 68 | `BSC Platform Manager` (h1) | `Admin Dashboard` |
+| `frontend/src/pages/UnsubscribePage.jsx` | 64 | `all CTAC BSC Manager notifications` | `all CTAC App notifications` |
+| `frontend/src/pages/UnsubscribePage.jsx` | 81 | `CTAC BSC Manager notifications` | `CTAC App notifications` |
+| `supabase/functions/send-trainer-digest/index.ts` | 158 | `Sent by the CTAC BSC Manager every Monday morning.` | `Sent by the CTAC App every Monday morning.` |
+| `supabase/functions/send-registration-email/index.ts` | 432 | `Sent by the CTAC BSC Manager.` | `Sent by the CTAC App.` |
+| `supabase/functions/send-event-reminder/index.ts` | 509 | `on the CTAC BSC Manager.` | `on the CTAC App.` |
+
+Two of those deserve a word.
+
+**`Login.jsx:85` was the actual bug, not just an inconsistency.** "Admin Portal" is the h1 on the page every role signs in through, including the `team_member` account created today. Changing it to the app name, with the CTAC subtitle beneath, also makes the page match the email header a new user just clicked, which is the one place continuity is worth paying for.
+
+**`AdminDashboard.jsx:68` becomes "Admin Dashboard", not "CTAC App".** That page really is admin-only, and stamping the product name on every page header is noise. The app name belongs in the browser title, the sign-in page and the emails.
+
+#### Item 3: leave the `.ics` PRODID alone
+
+`send-registration-email/index.ts:226` and `send-event-reminder/index.ts:183` both emit:
+
+```
+PRODID:-//CTAC//BSC Manager//EN
+```
+
+That is an iCalendar *producer identifier*, not user-facing copy. It is never displayed, some calendar clients key behavior off it, and this codebase has already been bitten twice by calendar-invite regressions. **Do not change it.** Called out explicitly because it matches a grep for the old name and looks like an oversight.
+
+#### Verification
+
+- Grep the repo for `BSC Platform Manager`, `STS-BSC Manager` and `CTAC BSC Manager` afterwards: zero hits in `frontend/src` and `supabase/functions`. Hits remaining in `README.md`, the `constants.js` comment and the `.ics` PRODID are **correct**.
+- Grep for `STS-BSC` and confirm the program-name usages are all still present and untouched. State the count before and after.
+- **Click-through with the new test accounts** (`CLAUDE.md` → Test Accounts, added today): sign in as `agency_admin` and confirm the login page no longer says "Admin Portal" and the tab title reads "CTAC App". This is exactly the kind of item that used to ship unverified, and it no longer has to.
+- Redeploy the three edge functions with `verify_jwt: false` passed **explicitly**, then read the deployed source back and compare, per INFRASTRUCTURE.md. Copy-only changes still need the flag discipline.
+- Do **not** edit the two auth email templates. They already say "CTAC App" and they are dashboard config, not repo.
