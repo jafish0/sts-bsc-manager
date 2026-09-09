@@ -2223,7 +2223,11 @@ Deleting the auth user is clean and fully cascades, verified in `pg_constraint`:
 Do it before the AWARE roster or the training hub is shown to anyone, since it currently renders two Tracys. Also note the duplicate's invite landed in her real inbox, so had she clicked *that* link she would have set up the ghost account instead.
 ---
 
-**READY x2 at the bottom: 🔴 `user_profiles` privilege escalation + trainer bios/photos (5 items, from Josh's 2026-09-09 in-app feedback plus three bugs found while verifying it), and the "CTAC App" rename.** Do the escalation one first: **any authenticated user can currently set their own `role` to `super_admin`** (proven with a rolled-back probe), and "Remove from team" has never worked and reports success. Both touch the same `user_profiles` grants that Josh's bio request needs, so they ship together.
+**READY: THREE drafts at the bottom. Suggested order: (1) `f297b41` items 1-3 🔴 security, shipped together with (2) the role/bios/photos draft, then (3) the "CTAC App" rename.**
+
+- **🔴 `f297b41` — `user_profiles` privilege escalation + two silent no-op writes.** Any authenticated user can currently set their own `role` to `super_admin` (proven with a rolled-back probe), and "Remove from team" has never worked and reports success. ⚠️ **Items 4 and 5 of that draft are SUPERSEDED** by the newer bios design below — do not build both.
+- **Role model locked + trainer_admin scoping + Forum card + bios/photos (option B) + 2 UI items (11 items).** From a 2026-09-09 design conversation with Josh plus five in-app feedback entries. Contains the live role changes made today, and a ready-made verification matrix.
+- **"CTAC App" rename**, scoped surface by surface, with an explicit warning against find-and-replace. Do the escalation one first: **any authenticated user can currently set their own `role` to `super_admin`** (proven with a rolled-back probe), and "Remove from team" has never worked and reports success. Both touch the same `user_profiles` grants that Josh's bio request needs, so they ship together.
 
 ### 2026-09-09: One name for the app: "CTAC App" (small, but do it exactly as scoped) — READY
 
@@ -2402,3 +2406,173 @@ A `trainer_admin` lands on **AdminDashboard**, same as a super_admin but with cr
 - Item 4: upload a photo as the trainer, then edit the same trainer's bio and photo as a super_admin, then load the public hub and confirm the photo renders and **no email appears anywhere in the page source**.
 - Confirm a trainer with no photo renders a placeholder, not a broken image.
 - **Click-through verification is now available** — `CLAUDE.md` has an `agency_admin` and a `team_member` account as of today. Item 2 in particular should not ship with "⬜ admin-gated, deferred to Josh."
+---
+
+### 2026-09-09: Role model locked, trainer_admin scoping, Forum card, bios + photos, 2 small UI items (11 items) — READY
+
+> **⚠️ THIS SUPERSEDES ITEMS 4 AND 5 OF THE PREVIOUS DRAFT (`f297b41`).** That draft specced a simpler bio design written before we discovered `bsc_staff` has its own parallel bio field. **Do not build both.** Items **1, 2 and 3 of `f297b41` still stand unchanged** and are the security fixes: the `user_profiles` privilege escalation, the silent "Remove from team", and the `CLAUDE.md` rule about `.update()` without `.select()`. **Ship `f297b41` items 1-3 together with section D below**, because both touch `user_profiles` grants and doing them in two passes is how one gets half-applied.
+>
+> Everything here comes from a design conversation with Josh on 2026-09-09 plus five in-app feedback entries he filed the same day. **Every decision below is his, already made. Nothing in this draft is Code's call.**
+
+#### Live data Josh and Cowork already changed today. Do not "fix" this state.
+
+| person | role now | collaborative_trainers |
+|---|---|---|
+| Josh `jafish0@uky.edu` | `super_admin` | AWARE (coordinator) |
+| Ginny `sprang@uky.edu` | `super_admin` | **none** |
+| Leah `larigg3@uky.edu` | **`trainer_admin`** (was super_admin) | AWARE + TIC LC Demo |
+| Alex `cacl231@uky.edu` | **`trainer_admin`** (was super_admin) | STS-BSC Demo |
+| Tracy `taclem1@uky.edu` | `trainer_admin` | AWARE |
+
+Ginny deliberately stays `super_admin`. She has no trainer assignments, so **her Trainer Dashboard will render empty, and that is correct** — that dashboard reads `collaborative_trainers`/`event_trainers` by `user_id` regardless of role.
+
+**This is also a ready-made verification matrix for section B:** Leah spans two program types (`tipe_lc` + `tic_lc`) and must not see STS-BSC; Alex has only `sts_bsc`; Tracy only `tipe_lc`.
+
+---
+
+### Section A: the role model, locked
+
+Josh's words, and this is now the definition of `trainer_admin`:
+
+> "She gets her assigned collaboratives and everything inside them, her standalone trainings, registrations for her events, the Forum for her collaboratives, and resource management for her programs only. She does not get cross-collaborative analysis, staff management, or anything spanning cohorts she isn't on."
+
+**Item A1: drop `senior_leader` from the role CHECK constraint.** Nothing anywhere reads `role = 'senior_leader'`; zero users have it. The concept is really the `is_senior_leader` **boolean**, which is live and used (one user has it, `TeamMembers` counts and badges it, the invite function sets it, `senior_leader_call` events target that audience). Having both means a role that, if ever set, makes a user neither `isAgencyAdmin` nor `isTeamMember`, landing them on TeamDashboard with no permissions and no visible cause. Remove the role, keep the boolean.
+
+**Item A2: `team_leader` stays.** Zero users, but seven live code paths treat it as a synonym for `agency_admin` (`AuthContext:188`, `TeamMembers:27` and `:172`, `SmartieGoals:244`, `PdsaCycles:230`, `CollaborativeDetail:285`, `invite-team-leader:68` and `:89`). That is deliberate defensiveness. Do not remove it.
+
+**Item A3: drop the three dead permission columns.** `can_review_data`, `can_manage_collaboratives`, `can_manage_users` on `user_profiles` have **zero references** anywhere in `frontend/src` or `supabase/functions` (verified by grep). They predate roles. Each is currently `true` on one profile. Drop all three in the same migration as `f297b41` item 1, so they cannot be part of the self-UPDATE grant surface.
+
+Update the Roles section of `CLAUDE.md` to match A1 to A3 and to state the `trainer_admin` definition above verbatim.
+
+---
+
+### Section B: trainer_admin scoping (3 items)
+
+**⚠️ The trap in all three: do NOT scope with `myAdminCollaborativeIds` alone.** For a `super_admin` who is not previewing, that array is their *own* trainer assignments, not "everything" — it is 1 for Josh and **0 for Ginny**. Scoping on it alone would show Ginny an empty app. Always `isSuperAdmin ? <unscoped> : myAdminCollaborativeIds`, or use `canAdminCollaborative(id)`, which already handles super_admin correctly (`AuthContext:169-174`).
+
+**Item B1: scope the program Resource library cards.** `AdminDashboard.jsx:386` renders a card per program library (`/admin/resources?program=<key>`) and is ungated, so a trainer_admin sees all three. RLS already limits what they can *manage* to resources whose `program_type` matches one of their collaboratives, so the extra cards are a promise the database will not keep. Render only the program types present in the user's own collaboratives; super_admins keep all three.
+
+**Item B2: scope Completion Tracking.** `/admin/completion` does **no** role scoping in the frontend at all (`CompletionTracking.jsx` contains no reference to `isSuperAdmin`, `isTrainerAdmin` or `myAdminCollaborativeIds`). Josh's decision: **scoped, not hidden.** A trainer_admin sees completion data for their assigned collaboratives only.
+
+**Item B3: scope Data Visualization.** `/admin/data-visualization` branches on `isSuperAdmin`, `isAgencyAdmin` and `isTeamMember` (`DataVisualization.jsx:23`) and never considers `isTrainerAdmin`, so a trainer_admin currently falls through every branch. Same decision: **scoped.** Their assigned collaboratives only.
+
+For B2 and B3, **state plainly in the ship summary what a trainer_admin saw before your change**, because nobody has ever verified it and "it was already scoped by RLS" should not be assumed.
+
+**Item B4: `/admin/trainer` becomes the landing page for `trainer_admin`.** `App.jsx:81-86`:
+
+```js
+if (profile?.role === 'super_admin' || profile?.role === 'trainer_admin') return <AdminDashboard />
+```
+
+Send `trainer_admin` to `TrainerDashboard` instead; `super_admin` keeps AdminDashboard. This is safe **only because** section C adds the Forum, which was the last thing a trainer could not reach from the Trainer Dashboard. Everything else is reachable via `TrainerDashboard.jsx:448` → `/admin/collaboratives/:id`, and line 398 already offers a route to `/admin`. **Do not ship B4 without section C.**
+
+---
+
+### Section C: the Forum for a collaborative (2 items)
+
+**Item C1: a Forum card on `CollaborativeDetail`, for ALL program types.** Josh: *"All collaboratives."* Position it **between the Participant Hub block (line ~1350) and the Resources block (line ~1416)**, which is exactly where he asked for it. Show the thread count and the three most recent threads as clickable rows, plus a "View all" action. Do not make it TIPE-only.
+
+**Item C2: `/admin/forum` must accept a collaborative in the URL, and this is the part that would otherwise break silently.** `ForumThreadList.jsx:57-68` loads every collaborative the caller can read and then defaults to `data[0]`, first alphabetically, with a dropdown to switch. A plain link from C1 would therefore land the user in **the wrong LC's forum while looking like it worked**. Accept `?collaborative=<uuid>` (or a path param), validate the caller can read it, select it, and fall back to today's behaviour when absent. Keep the dropdown.
+
+---
+
+### Section D: bios and photos (option B) — 4 items
+
+**The discovery that reshaped this.** There are two parallel bio systems, and the one with all the content is not the one the public hub reads:
+
+| | `bsc_staff.bio` | `user_profiles.bio` |
+|---|---|---|
+| rows with content | **5 of 5** (213-499 chars) | **0 of 7** |
+| written by | super_admin via `AddStaffModal` | the person, in `StandaloneTrainingModal` |
+| displayed on | `StaffDirectory` (internal, super_admin card) | **public `TrainingHub`** `/hub/:token` |
+| requires an account | no | yes |
+
+And they do not line up: only **Ginny** matches by email. Josh's directory row is `joshua.fisherkeller@uky.edu` while his account is `jafish0@uky.edu`; Alex's are `Alex-Clark@uky.edu` vs `cacl231@uky.edu`. **Jessica Eslinger and Stephanie Gusler have no accounts at all** and deliberately will not for now (they will be trainer_admins later, once FourC or an STS-BSC cohort exists; `fourc` is a valid `program_type` with zero collaboratives today). Tracy has an account but **no** `bsc_staff` row.
+
+**Item D1: link the two, keep both. (Josh chose option B.)**
+
+- Add `bsc_staff.user_id uuid NULL REFERENCES user_profiles(id) ON DELETE SET NULL`. **Nullable is the point** — it is what lets Jessica and Stephanie hold bios and photos with no account, and makes inviting them later a one-field update.
+- Add `photo_path text NULL` to **both** `user_profiles` and `bsc_staff`. Both are needed: Tracy has an account and no directory row, Jessica has a directory row and no account.
+- **One resolution rule, written once, in one SQL helper (a function or view — not duplicated in JS):** for a `bsc_staff` row, if `user_id` is set, the linked account's `bio` and `photo_path` win; otherwise the row's own values are used. Every surface reads through that helper. Name it and say what you named it.
+- **⚠️ Map the five existing rows BY ID, not by email.** Email matching would link only Ginny and would silently orphan Josh's and Alex's bios from their accounts:
+
+  | `bsc_staff` row | link to |
+  |---|---|
+  | Ginny Sprang | `sprang@uky.edu` account |
+  | Josh Fisherkeller | `jafish0@uky.edu` account |
+  | Alex Clark | `cacl231@uky.edu` account |
+  | Jessica Eslinger | **null** |
+  | Stephanie Gusler | **null** |
+
+- For the three linked rows, `user_profiles.bio` is currently empty and `bsc_staff.bio` has real content. **Copy the directory bio up into the account** as part of the migration so nothing is lost when the account becomes authoritative, then leave the `bsc_staff.bio` value in place untouched as a historical record. Do not delete it.
+
+**Item D2: photo storage.** Josh's answers: super_admins may upload for other people (**yes**), and photos appear in StaffDirectory too (**yes**).
+
+- New storage bucket `trainer-photos`, **public**. Deliberate: the photo renders on `/hub/:token` for anonymous participants, and a private bucket would need an anon-readable SELECT policy, which is the storage/RLS subquery trap `CLAUDE.md` records as having bitten this codebase twice. A headshot published to a public page is public content. Say so in the upload UI.
+- 2 MB cap, mime types limited to `image/jpeg`, `image/png`, `image/webp`.
+- **Random filenames**, not `<user_id>/headshot.jpg`, so paths cannot be walked by user id.
+- Replacing a photo **deletes the previous object**, so files do not orphan. If you instead keep a deterministic path and upsert, you must add a cache-busting query param; say which approach you took.
+- **Downscale on upload to roughly 512px on the long edge.** Participants open the hub on phones and a 4 MB camera photo rendered at thumbnail size is a slow page for no benefit.
+- Bucket write policy: the owner for their own photo, plus super_admins for anyone's.
+
+**Item D3: who can write a bio, without widening RLS.** Josh: *"I would like to be able to do that as a Super_Admin as well."*
+
+**⚠️ This reverses a decision recorded in `CLAUDE.md`** ("`user_profiles` UPDATE RLS is self-only... don't widen it") which Code correctly honoured during the `event_trainers` work. It is a deliberate reversal, not a regression. **Update that `CLAUDE.md` line rather than leaving the two in contradiction.**
+
+**Do not widen the UPDATE policy.** After `f297b41` item 1 the policy is self-only with column grants, and widening it to super_admins would hand them write access to `role` on every row, reopening the escalation. Instead:
+
+- `set_person_bio(p_target_user uuid, p_staff_id uuid, p_bio text, p_photo_path text)` — or two narrower functions if cleaner. SECURITY DEFINER, admits **self or super_admin**, touches only `bio` and `photo_path` on the appropriate table, and raises on refusal.
+- `StandaloneTrainingModal.jsx:407` switches from its direct `.update({ bio })` to this RPC. Its "No bio yet, only they can write it" copy becomes an editor when the caller is a super_admin.
+- `AddStaffModal` writes through the RPC too, so a linked row updates the account rather than the stale directory copy.
+
+**Item D4: the bio and photo editor lives on the Trainer Dashboard.** Josh: *"let's also have them be able to manage their bio on their dashboard instead of inside the collaborative details pages."* A bio belongs to the person, not to one training.
+
+- Add a Trainer Bio card to `/admin/trainer` with the signed-in trainer's bio and photo, editable, plus photo upload and replace.
+- Bios render through `ReactMarkdown` on the public hub (`TrainingHub.jsx:161`), so the editor should say the field accepts basic markdown.
+- Leave a **read-only** view in `StandaloneTrainingModal`'s Trainer tab that points to the Trainer Dashboard for editing, so the modal still shows who is teaching without becoming a second editor. Except for super_admins, who keep an editor there per D3.
+- `training_hub_trainers(hub_token)` returns `photo_path` alongside name/bio/is_lead. **Never an email on the hub** — that rule is unchanged.
+- `StaffDirectory` renders the photo. Empty state is **initials or a neutral placeholder, never a broken image**. This is the default state today: `user_profiles.photo_path` will be null for everyone and Tracy has neither bio nor photo.
+
+---
+
+### Section E: two items straight from Josh's feedback
+
+**Item E1: collapse BSC Events by default, remembered per user.** Filed from `/admin/collaboratives/3453c7f5-...`: *"there is a section called BSC Events, can we have this be collapsed by default with a button that says click to see all sessions? This should apply to all collaborative views for all the BSCs."* Plus his follow-up decision: **remember the state per user.**
+
+- The `BSC Events` section is at `CollaborativeDetail.jsx:1026`, heading at `:1033`. **Reuse the existing `CollapsibleCard`** component already used at `TrainerDashboard.jsx:819` with `defaultOpen={false}`. Do not build a second collapsible.
+- **Put the session count in the header** (e.g. `BSC Events (8 sessions)`) so the collapsed state still carries information.
+- Persist expanded/collapsed in `localStorage`, keyed per user and per collaborative, wrapped in `try/catch` (private browsing throws). Default collapsed on first visit.
+- Applies to **all program types**.
+- Rationale worth preserving: this section holds session-link generation and materials upload, the most-used controls on the page, so remembering the state is what stops the collapse taxing a trainer a click on every visit.
+
+**Item E2: a renameable hub display name.** Filed from `/hub/695d0dd7...`: *"the title of the Hub is AWARE Year 4 TIPE LC 2026-2027 and that is pulled directly from the name of the collaborative... Can we have something on the collaborative page that says change the name of the hub. Then if we want it to be something less formal we can rename just the hub and not the collaborative itself."*
+
+- Add `collaboratives.hub_display_name text NULL`. The hub title uses `coalesce(hub_display_name, name)`, so every existing hub is unchanged until someone sets one.
+- Editable from the Participant Hub panel on `CollaborativeDetail`, next to the existing hub controls.
+- Return it from `hub_lookup` so the public page uses it. **Nothing else changes** — registration, rosters, reports and emails keep using `collaboratives.name`.
+- Incidental: that feedback row recorded `page_label` as "STS-BSC Manager", which is the `index.html` `<title>` leaking onto a participant-facing page. The rename draft above this one covers that.
+
+---
+
+### Verification
+
+**Section B, using today's real assignments as the matrix.** Sign in as each and record what they see:
+
+- **Leah** (`tipe_lc` + `tic_lc`): TIPE and TIC resource cards, **no STS-BSC card**; Completion Tracking and Data Visualization show AWARE and TIC LC Demo only.
+- **Alex** (`sts_bsc`): STS-BSC card only.
+- **Ginny** (super_admin, **zero** assignments): must still see **everything** — all three resource cards, all collaboratives, unscoped Completion Tracking and Data Visualization. **This is the regression test for the `myAdminCollaborativeIds` trap.** If Ginny's app looks empty, the scoping is wrong.
+- Josh's "View as" control previews a trainer_admin scoped to one collaborative (`AuthContext:161-163`), so use it to check the scoped experience without borrowing anyone's login.
+- **B4:** confirm a `trainer_admin` lands on `/admin/trainer` and that from there they can still reach a collaborative, its Forum, its resources and their standalone trainings. A dead end here is a failure even if the routing is technically correct.
+
+**Section C:** open the Forum card from **two different** collaboratives and confirm each lands on that collaborative's threads, not the alphabetically-first one. That is the whole point of C2.
+
+**Section D:**
+- After the migration: the three linked `bsc_staff` rows resolve to their account, the two unlinked ones resolve to their own values, and no bio text was lost.
+- Upload a photo as Tracy (account, no directory row) and as a super_admin on Jessica's behalf (directory row, no account). Both must work through the same helper.
+- Load a public training hub and confirm the photo renders and **no email string appears anywhere in the page source**.
+- Confirm a person with no photo renders a placeholder.
+- Re-run the `f297b41` escalation probe afterwards and confirm it still fails. Adding a bio RPC must not have reopened it.
+
+**Section E:** collapse state survives a reload and is per collaborative; a fresh browser defaults to collapsed; the count is right. For E2, set a hub display name and confirm the public hub changes while the collaborative's name is untouched everywhere else.
+
+**Click-through verification is available now.** `CLAUDE.md` has an `agency_admin` and a `team_member` test account as of today, and three real trainer_admins exist. Very little in this draft should ship with "⬜ admin-gated, deferred to Josh."
