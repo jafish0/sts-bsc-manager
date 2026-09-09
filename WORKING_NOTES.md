@@ -2238,7 +2238,7 @@ Do it before the AWARE roster or the training hub is shown to anyone, since it c
 
 **✅ ALL THREE PRIOR DRAFTS SHIPPED 2026-09-09** (`ddf09df` security + the 11-item role/bios/photos batch, `93d02b8` the CTAC App rename). Superseded queue note follows the new one.
 
-**READY: 🔴 Trainers cannot add or delete materials on their own standalone trainings (3 items) — see the LAST draft at the bottom.** Reported live by Tracy from the **2026-09-14** training she leads, 5 days out. All three write policies on `bsc_event_documents` gate on `is_admin_for_collaborative(collaborative_id)`, and standalone trainings have `collaborative_id = NULL`, which is **true for a super_admin and false for a trainer_admin** — so Josh could do it and she could not. `can_admin_bsc_event` already returns true for her and simply is not wired in. Also: she was shown the raw Postgres RLS string.
+**READY: 🔴 Trainers cannot add or delete materials on their own standalone trainings (3 items) — see the LAST draft at the bottom.** Reported live by Tracy from the **2026-09-14** training she leads, 5 days out. All three write policies on `bsc_event_documents` gate on `is_admin_for_collaborative(collaborative_id)`, and standalone trainings have `collaborative_id = NULL`, which is **true for a super_admin and false for a trainer_admin** — so Josh could do it and she could not. `can_admin_bsc_event` already returns true for her and simply is not wired in. Also: she was shown the raw Postgres RLS string. **No open decisions in this draft** — all three items are settled.
 
 ~~READY: THREE drafts at the bottom. Suggested order: (1) `f297b41` items 1-3 🔴 security, shipped together with (2) the role/bios/photos draft, then (3) the "CTAC App" rename. | 🔴 `f297b41` — `user_profiles` privilege escalation + two silent no-op writes. Any authenticated user can currently set their own `role` to `super_admin` (proven with a rolled-back probe), and "Remove from team" has never worked and reports success. ⚠️ Items 4 and 5 of that draft are SUPERSEDED by the newer bios design below — do not build both. | Role model locked + trainer_admin scoping + Forum card + bios/photos (option B) + 2 UI items (11 items). From a 2026-09-09 design conversation with Josh plus five in-app feedback entries. Contains the live role changes made today, and a ready-made verification matrix. | "CTAC App" rename, scoped surface by surface, with an explicit warning against find-and-replace. Do the escalation one first: any authenticated user can currently set their own `role` to `super_admin` (proven with a rolled-back probe), and "Remove from team" has never worked and reports success. Both touch the same `user_profiles` grants that Josh's bio request needs, so they ship together.~~
 
@@ -2644,7 +2644,7 @@ Keep the SELECT policies as they are. Public read for standalone trainings is al
 - Do the same on the delete path.
 - **This is a general class, not one message.** Any admin-gated write that can be refused by RLS should not print the policy failure to the user. Worth a sweep of the other upload and delete handlers in the same pass, and a line in `CLAUDE.md` alongside the existing `.update()`-without-`.select()` note.
 
-#### Item 3 (secondary, not what she hit): the storage policies are looser than the table
+#### Item 3: tighten the storage policies to match (do it in this pass)
 
 The `event-documents` bucket policies are role-only:
 
@@ -2654,7 +2654,11 @@ The `event-documents` bucket policies are role-only:
 
 for both INSERT and DELETE. So **any** trainer_admin can upload to or delete from **any** event's folder, including events they have nothing to do with. That is looser than the table policy this draft is tightening, and it means the table is the only thing actually scoping materials.
 
-Consider gating the storage policies on `can_admin_bsc_event` too, deriving the event id from the first path segment (paths are `${eventId}/${uuid}.${ext}`, set in `EventMaterialsManager.jsx:66`). **⬜ Josh's call on whether to do it now** — exposure is modest since paths are keyed by event id and every trainer_admin is CTAC staff, and it is a different change from the bug fix. Do not silently skip it either way; say which you did.
+**Josh's decision (2026-09-09): a trainer_admin should be able to upload and delete on the trainings they are assigned to, and that is the whole intent.** Nothing about that requires write access to *other people's* event folders, so gate the storage policies on `can_admin_bsc_event` as well, deriving the event id from the first path segment (paths are `${eventId}/${uuid}.${ext}`, set in `EventMaterialsManager.jsx:66`).
+
+Reason for doing it in the same pass rather than later: once item 1 lands, the table is correctly scoped and the storage layer becomes the only place where scoping silently does not hold. That mismatch reads as "materials are scoped per event" while in fact any trainer_admin can overwrite or delete any event's files. Cheap to fix now, confusing to discover later.
+
+**The one thing to check before shipping it:** confirm no upload path writes to the bucket before the event id is known, and that the path always starts with the event id. It does in `EventMaterialsManager`, but sweep for other writers to `event-documents` first. If one exists that cannot supply an event id, say so and leave the storage policies alone rather than breaking it.
 
 #### Note: no orphaned files, and the client deserves credit
 
