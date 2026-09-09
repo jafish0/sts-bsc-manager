@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { supabase } from '../utils/supabase'
 import { useAuth } from '../contexts/AuthContext'
+import { APP_NAME } from '../utils/constants'
 import ctacLogo from '../assets/UKCTAC_logoasuite_web__primary_tagline_color.png'
 import ukLogo from '../assets/UK_Lockup-286.png'
 
@@ -82,10 +83,10 @@ function Login() {
             style={{ maxWidth: '240px', width: '100%', height: 'auto', marginBottom: '1rem' }}
           />
           <h1 style={{ color: '#0E1F56', fontSize: '1.75rem', marginBottom: '0.5rem' }}>
-            Admin Portal
+            {APP_NAME}
           </h1>
           <p style={{ color: '#6b7280', fontSize: '0.95rem' }}>
-            BSC Platform Manager
+            Center on Trauma and Children, University of Kentucky
           </p>
         </div>
 

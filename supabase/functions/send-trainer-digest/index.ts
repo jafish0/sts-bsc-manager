@@ -155,7 +155,7 @@ Deno.serve(async (req) => {
           ${sections.join('')}
           <p style="font-size: 13px; color: #6b7280; margin-top: 1.5rem;">Open the <a href="https://bsc.ctac.app/admin/trainer">Trainer Dashboard</a> for details.</p>
           <hr style="margin-top: 2rem; border: 0; border-top: 1px solid #e5e7eb;"/>
-          <p style="font-size: 11px; color: #9ca3af;">Sent by the CTAC BSC Manager every Monday morning.${unsubUrl ? ` <a href="${unsubUrl}" style="color:#9ca3af; text-decoration: underline;">Unsubscribe from all notifications</a>.` : ''}</p>
+          <p style="font-size: 11px; color: #9ca3af;">Sent by the CTAC App every Monday morning.${unsubUrl ? ` <a href="${unsubUrl}" style="color:#9ca3af; text-decoration: underline;">Unsubscribe from all notifications</a>.` : ''}</p>
         </div></body></html>`
       const text = `Your weekly collaborative digest\n\n${textSections.join('\n\n')}\n\nTrainer Dashboard: https://bsc.ctac.app/admin/trainer${unsubUrl ? `\n\nUnsubscribe: ${unsubUrl}` : ''}`
 

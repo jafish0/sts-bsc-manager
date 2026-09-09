@@ -1,5 +1,10 @@
 // Shared constants for STS-BSC Manager
 
+// The application's name (Josh, 2026-09-09): "CTAC App". Browser title, the
+// sign-in page and the email footers all read this. NOT the program names —
+// STS-BSC / TIC LC / TIPE LC / FourC are programs and stay as they are.
+export const APP_NAME = 'CTAC App'
+
 // STSI-OA domain options (used in SmartieGoalForm, Resources, etc.)
 export const DOMAIN_OPTIONS = [
   { value: 'resilience', label: 'Domain 1 — Promotion of Resilience Building Activities' },

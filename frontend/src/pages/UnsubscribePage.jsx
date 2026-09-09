@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import { supabase } from '../utils/supabase'
+import { APP_NAME } from '../utils/constants'
 
 const NAVY = '#0E1F56'
 
@@ -61,7 +62,7 @@ export default function UnsubscribePage() {
       {unsubscribed ? (
         <>
           <p style={{ color: '#374151' }}>
-            You've been unsubscribed from all CTAC BSC Manager notifications.
+            You've been unsubscribed from all {APP_NAME} notifications.
             You won't receive event reminders, RSVP requests, or other automated emails.
             (Account-level emails like password resets are unaffected.)
           </p>
@@ -78,7 +79,7 @@ export default function UnsubscribePage() {
       ) : (
         <>
           <p style={{ color: '#374151' }}>
-            You're currently subscribed to CTAC BSC Manager notifications — event reminders, RSVP requests,
+            You're currently subscribed to {APP_NAME} notifications — event reminders, RSVP requests,
             and other automated emails. Account-level emails like password resets are unaffected either way.
           </p>
           <button

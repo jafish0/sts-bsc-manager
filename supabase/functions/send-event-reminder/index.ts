@@ -506,7 +506,7 @@ Deno.serve(async (req) => {
             </p>
             <table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin: 24px 0 0 0;"><tr><td style="border-top: 1px solid #e5e7eb; font-size: 0; line-height: 0;">&nbsp;</td></tr></table>
             <p style="${FONT} font-size: 11px; line-height: 15px; color: #9ca3af; margin: 12px 0 0 0;">
-              You're receiving this because you're ${r.source === 'member' ? 'a member of' : 'registered for'} <span style="font-weight: bold;">${esc(event.collaboratives?.name || 'a collaborative')}</span> on the CTAC BSC Manager.
+              You're receiving this because you're ${r.source === 'member' ? 'a member of' : 'registered for'} <span style="font-weight: bold;">${esc(event.collaboratives?.name || 'a collaborative')}</span> on the CTAC App.
               ${footerLink ? `<a href="${footerLink.url}" style="color: #9ca3af; text-decoration: underline;">${esc(footerLink.label)}</a>.` : ''}
             </p>
           </td></tr>

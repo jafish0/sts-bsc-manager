@@ -1,3 +1,4 @@
+import { APP_NAME } from '../utils/constants'
 // Program configuration for the multi-program BSC Platform
 // Each program type defines branding, assessment info, and feature flags
 
@@ -20,7 +21,7 @@ export const PROGRAM_BRANDING = {
     fullName: 'Secondary Traumatic Stress Breakthrough Series Collaborative',
     assessmentTitle: 'STS-BSC Assessment',
     subtitle: 'STS Breakthrough Series Collaborative Manager',
-    platformName: 'BSC Manager',
+    platformName: APP_NAME,
     // Feature flags
     hasStsPat: true,
     hasSupervisorSelfRating: true,
@@ -67,7 +68,7 @@ export const PROGRAM_BRANDING = {
     fullName: 'Trauma-Informed Care Learning Collaborative',
     assessmentTitle: 'TIC LC Assessment',
     subtitle: 'Trauma-Informed Care Learning Collaborative Manager',
-    platformName: 'BSC Manager',
+    platformName: APP_NAME,
     hasStsPat: false,
     hasSupervisorSelfRating: false,
     hasOfficeVisual: false,
@@ -107,7 +108,7 @@ export const PROGRAM_BRANDING = {
     fullName: 'Trauma-Informed Practices for Educators and School Personnel Learning Collaborative',
     assessmentTitle: 'TIPE LC Assessment',
     subtitle: 'Trauma-Informed Practices for Educators LC Manager',
-    platformName: 'BSC Manager',
+    platformName: APP_NAME,
     hasStsPat: false,
     hasSupervisorSelfRating: false,
     hasOfficeVisual: false,
@@ -171,7 +172,7 @@ export const PROGRAM_BRANDING = {
     fullName: 'FourC Occupational Trauma',
     assessmentTitle: 'FourC Assessment',
     subtitle: 'FourC Occupational Trauma Manager',
-    platformName: 'BSC Manager',
+    platformName: APP_NAME,
     hasStsPat: true,
     hasSupervisorSelfRating: false,
     hasOfficeVisual: false,

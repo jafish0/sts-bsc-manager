@@ -429,7 +429,7 @@ Deno.serve(async (req) => {
             ${eventsTable}
             ${kind !== 'cancellation' ? `<p style="${FONT} font-size: 13px; line-height: 18px; color: #6b7280; margin: 20px 0 0 0;">Need to cancel? <a href="${cancelUrl}" style="color: #0E1F56; text-decoration: underline;">Cancel my registration</a>.</p>` : ''}
             <table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin: 24px 0 0 0;"><tr><td style="border-top: 1px solid #e5e7eb; font-size: 0; line-height: 0;">&nbsp;</td></tr></table>
-            <p style="${FONT} font-size: 11px; line-height: 15px; color: #9ca3af; margin: 12px 0 0 0;">Sent by the CTAC BSC Manager. If this was unexpected, you can ignore it.</p>
+            <p style="${FONT} font-size: 11px; line-height: 15px; color: #9ca3af; margin: 12px 0 0 0;">Sent by the CTAC App. If this was unexpected, you can ignore it.</p>
           </td></tr>
         </table>
       </td>

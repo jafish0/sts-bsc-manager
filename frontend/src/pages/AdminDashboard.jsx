@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import { supabase } from '../utils/supabase'
 import { PROGRAM_TYPE_COLORS } from '../config/programConfig'
+import { APP_NAME } from '../utils/constants'
 import InviteStaffModal from '../components/InviteStaffModal'
 
 export default function AdminDashboard() {
@@ -65,9 +66,9 @@ export default function AdminDashboard() {
       }}>
         <div style={{ maxWidth: '1200px', margin: '0 auto', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <div>
-            <h1 style={{ margin: 0, fontSize: '1.875rem' }}>BSC Platform Manager</h1>
+            <h1 style={{ margin: 0, fontSize: '1.875rem' }}>Admin Dashboard</h1>
             <p style={{ margin: '0.25rem 0 0 0', opacity: 0.9, fontSize: '0.875rem' }}>
-              Admin Dashboard
+              {APP_NAME} — Center on Trauma and Children
             </p>
           </div>
           <button
