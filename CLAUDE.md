@@ -162,6 +162,11 @@ Protected (all via ProtectedRoute):
 
 ## Test Accounts
 - `jafish0@uky.edu` — super_admin (Josh's account)
-- ⚠️ **`test@uky.edu` / `1234` no longer exists.** Verified 2026-07-29: sign-in returns `invalid_credentials`, and `user_profiles` currently contains **only super_admins** — the non-admin accounts went away in the collaborative rebuild. Do not rely on it.
+- `joshuafisherkeller@gmail.com` — **`agency_admin`** (team leader), team **Center on Trauma and Children**, collaborative **STS-BSC Demo** (`0817ebbd-8828-497b-95b1-8080d75e4e0e`). Created 2026-09-09.
+- `joshuafisherkeller+bscmember@gmail.com` — **`team_member`** ("Testy McTesterpants"), **same team**, so team-scoping is testable by comparing the two. Created 2026-09-09.
+- ⚠️ **Never record a password here.** Both are Josh's Gmail (plus-addressing, one inbox); ask him if a session is needed.
+- ⬜ `test@uky.edu` / `1234` is long gone (verified 2026-07-29). Do not rely on it.
 
-**Consequence:** with no agency_admin or team_member account, Claude Code cannot click-through verify any team-scoped or admin-gated UI, so those items ship with verification deferred to Josh. Restoring one `agency_admin` and one `team_member` on a **demo** collaborative (never a real cohort) would fix that. Account creation is Josh's — see the to-do in `INFRASTRUCTURE.md`. Record the email + role + team here once they exist; **never a password**.
+**✅ Resolved 2026-09-09.** The two accounts above end the long-standing gap where every team-scoped and admin-gated item shipped with verification deferred to Josh. **Claude Code should now click-through verify that UI itself** rather than writing "⬜ admin-gated, not verified" and handing it back. Both live on a demo collaborative, never a real cohort, so exercising them is safe.
+
+Two caveats worth keeping in mind. `agency_admin` is scoped to its own team, so it cannot stand in for `super_admin` or `trainer_admin` checks. And STS-BSC Demo is team-based and assessment-driven, so these accounts exercise nothing on the TIPE side, which is teamless and has no participant accounts at all by design.
